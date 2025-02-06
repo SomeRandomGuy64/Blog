@@ -77,7 +77,6 @@
 .light-mode a {
     color:#4caf50;
     text-decoration: none;
-    transition: color 0.3s ease;
 }
 
 .light-mode a:active {
@@ -100,7 +99,6 @@
 .dark-mode a {
     color:#c3540a;
     text-decoration: none;
-    transition: color 0.3s ease;
 }
 
 .dark-mode a:active {
