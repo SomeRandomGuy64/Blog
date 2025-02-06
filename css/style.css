@@ -1,0 +1,143 @@
+:root {
+    --bg-color: #111;
+    --text-color: #eee;
+}
+
+.theme-toggle-wrapper {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    z-index: 1000;
+}
+
+.toggle-button {
+    position: relative;
+    width: 60px;
+    height: 30px;
+    background-color: #c3540a;
+    border-radius: 30px;
+    transition: background-color 0.3s ease;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.toggle-button img {
+    position: absolute;
+    top: 50%;
+    left: 5px;
+    width: 28px;
+    height: 28px;
+    transform: translateY(-50%);
+    transition: left 0.3s ease, transform 0.3s ease;
+    z-index: 1;
+    opacity: 0;
+}
+
+.toggle-button::before{
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 5px;
+    width: 0px;
+    height: 0px;
+    background-color: white;
+    border-radius: 50%;
+    transform: translateY(-50%);
+    transition: left 0.3s ease;
+}
+
+/* light mode syling */
+
+.light-mode {
+    --bg-color: #eee;
+    --text-color: #111;
+}
+
+.light-mode .toggle-button {
+    background-color: #4caf50;
+}
+
+.light-mode .toggle-button::before {
+    left: 33px;
+}
+
+.light-mode .toggle-button img.light {
+    opacity: 1;
+}
+
+.light-mode .toggle-button img {
+    left: 45px;
+    transform: translate(-50%, -50%);
+}
+
+.light-mode a {
+    color:#4caf50;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.light-mode a:active {
+    color:#267f29;
+}
+
+.light-mode a:visited {
+    color:#491283;
+}
+
+/* dark mode styling */
+.dark-mode .toggle-button img.dark {
+    opacity: 1;
+}
+
+.dark-mode .toggle-button img.light {
+    opacity: 0;
+}
+
+.dark-mode a {
+    color:#c3540a;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.dark-mode a:active {
+    color:#ea7e35;
+}
+
+.dark-mode a:visited {
+    color:#8643ce;
+}
+
+@font-face {
+    font-family: 'JetBrains Mono';
+    src: url('../assets/fonts/JetBrains\ Mono/JetBrainsMono-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+}
+
+body {
+    margin: 40px auto;
+    max-width: 800px;
+    line-height: 1.6;
+    color: var(--text-color);
+    background-color: var(--bg-color);
+    padding: 0 10px;
+    font-family: 'JetBrains Mono', monospace;
+    text-align: justify;
+    position: relative;
+}
+
+h1 {
+    margin-top: 60px;
+    text-align: center;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    max-width: 800%;
+    height: auto;
+}
