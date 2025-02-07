@@ -69,6 +69,10 @@
     opacity: 1;
 }
 
+.light-mode .toggle-button img.dark {
+    opacity: 0;
+}
+
 .light-mode .toggle-button img {
     left: 45px;
     transform: translate(-50%, -50%);
@@ -88,24 +92,24 @@
 }
 
 /* dark mode styling */
-.dark-mode .toggle-button img.dark {
+.toggle-button img.dark {
     opacity: 1;
 }
 
-.dark-mode .toggle-button img.light {
+.toggle-button img.light {
     opacity: 0;
 }
 
-.dark-mode a {
+a {
     color:#c3540a;
     text-decoration: none;
 }
 
-.dark-mode a:active {
+a:active {
     color:#ea7e35;
 }
 
-.dark-mode a:visited {
+a:visited {
     color:#8643ce;
 }
 
