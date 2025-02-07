@@ -124,7 +124,7 @@ body {
     background-color: var(--bg-color);
     padding: 0 10px;
     font-family: 'JetBrains Mono', monospace;
-    text-align: justify;
+    text-align: left;
     position: relative;
 }
 
