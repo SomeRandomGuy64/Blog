@@ -7,16 +7,10 @@ let isLightMode = false;
 if (localStorage.getItem("theme") === "light") {
     body.classList.add("light-mode");
     isLightMode = true;
-}
-
-if (localStorage.getItem("theme") === "dark") {
-    body.classList.add("dark-mode");
-    isLightMode = false;
-}
+}
 
 toggleButton.addEventListener("click", () => {
-    body.classList.toggle("light-mode");
-    body.classList.toggle("dark-mode");
+    body.classList.toggle("light-mode");
     document.dispatchEvent(new CustomEvent("themeChange", { detail: isLightMode }));
 
     // Save preference to local storage
