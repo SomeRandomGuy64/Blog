@@ -1,8 +1,11 @@
-attribute vec3 aPos;
+#version 300 es
 
-varying vec3 vPos;
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aColour;
+
+out vec3 fragColour;
 
 void main() {
-    vPos = aPos;
+    fragColour = aColour;
     gl_Position = vec4(aPos, 1.0);
 }

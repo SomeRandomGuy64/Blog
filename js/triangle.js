@@ -1,9 +1,9 @@
 // Get the canvas and WebGL context
 const canvas = document.getElementById("glCanvas");
-const gl = canvas.getContext("webgl");
+const gl = canvas.getContext("webgl2");
 
 if (!gl) {
-    console.error("WebGL not supported");
+    console.error("WebGL 2 not supported");
 }
 
 // load shader files asynchronously
@@ -43,9 +43,10 @@ async function init() {
 
     // Define triangle vertices
     const vertices = new Float32Array([
-        0.0,  0.5, 0.0,      // Top
-       -0.5, -0.5, 0.0,      // Bottom left
-        0.5, -0.5, 0.0       // Bottom Right
+        // coords       // colours
+        0.0,  0.5, 0.0, 0.0, 0.0, 1.0,      // Blue, Top
+       -0.5, -0.5, 0.0, 0.0, 1.0, 0.0,      // Green, Bottom left
+        0.5, -0.5, 0.0, 1.0, 0.0, 0.0       // Red, Bottom Right
     ]);
 
     // Create buffer
@@ -53,10 +54,14 @@ async function init() {
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
 
-    // Get attribute location, enable it
-    const positionLocation = gl.getAttribLocation(shaderProgram, "aPos");
-    gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(positionLocation);
+    // enable vertex coordinates
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 6 * 4, 0);
+    gl.enableVertexAttribArray(0);
+
+    // enable colour coordinates
+    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 6 * 4, 3 * 4);
+    gl.enableVertexAttribArray(1);
+
     // Use shader program and draw
     gl.useProgram(shaderProgram);
 
