@@ -32,10 +32,28 @@ Here are the results:
 
 {{< figure src="screenshot-3.png" alt="Screenshot of the Claude comparison with Whisper, Soniox and EasyOCR, showing that both Whisper and Soniox beats EasyOCR" caption="*Yet again, EasyOCR loses*" >}}
 
-And here we see EasyOCR losing again, it can't keep up with either the Soniox or Whisper models. Now, one caveat is that running a local model does require a good GPU, if you don't have that or the money for Soniox then it may be worth using EasyOCR, but at that point I'd probably recommend sticking to content with human made transcripts available.
+And here we see EasyOCR losing again, it can't keep up with either the Soniox or Whisper models, that is, according to Claude. But what if I did a manual check?
+
+{{< figure src="screenshot-4.png" alt="02:30" caption="*02:30*" >}}
+
+{{< figure src="screenshot-5.png" alt="12:00" caption="*12:00*" >}}
+
+{{< figure src="screenshot-6.png" alt="17:00" caption="*17:00*" >}}
+
+{{< figure src="screenshot-7.png" alt="38:02" caption="*12:00*" >}}
+
+{{< figure src="screenshot-8.png" alt="55:00" caption="*55:00*" >}}
+
+{{< figure src="screenshot-9.png" alt="56:04" caption="*56:04*" >}}
+
+If you look at the images provided and compare them to the results you might notice somthing, Claude was dead wrong. Most of the time EasyOCR actually transcribes the subtitles perfectly or near perfectly. There are some issues like it interpreting III as 川 and I have no idea what "（cueほぼ欠落）" is supposed to mean, but all in all it does a really good job. Whisper and Soniox aren't bad either but there are more mistakes and the timing is slightly off for both of them too.
 
 I'd personally ignore Claude's comparison between Whisper and Soniox as Claude doesn't know how accurate either are to the original video. Also ignore anything it says about ElevenLabs, it is more expensive than Soniox but I don't know where its getting the 17x cheaper figure from or why it even included ElevenLabs in the first place. In my experience Soniox is roughlt around 4x - 6x cheaper than ElevenLabs (which is still significant).
 
 ## Conclusion
 
-OCR just isn't there yet for Japanese. It's a shame considering these videos have subtitles, presumably written by a human, which would have been perfect, but alas, we can't use them for our immersion learning. I'd just recommend using Soniox or a local model, it's frustrating but there's nothing much we can do about it.
+So, with my hands on manual checks you might expect me to recommend EasyOCR right? Well... the main problem here is that this video was a best case scenario: Big White text on a black background.
+
+Soniox is still accurate enough all things considered and I'm sure EasyOCR would've done much worse if the baked in subtitles weren't as clean as they are. So honestly? Testing is inconclusive, I'll have to test videos with messier subtitles. 
+
+Though, I would actually recommend using OCR for videos like this one, it seems to work incredibly well.
