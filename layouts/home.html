@@ -1,0 +1,18 @@
+{{ define "main" }}
+  <h1>{{ .Title }}</h1>
+  {{ .Content }}
+  {{ partial "webgl.html" . }}
+
+  <h2>Latest articles</h2>
+  <ul class="article-list">
+    {{ range first 5 (where site.RegularPages "Section" "articles") }}
+    <li>
+      <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+      <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "Jan 2, 2006" }}</time>
+    </li>
+    {{ else }}
+    <li>No articles yet.</li>
+    {{ end }}
+  </ul>
+  <p><a href="{{ relURL "articles" }}">All articles →</a></p>
+{{ end }}

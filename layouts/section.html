@@ -1,0 +1,17 @@
+{{ define "main" }}
+  <h1>{{ .Title }}</h1>
+  {{ .Content }}
+  <ul class="article-list">
+    {{ range .Pages.ByDate.Reverse }}
+    <li>
+      <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+      <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "Jan 2, 2006" }}</time>
+      {{ with .Params.tags }}
+      <span class="tags">{{ range . }}<a href="{{ (printf "/tags/%s" (urlize .)) | relURL }}">#{{ . }}</a> {{ end }}</span>
+      {{ end }}
+    </li>
+    {{ else }}
+    <li>No articles yet.</li>
+    {{ end }}
+  </ul>
+{{ end }}

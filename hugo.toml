@@ -1,0 +1,34 @@
+baseURL = "https://fazon.nexus/"
+locale = "en"
+title = "Fazon Nexus"
+enableRobotsTXT = true
+
+[params]
+  description = "Notes, logs, and tools from my Japanese language-learning journey — with the occasional WebGL experiment."
+  author = "Faizan"
+
+# Allow raw HTML (e.g. <ruby> furigana) inside Markdown content.
+[markup]
+  [markup.goldmark.renderer]
+    unsafe = true
+  [markup.highlight]
+    noClasses = false
+
+[taxonomies]
+  tag = "tags"
+  category = "categories"
+
+# Generate an RSS feed for the home page and each section (e.g. /articles/).
+[outputs]
+  home = ["html", "rss"]
+  section = ["html", "rss"]
+
+[menu]
+  [[menu.main]]
+    name = "Articles"
+    pageRef = "/articles"
+    weight = 10
+  [[menu.main]]
+    name = "About"
+    pageRef = "/about"
+    weight = 20

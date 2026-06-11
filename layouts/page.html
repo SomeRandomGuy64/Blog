@@ -1,0 +1,12 @@
+{{ define "main" }}
+  <article>
+    <h1>{{ .Title }}</h1>
+    {{ if and .Date (eq .Section "articles") }}
+    <p class="meta"><time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "January 2, 2006" }}</time></p>
+    {{ end }}
+    {{ .Content }}
+    {{ with .Params.tags }}
+    <p class="tags">{{ range . }}<a href="{{ (printf "/tags/%s" (urlize .)) | relURL }}">#{{ . }}</a> {{ end }}</p>
+    {{ end }}
+  </article>
+{{ end }}

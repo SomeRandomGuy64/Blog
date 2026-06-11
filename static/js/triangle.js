@@ -27,8 +27,8 @@ function compileShader(gl, type, source) {
 
 // Initialise WebGL after loading shaders
 async function init() {
-    const vertexShaderSource = await loadShaderFile("../shaders/triangle/triangle.vert");
-    const fragmentShaderSource = await loadShaderFile("../shaders/triangle/triangle.frag");
+    const vertexShaderSource = await loadShaderFile("/shaders/triangle/triangle.vert");
+    const fragmentShaderSource = await loadShaderFile("/shaders/triangle/triangle.frag");
 
     const vertexShader = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
     const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);

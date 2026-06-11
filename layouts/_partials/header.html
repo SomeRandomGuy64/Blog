@@ -1,0 +1,12 @@
+<div class="theme-toggle-wrapper">
+  <div id="themeToggle" class="toggle-button">
+    <img class="dark" src="{{ relURL "assets/images/full-moon.png" }}" alt="Dark Mode Icon"/>
+    <img class="light" src="{{ relURL "assets/images/sunny.png" }}" alt="Light Mode Icon"/>
+  </div>
+</div>
+<nav class="site-nav">
+  <a href="{{ relURL "" }}">Home</a>
+  {{ range site.Menus.main }}
+  <a href="{{ .URL }}">{{ .Name }}</a>
+  {{ end }}
+</nav>
