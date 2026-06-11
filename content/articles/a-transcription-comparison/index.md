@@ -40,7 +40,7 @@ And here we see EasyOCR losing again, it can't keep up with either the Soniox or
 
 {{< figure src="screenshot-6.png" alt="17:00" caption="*17:00*" >}}
 
-{{< figure src="screenshot-7.png" alt="38:02" caption="*12:00*" >}}
+{{< figure src="screenshot-7.png" alt="38:02" caption="*38:02*" >}}
 
 {{< figure src="screenshot-8.png" alt="55:00" caption="*55:00*" >}}
 
