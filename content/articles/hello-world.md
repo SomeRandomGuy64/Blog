@@ -1,7 +1,7 @@
 +++
 title = "Hello, World"
 date = 2026-06-11
-draft = false
+draft = true
 tags = ["meta"]
 categories = ["updates"]
 +++
