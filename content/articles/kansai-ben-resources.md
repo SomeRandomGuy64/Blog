@@ -26,6 +26,7 @@ I've been collecting content for immersing in Kansai-ben (関西弁), and I figu
 - [とろサーモン / tokuivideo](https://www.youtube.com/@tokuivideo)
 - [かまいたち](https://www.youtube.com/@kamaitachi.channel)
 - [やまうち界隈](https://www.youtube.com/@やまうち界隈)
+- [osakataro](https://www.youtube.com/@osakataro)
 
 ## Downloadable resources
 
