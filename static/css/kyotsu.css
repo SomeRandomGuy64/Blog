@@ -1,0 +1,142 @@
+/* Kyotsu section — pitch-accent tools. Meshes with site: JetBrains Mono,
+   dark default with .light-mode overrides, orange (dark) / green (light) accent. */
+
+:root {
+  --jp: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", "Meiryo", sans-serif;
+  --k-surface: #1a1a1a;
+  --k-surface2: #242424;
+  --k-line: rgba(255, 255, 255, 0.14);
+  --k-muted: #9a9a9a;
+  --k-accent: #c3540a;
+  --k-accent-ink: #ea7e35;
+  --k-accent-soft: rgba(195, 84, 10, 0.16);
+  --k-good: #4bab6c;
+  --k-good-soft: rgba(75, 171, 108, 0.15);
+  --k-bad: #e2564a;
+  --k-bad-soft: rgba(226, 86, 74, 0.15);
+  --k-hi: #e07a2f;
+  --k-lo: #6a6a6a;
+}
+
+body.light-mode {
+  --k-surface: #ffffff;
+  --k-surface2: #f1f1f1;
+  --k-line: rgba(0, 0, 0, 0.14);
+  --k-muted: #666666;
+  --k-accent: #3f9142;
+  --k-accent-ink: #267f29;
+  --k-accent-soft: rgba(76, 175, 80, 0.16);
+  --k-good: #2e9e57;
+  --k-good-soft: rgba(46, 158, 87, 0.14);
+  --k-bad: #cc3f34;
+  --k-bad-soft: rgba(204, 63, 52, 0.12);
+  --k-hi: #3f9142;
+  --k-lo: #b0b0b0;
+}
+
+/* ---- section landing: tool cards ---- */
+/* 京ツ wordmark — sits directly above the page title, matching its prominence */
+.kyotsu-wordmark {
+  text-align: center; font-family: var(--jp);
+  font-size: 2em; font-weight: 700; line-height: 1.2; letter-spacing: 0.1em;
+  color: var(--k-accent); margin: 60px 0 0;
+}
+.kyotsu-wordmark + h1 { margin-top: 4px; }
+
+/* ---- the quiz ---- */
+.kyotsu-quiz { max-width: 560px; margin: 26px auto 0; }
+.kyotsu-quiz * { box-sizing: border-box; }
+.kyotsu-quiz .jp { font-family: var(--jp); }
+.kyotsu-quiz .mono { font-family: 'JetBrains Mono', monospace; }
+
+.kyotsu-quiz .score {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+  background: var(--k-line); border: 1px solid var(--k-line);
+  border-radius: 12px; overflow: hidden; margin-bottom: 20px;
+}
+.kyotsu-quiz .score .cell { background: var(--k-surface); padding: 12px 8px; text-align: center; }
+.kyotsu-quiz .score .n {
+  font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 400;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+}
+.kyotsu-quiz .score .n.acc { color: var(--k-accent); }
+.kyotsu-quiz .score .k {
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--k-muted); margin-top: 3px;
+}
+
+.kyotsu-quiz .card {
+  background: var(--k-surface); border: 1px solid var(--k-line);
+  border-radius: 18px; padding: clamp(20px, 5vw, 30px);
+}
+.kyotsu-quiz .prompt { text-align: center; }
+.kyotsu-quiz .prompt .reading { font-size: clamp(48px, 14vw, 76px); font-weight: 700; line-height: 1; letter-spacing: 0.02em; }
+.kyotsu-quiz .prompt .hint { color: var(--k-muted); font-size: 13px; margin-top: 10px; }
+.kyotsu-quiz .voicechip {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 14px;
+  padding: 5px 12px; border-radius: 999px; background: var(--k-accent-soft);
+  color: var(--k-accent-ink); font-size: 12px; font-weight: 500;
+}
+.kyotsu-quiz .voicechip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--k-accent); }
+
+.kyotsu-quiz .play { display: flex; justify-content: center; margin: 22px 0 6px; }
+.kyotsu-quiz .playbtn {
+  display: inline-flex; align-items: center; gap: 10px; border: 0; cursor: pointer;
+  background: var(--k-accent); color: #fff; font-family: inherit; font-weight: 500; font-size: 15px;
+  padding: 12px 24px; border-radius: 999px; transition: transform 0.12s ease, filter 0.12s ease;
+}
+.kyotsu-quiz .playbtn:hover { filter: brightness(1.08); }
+.kyotsu-quiz .playbtn:active { transform: scale(0.97); }
+.kyotsu-quiz .playbtn svg { width: 15px; height: 15px; fill: currentColor; }
+
+.kyotsu-quiz .q {
+  font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--k-muted);
+  text-align: center; margin: 24px 0 12px;
+}
+.kyotsu-quiz .options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.kyotsu-quiz .opt {
+  position: relative; background: var(--k-surface2); border: 1.5px solid var(--k-line);
+  border-radius: 14px; padding: 16px 12px 14px; cursor: pointer; text-align: center;
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.12s ease;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--text-color);
+}
+.kyotsu-quiz .opt:not(.answered):hover { border-color: var(--k-accent); transform: translateY(-2px); }
+.kyotsu-quiz .opt:focus-visible { outline: 3px solid var(--k-accent-soft); outline-offset: 2px; }
+.kyotsu-quiz .opt .slot {
+  font-size: 20px; font-weight: 400; line-height: 1; color: var(--k-muted);
+  width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--k-line); border-radius: 50%;
+}
+.kyotsu-quiz .opt .surface { font-size: 30px; font-weight: 700; line-height: 1; }
+.kyotsu-quiz .opt .pat { font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.08em; color: var(--k-muted); }
+.kyotsu-quiz .opt svg { display: block; }
+.kyotsu-quiz .opt .playicon {
+  position: absolute; top: 9px; right: 9px; width: 26px; height: 26px; border-radius: 50%;
+  display: none; align-items: center; justify-content: center; background: var(--k-accent); color: #fff;
+}
+.kyotsu-quiz .opt .playicon svg { width: 12px; height: 12px; fill: currentColor; margin-left: 1px; }
+.kyotsu-quiz .opt.answered .playicon { display: flex; }
+.kyotsu-quiz .opt.answered:active { transform: scale(0.98); }
+.kyotsu-quiz .opt.correct { border-color: var(--k-good); background: var(--k-good-soft); }
+.kyotsu-quiz .opt.wrong { border-color: var(--k-bad); background: var(--k-bad-soft); }
+.kyotsu-quiz .opt.correct .pat { color: var(--k-good); }
+.kyotsu-quiz .opt.wrong .pat { color: var(--k-bad); }
+
+.kyotsu-quiz .verdict { text-align: center; min-height: 24px; margin: 18px 0 4px; font-weight: 700; font-size: 15px; }
+.kyotsu-quiz .verdict.good { color: var(--k-good); }
+.kyotsu-quiz .verdict.bad { color: var(--k-bad); }
+.kyotsu-quiz .reveal { text-align: center; color: var(--k-muted); font-size: 13px; min-height: 20px; }
+.kyotsu-quiz .reveal b { color: var(--text-color); }
+.kyotsu-quiz .next { display: flex; justify-content: center; margin-top: 18px; }
+.kyotsu-quiz .nextbtn {
+  border: 0; cursor: pointer; background: var(--text-color); color: var(--bg-color);
+  font-family: inherit; font-weight: 500; font-size: 15px; padding: 12px 30px; border-radius: 999px;
+  transition: transform 0.12s ease;
+}
+.kyotsu-quiz .nextbtn:active { transform: scale(0.97); }
+.kyotsu-quiz .nextbtn[hidden] { display: none; }
+
+.kyotsu-note { text-align: center; color: var(--k-muted); font-size: 11.5px; line-height: 1.6; margin-top: 22px; }
+
+@media (max-width: 380px) { .kyotsu-quiz .opt .surface { font-size: 24px; } }
+@media (prefers-reduced-motion: reduce) { .kyotsu-quiz * { transition: none !important; } }
