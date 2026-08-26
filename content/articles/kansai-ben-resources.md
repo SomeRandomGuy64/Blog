@@ -32,7 +32,7 @@ I've been collecting content for immersing in Kansai-ben (関西弁), and I figu
 
 ### Pitch accent dictionary
 
-A [pitch accent dictionary](https://drive.google.com/file/d/1xWi1j2BO8LupEUDphBRAu_TFPGE8-7ZY/view?usp=drive_link) containing 84k words, many are duplicates to account for regional variation
+A [pitch accent dictionary](https://drive.google.com/file/d/1xWi1j2BO8LupEUDphBRAu_TFPGE8-7ZY/view?usp=drive_link) containing 84k words, many are duplicates to account for regional variation.
 
 ### Kaede members-only decks
 
