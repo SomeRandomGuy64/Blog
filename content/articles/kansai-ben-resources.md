@@ -30,6 +30,10 @@ I've been collecting content for immersing in Kansai-ben (関西弁), and I figu
 
 ## Downloadable resources
 
+### Pitch accent dictionary
+
+A [pitch accent dictionary](https://drive.google.com/file/d/1xWi1j2BO8LupEUDphBRAu_TFPGE8-7ZY/view?usp=drive_link) containing 84k words, many are duplicates to account for regional variation
+
 ### Kaede members-only decks
 
 A big collection of [subs2srs decks for Kaede's members-only videos](https://drive.google.com/drive/folders/1WR9eSW9awlPQ0ekTM4uF2QUnFx4esThs?usp=drive_link). It also includes the transcriptions, condensed audio, and links to the original videos.
