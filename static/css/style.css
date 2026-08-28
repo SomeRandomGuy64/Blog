@@ -4,6 +4,7 @@
 }
 
 .theme-toggle-wrapper {
+    /* stays with the window (follows scroll) on both desktop and mobile */
     position: fixed;
     top: 20px;
     right: 20px;
@@ -137,6 +138,21 @@ h1 {
     text-align: center;
 }
 
+/* site masthead — links to the homepage, on every page */
+.site-title {
+    margin: 30px 0 0;
+    text-align: center;
+    font-size: 1.6em;
+    letter-spacing: 0.02em;
+}
+.site-title a,
+.site-title a:visited,
+.site-title a:active {
+    color: var(--text-color);
+    text-decoration: none;
+}
+.site-title a:hover { opacity: 0.7; }
+
 h2 {
     text-align: center;
 }
@@ -155,6 +171,33 @@ canvas {
     justify-content: center;
     margin-top: 20px;
     font-size: 0.95em;
+}
+
+/* burger nav — hidden on landscape/desktop, shown when portrait */
+.nav-toggle { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.nav-burger { display: none; }
+
+@media (max-aspect-ratio: 1/1) {
+    /* burger mode (mobile/portrait): toggle stays put at the top, scrolls away */
+    .theme-toggle-wrapper { position: absolute; }
+    .nav-burger {
+        display: block;
+        width: 44px;
+        margin: 20px auto 0 0;   /* left-aligned */
+        text-align: center;
+        font-size: 26px;
+        line-height: 1;
+        cursor: pointer;
+        user-select: none;
+    }
+    .nav-burger:focus-visible { outline: 2px solid var(--text-color); border-radius: 4px; }
+    .site-nav { display: none; margin-top: 12px; }
+    .nav-toggle:checked ~ .site-nav {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.7em;
+    }
 }
 
 /* article listings */

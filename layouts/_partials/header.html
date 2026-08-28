@@ -4,6 +4,9 @@
     <img class="light" src="{{ relURL "assets/images/sunny.png" }}" alt="Light Mode Icon"/>
   </div>
 </div>
+<h1 class="site-title"><a href="{{ relURL "" }}">Fazon Nexus</a></h1>
+<input type="checkbox" id="navToggle" class="nav-toggle">
+<label for="navToggle" class="nav-burger" aria-label="Menu" tabindex="0">☰</label>
 <nav class="site-nav">
   <a href="{{ relURL "" }}">Home</a>
   {{ range site.Menus.main }}
