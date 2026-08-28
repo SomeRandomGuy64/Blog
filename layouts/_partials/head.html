@@ -3,6 +3,7 @@
 <meta http-equiv="X-UA-Compatible" content="ie=edge">
 <title>{{ if .IsHome }}{{ site.Title }}{{ else }}{{ .Title }} · {{ site.Title }}{{ end }}</title>
 <meta name="description" content="{{ with .Description }}{{ . }}{{ else }}{{ site.Params.description }}{{ end }}">
+{{ if .Params.private }}<meta name="robots" content="noindex, nofollow">{{ end }}
 
 <!-- Open Graph: makes shared links unfurl nicely (BlueSky, etc.) -->
 <meta property="og:site_name" content="{{ site.Title }}">
