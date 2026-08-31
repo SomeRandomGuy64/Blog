@@ -30,7 +30,7 @@
     </div>
 
     <p class="kyotsu-note">
-      After you answer, tap either word to replay it in the same voice as the round.<br>
+      After you answer, tap either word to replay it.<br>
       <span id="qStats"></span>Keihan pitch. Pitch shown high/low per mora, ˺ marks a downstep.
     </p>
   </div>
@@ -39,6 +39,7 @@
   <script>
   (function(){
     const AUDIO_BASE="{{ relURL "kyotsu/audio/" }}";
+    const VOICE_NAME="彩森遊楽 (Kobe)";
     const $=s=>document.querySelector(s);
     const rnd=n=>Math.floor(Math.random()*n);
     const SMALL=new Set([..."ャュョァィゥェォヮ"]);
@@ -52,39 +53,43 @@
       const ms=moras(reading);
       const steps=[]; let drop=[];
       for(const c of pattern){ if(c==="H")steps.push(1); else if(c==="L")steps.push(0); else if(c==="↘")drop.push(steps.length-1); }
-      const n=steps.length, w=Math.max(80,n*34+20), h=54, padX=16, padTop=8, padBot=30;
-      const yH=padTop, yL=h-padBot, x=i=>padX+(n===1?(w-2*padX)/2:i*(w-2*padX)/(n-1));
+      const n=steps.length, endDrop=drop.includes(n-1), cols=n+(endDrop?1:0);
+      const w=Math.max(80,cols*34+20), h=54, padX=16, padTop=8, padBot=30;
+      const yH=padTop, yL=h-padBot, x=i=>padX+(cols===1?(w-2*padX)/2:i*(w-2*padX)/(cols-1));
       const y=i=>steps[i]?yH:yL;
       const pts=steps.map((s,i)=>`${x(i)},${y(i)}`).join(" ");
-      let dots="", labels="";
+      let dots="", labels="", extra="";
       for(let i=0;i<n;i++){
         dots+=`<circle cx="${x(i)}" cy="${y(i)}" r="4.5" fill="${steps[i]?'var(--k-hi)':'var(--k-lo)'}"/>`;
-        if(drop.includes(i)) dots+=`<text class="mono" x="${x(i)+8}" y="${y(i)-6}" font-size="12" fill="var(--k-hi)">˺</text>`;
+        if(drop.includes(i)&&i<n-1) dots+=`<text class="mono" x="${x(i)+8}" y="${y(i)-6}" font-size="12" fill="var(--k-hi)">˺</text>`;
         labels+=`<text class="jp" x="${x(i)}" y="${h-9}" font-size="13" text-anchor="middle" fill="var(--k-muted)">${ms[i]||''}</text>`;
       }
+      if(endDrop){const g=n;
+        extra+=`<polyline points="${x(n-1)},${yH} ${x(g)},${yL}" fill="none" stroke="var(--k-hi)" stroke-width="2.5" stroke-dasharray="3 3" stroke-linecap="round" opacity=".7"/>`;
+        extra+=`<circle cx="${x(g)}" cy="${yL}" r="4" fill="none" stroke="var(--k-lo)" stroke-width="1.5" opacity=".8"/>`;
+        labels+=`<text x="${x(g)}" y="${h-9}" font-size="12" text-anchor="middle" fill="var(--k-muted)" opacity=".7">ꜜ</text>`;}
       return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
         <polyline points="${pts}" fill="none" stroke="var(--k-hi)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-        ${dots}${labels}</svg>`;
+        ${extra}${dots}${labels}</svg>`;
     }
 
     let cur=null, answered=false, correct=0, total=0, lastKey="";
     const audioEl=new Audio();
-    function clipUrl(m, voice){ return AUDIO_BASE + m.audio + "_v" + voice + ".mp3"; }
+    function clipUrl(m){ return AUDIO_BASE + m.audio + ".mp3"; }
     function play(url){ audioEl.src=url; audioEl.currentTime=0; audioEl.play().catch(()=>{}); }
     let _preload=[];
-    function preload(pair, voice){ _preload=pair.members.map(m=>{ const a=new Audio(); a.preload="auto"; a.src=clipUrl(m,voice); return a; }); }
+    function preload(pair){ _preload=pair.members.map(m=>{ const a=new Audio(); a.preload="auto"; a.src=clipUrl(m); return a; }); }
 
     function newQuestion(){
       let pair, key;
       do{ pair=QUIZ[rnd(QUIZ.length)]; key=pair.reading; }while(QUIZ.length>1 && key===lastKey);
       lastKey=key;
-      const voice=Object.keys(VOICES)[rnd(Object.keys(VOICES).length)];
       const target=rnd(2);
       const order=Math.random()<.5?[0,1]:[1,0];
-      cur={pair,voice,target,order}; answered=false;
+      cur={pair,target,order}; answered=false;
 
       $("#reading").textContent=pair.reading;
-      $("#voiceName").textContent=VOICES[voice];
+      $("#voiceName").textContent=VOICE_NAME;
       $("#verdict").textContent=""; $("#verdict").className="verdict";
       $("#reveal").textContent=""; $("#nextBtn").hidden=true;
 
@@ -95,16 +100,16 @@
         el.className="opt"; el.dataset.mi=mi;
         el.innerHTML=`<div class="playicon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></div>`+
           `<div class="slot mono">${slot+1}</div>${contour(pair.reading,m.pattern)}<div class="pat">${m.pattern}</div>`;
-        el.addEventListener("click",()=>{ if(!answered) choose(mi); else play(clipUrl(pair.members[mi], cur.voice)); });
+        el.addEventListener("click",()=>{ if(!answered) choose(mi); else play(clipUrl(pair.members[mi])); });
         opts.appendChild(el);
       });
-      preload(pair, voice);
-      setTimeout(()=>play(clipUrl(pair.members[target], voice)),250);
+      preload(pair);
+      setTimeout(()=>play(clipUrl(pair.members[target])),250);
     }
 
     function choose(mi){
       if(answered) return; answered=true;
-      const {pair,voice,target}=cur;
+      const {pair,target}=cur;
       total++; const ok=mi===target; if(ok)correct++;
       [...document.querySelectorAll(".opt")].forEach(b=>{ b.classList.add("answered");
         const bi=+b.dataset.mi;
@@ -116,16 +121,16 @@
       const v=$("#verdict");
       v.textContent=ok?"Correct":"Not quite"; v.className="verdict "+(ok?"good":"bad");
       const t=pair.members[target];
-      $("#reveal").innerHTML=`You heard <b class="jp">${t.surface}</b> · <span class="mono">${t.pattern}</span>, in ${VOICES[voice]}'s voice`;
+      $("#reveal").innerHTML=`You heard <b class="jp">${t.surface}</b> · <span class="mono">${t.pattern}</span>, in ${VOICE_NAME}'s voice`;
       $("#nextBtn").hidden=false; $("#nextBtn").focus();
       $("#sCorrect").textContent=correct; $("#sTotal").textContent=total;
       $("#sAcc").textContent=Math.round(correct/total*100)+"%";
     }
 
-    $("#playBtn").addEventListener("click",()=>cur&&play(clipUrl(cur.pair.members[cur.target], cur.voice)));
+    $("#playBtn").addEventListener("click",()=>cur&&play(clipUrl(cur.pair.members[cur.target])));
     $("#nextBtn").addEventListener("click",newQuestion);
     if(typeof QUIZ!=="undefined"){
-      $("#qStats").textContent=`${QUIZ.length} minimal pairs × ${Object.keys(VOICES).length} VOICEVOX voices. `;
+      $("#qStats").textContent=`${QUIZ.length} minimal pairs · ${VOICE_NAME}. `;
       newQuestion();
     }
   })();
