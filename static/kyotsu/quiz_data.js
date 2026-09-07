@@ -1,5 +1,8 @@
-// Full delivery: 彩森遊楽 (Kobe). Excluded: 002 (blacklist), 247/261 (undetermined), 055 (both HH).
-// Hyogo overrides: 009,021,103,221,248,274,278.
+// Excluded: 002 (blacklist), 247/261 (undetermined), 055 (both HH).
+// 278 (ホー 法/穂): Kobe HH/LL (not discernible) so `voices:["nagi"]` — only the Kyoto
+// speaker voices it, where 穂 is LH (discernible). Per-pair `voices` limits which
+// SPEAKERS may be picked for that pair; absent = all.
+// Hyogo pairs 009,021,103,221,248 store Kobe pitch; the Kyoto speaker overrides them in section.html.
 const QUIZ = [
   {"reading": "アイショー", "members": [{"surface": "相性", "pattern": "HLLL", "audio": "001A"}, {"surface": "愛称", "pattern": "HHHH", "audio": "001B"}]},
   {"reading": "アメ", "members": [{"surface": "雨", "pattern": "LH↘", "audio": "003A"}, {"surface": "飴", "pattern": "HH", "audio": "003B"}]},
@@ -270,11 +273,11 @@ const QUIZ = [
   {"reading": "ヒー", "members": [{"surface": "日", "pattern": "HL", "audio": "271A"}, {"surface": "火", "pattern": "LH", "audio": "271B"}]},
   {"reading": "フク", "members": [{"surface": "副", "pattern": "HL", "audio": "272A"}, {"surface": "複", "pattern": "HH", "audio": "272B"}]},
   {"reading": "フゼイ", "members": [{"surface": "府税", "pattern": "LLH", "audio": "273A"}, {"surface": "風情", "pattern": "HLL", "audio": "273B"}]},
-  {"reading": "フドー", "members": [{"surface": "府道", "pattern": "LLH", "audio": "274A"}, {"surface": "不動", "pattern": "LHL", "audio": "274B"}]},
+  {"reading": "フドー", "members": [{"surface": "府道", "pattern": "LLH", "audio": "274A"}, {"surface": "不動", "pattern": "HLL", "audio": "274B"}]},
   {"reading": "ブドー", "members": [{"surface": "武道", "pattern": "HLL", "audio": "275A"}, {"surface": "葡萄", "pattern": "HHH", "audio": "275B"}]},
   {"reading": "ヘイ", "members": [{"surface": "塀", "pattern": "HH", "audio": "276A"}, {"surface": "丙", "pattern": "HL", "audio": "276B"}]},
   {"reading": "ヘイキ", "members": [{"surface": "兵器", "pattern": "HLL", "audio": "277A"}, {"surface": "平気", "pattern": "LLH", "audio": "277B"}]},
-  {"reading": "ホー", "members": [{"surface": "法", "pattern": "HH", "audio": "278A"}, {"surface": "穂", "pattern": "LL", "audio": "278B"}]},
+  {"reading": "ホー", "voices": ["nagi"], "members": [{"surface": "法", "pattern": "HH", "audio": "278A"}, {"surface": "穂", "pattern": "LL", "audio": "278B"}]},
   {"reading": "ホーイ", "members": [{"surface": "包囲", "pattern": "HLL", "audio": "279A"}, {"surface": "方位", "pattern": "LHL", "audio": "279B"}]},
   {"reading": "ホーカ", "members": [{"surface": "放火", "pattern": "LLH", "audio": "280A"}, {"surface": "砲火", "pattern": "HLL", "audio": "280B"}]},
   {"reading": "ホーキ", "members": [{"surface": "放棄", "pattern": "LLH", "audio": "281A"}, {"surface": "法規", "pattern": "HLL", "audio": "281B"}]},
