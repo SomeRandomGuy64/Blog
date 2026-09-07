@@ -1,0 +1,35 @@
+{{ define "main" }}
+  <h1>{{ .Title }}</h1>
+  {{ .Content }}
+  <ul class="tool-list">
+    {{ range .Pages.ByWeight }}
+    <li class="tool-card">
+      <a class="tool-card-link" href="{{ .RelPermalink }}">
+        <span class="tool-card-title">{{ .Title }}</span>
+        {{ with .Params.summary }}<span class="tool-card-summary">{{ . }}</span>{{ end }}
+      </a>
+    </li>
+    {{ else }}
+    <li>No tools yet.</li>
+    {{ end }}
+  </ul>
+
+  <style>
+    :root { --tool-accent: #c3540a; }
+    .light-mode { --tool-accent: #4caf50; }
+    .tool-list { list-style: none; padding: 0; margin-top: 28px; }
+    .tool-card { margin: 0 0 16px; }
+    .tool-card-link {
+      display: block;
+      padding: 16px 18px;
+      border: 1px solid rgba(127,127,127,0.35);
+      border-radius: 8px;
+      color: var(--text-color);
+      transition: border-color 0.2s ease, transform 0.1s ease;
+    }
+    .tool-card-link:hover { border-color: var(--tool-accent); transform: translateY(-2px); }
+    .tool-card-link:visited { color: var(--text-color); }
+    .tool-card-title { display: block; font-size: 1.15rem; font-weight: 600; color: var(--tool-accent); }
+    .tool-card-summary { display: block; margin-top: 6px; opacity: 0.8; font-size: 0.9rem; line-height: 1.5; }
+  </style>
+{{ end }}

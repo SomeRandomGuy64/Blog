@@ -1,0 +1,69 @@
+/* accent follows the site theme: orange in dark, green in light mode */
+:root { --nd-accent: #c3540a; --nd-accent-hover: #ea7e35; }
+.light-mode { --nd-accent: #4caf50; --nd-accent-hover: #5cbf60; }
+
+.nendai { margin-top: 28px; }
+
+.nd-form {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  justify-content: center; margin-bottom: 8px;
+}
+.nd-form label { font-weight: 600; }
+.nd-form input {
+  width: 8em; padding: 8px 10px; font-family: inherit; font-size: 1rem;
+  background: transparent; color: var(--text-color);
+  border: 1px solid rgba(127,127,127,0.45); border-radius: 6px;
+}
+.nd-form input:focus { outline: none; border-color: var(--nd-accent); }
+.nd-form button {
+  padding: 8px 16px; font-family: inherit; font-size: 1rem; cursor: pointer;
+  color: #fff; background: var(--nd-accent); border: none; border-radius: 6px;
+}
+.nd-form button:hover { background: var(--nd-accent-hover); }
+
+.nd-err { text-align: center; color: #d9534f; margin: 6px 0; }
+
+/* greeting */
+.nd-greet {
+  text-align: center; margin: 30px 0 10px; padding: 22px 16px;
+  border: 1px solid rgba(127,127,127,0.35); border-radius: 10px;
+}
+.nd-greet-big { font-size: 1.5rem; font-weight: 700; }
+.nd-era { font-weight: 400; opacity: 0.7; font-size: 1rem; }
+.nd-greet-sub { margin-top: 8px; opacity: 0.85; line-height: 1.5; }
+
+/* sections */
+.nd-sec { margin: 34px 0; }
+.nd-h2 {
+  text-align: left; font-size: 1.25rem; margin: 0 0 2px;
+  padding-bottom: 6px; border-bottom: 2px solid var(--nd-accent);
+}
+.nd-ic { margin-right: 8px; }
+.nd-note { margin: 6px 0 12px; opacity: 0.7; font-size: 0.85rem; }
+
+.nd-items { list-style: none; padding: 0; margin: 0; }
+.nd-items li {
+  padding: 7px 0; border-bottom: 1px solid rgba(127,127,127,0.15);
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px;
+}
+.nd-lbl { font-weight: 600; }
+.nd-sub { opacity: 0.7; font-size: 0.88rem; }
+.nd-age {
+  margin-left: auto; white-space: nowrap; font-size: 0.78rem;
+  opacity: 0.6; font-variant-numeric: tabular-nums;
+}
+
+/* edge sections divider */
+.nd-edge-head {
+  text-align: center; margin: 48px 0 4px; font-style: italic; opacity: 0.75;
+  padding-top: 20px; border-top: 1px dashed rgba(127,127,127,0.4);
+}
+.nd-empty { text-align: center; opacity: 0.7; margin: 30px 0; }
+.nd-src {
+  margin: 40px 0 0; padding-top: 14px; font-size: 0.75rem; opacity: 0.55;
+  line-height: 1.5; border-top: 1px solid rgba(127,127,127,0.2);
+}
+
+@media (max-width: 520px) {
+  .nd-age { margin-left: 0; flex-basis: 100%; }
+}

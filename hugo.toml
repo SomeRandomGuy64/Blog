@@ -33,6 +33,10 @@ enableRobotsTXT = true
     pageRef = "/kyotsu"
     weight = 15
   [[menu.main]]
+    name = "Tools"
+    pageRef = "/tools"
+    weight = 18
+  [[menu.main]]
     name = "About"
     pageRef = "/about"
     weight = 20
