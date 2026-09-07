@@ -1,0 +1,174 @@
+{{ define "main" }}
+  <h1>{{ .Title }}</h1>
+  {{ with .Content }}{{ . }}{{ end }}
+
+  <div class="nendai">
+    <form id="nendaiForm" class="nd-form" autocomplete="off">
+      <label for="birthYear">Your birth year</label>
+      <input id="birthYear" type="number" inputmode="numeric" placeholder="e.g. 1999"
+             min="1935" max="2020" step="1" />
+      <button type="submit" id="nendaiGo">Show me</button>
+    </form>
+
+    <p id="nendaiErr" class="nd-err" hidden></p>
+    <div id="nendaiOut"></div>
+  </div>
+
+  <p style="text-align:center;margin-top:40px;">
+    <a href="{{ relURL "tools" }}">← Back to Tools</a>
+  </p>
+
+  <link rel="stylesheet" href="{{ relURL "css/nendai.css" }}">
+  <script src="{{ relURL "nendai/nendai_data.js" }}"></script>
+  <script>
+  (function () {
+    const D = window.NENDAI_DATA || { meta: {}, years: {} };
+    const YEARS = D.years, MIN = D.meta.minYear || 1950, MAX = D.meta.maxYear || 2025;
+    const NOW = new Date().getFullYear();
+    const $ = s => document.querySelector(s);
+    const STORE = "nendai-birthyear";
+
+    // Each section: which buckets to pull, the age window (inclusive), and a per-bucket
+    // cap (top-N by rank, or first-N when unranked). `yearCap` optionally limits the total
+    // items shown per calendar year across all the section's buckets.
+    const CORE = [
+      { key:"anime",  icon:"🎬", title:"Anime you grew up on", age:[4,17],
+        note:"Airing while you were growing up (grown-up seinen/josei shows only appear if you were a teenager when they aired).",
+        buckets:[{k:"anime",cap:3}] },
+      { key:"toku",   icon:"🦸", title:"Tokusatsu — the Sunday-morning heroes", age:[4,11],
+        note:"The Super Hero Time block: Super Sentai (→ Power Rangers), Kamen Rider and Ultraman — plus Pretty Cure for the girls' slot and the older Metal Heroes line.",
+        buckets:[{k:"toku",cap:6}] },
+      { key:"games",  icon:"🎮", title:"Video games you grew up with", age:[6,18],
+        note:"The consoles you held and the landmark titles everyone knew.",
+        buckets:[{k:"games",cap:2}], yearCap:2 },
+      { key:"music",  icon:"🎵", title:"Music of your youth", age:[10,22],
+        note:"The hits everywhere during your school & college years.",
+        buckets:[{k:"songs",cap:2}] },
+      { key:"films",  icon:"🎦", title:"Films everyone saw", age:[6,18],
+        note:"Top box-office of your childhood — home-grown and Hollywood.",
+        buckets:[{k:"jpfilms",cap:2},{k:"foreignfilms",cap:1}] },
+      { key:"dramas", icon:"📺", title:"TV dramas", age:[12,22],
+        note:"The must-watch dramas of your teens.",
+        buckets:[{k:"dramas",cap:1}] },
+      { key:"buzz",   icon:"💬", title:"Buzzwords & slang", age:[8,20],
+        note:"Words that were on everyone's lips.",
+        buckets:[{k:"buzzwords",cap:3}] },
+      { key:"trends", icon:"🛍️", title:"Trends, fashion & products", age:[10,20],
+        note:"What people wore, bought and ate.",
+        buckets:[{k:"trends",cap:2},{k:"fashion",cap:1},{k:"products",cap:1},{k:"foods",cap:1}],
+        yearCap:3 },
+      { key:"news",   icon:"📰", title:"News you lived through", age:[8,20],
+        note:"The events that formed the backdrop.",
+        buckets:[{k:"events",cap:2}] },
+    ];
+    const EDGE_YOUNG = {
+      key:"young", icon:"👶", title:"Slightly too young for — the hand-me-down canon", age:[-8,3],
+      note:"A taste of what was big just before and around your early childhood — the previous generation's stuff you'd soak up second-hand from older siblings, cousins and TV reruns.",
+      buckets:[{k:"anime",cap:1},{k:"jpfilms",cap:1},{k:"songs",cap:1}], yearCap:2 };
+    const EDGE_OLD = {
+      key:"old", icon:"🍼", title:"Slightly too old for — the next generation's badges", age:[19,26],
+      note:"What broke after you'd aged out — you met these as a young adult, not a kid. The big-screen anime here (Demon Slayer, etc.) are the childhood staples of the cohort just after you.",
+      buckets:[{k:"anime",cap:1},{k:"jpfilms",cap:2}], yearCap:2 };
+
+    const esc = s => (s||"").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+    // seinen/josei anime only surface once the viewer was a teenager, so a small child
+    // is never told they "grew up on" an adult show like Monster.
+    const ADULT_MIN_AGE = 13;
+
+    // a year+bucket's items, sorted by numeric rank when present, else file order
+    function sortedBucket(year, bkey) {
+      const y = YEARS[String(year)];
+      if (!y || !y.buckets || !y.buckets[bkey]) return [];
+      const arr = y.buckets[bkey].slice();
+      const ranked = arr.every(it => it.rank != null && it.rank !== "");
+      if (ranked) arr.sort((a,b) => (parseInt(a.rank,10)||99) - (parseInt(b.rank,10)||99));
+      return arr;
+    }
+
+    function collect(sec, birth, seen) {
+      const [a0, a1] = sec.age;
+      const rows = [];
+      for (let age = a0; age <= a1; age++) {
+        const year = birth + age;
+        if (year < MIN || year > MAX) continue;
+        let perYear = [];
+        for (const b of sec.buckets) {
+          let items = sortedBucket(year, b.k);
+          if (b.k === "anime") items = items.filter(it => !(it.demo === "adult" && age < ADULT_MIN_AGE));
+          for (const it of items.slice(0, b.cap)) perYear.push({ label: it.label, sub: it.sub, year, age });
+        }
+        if (sec.yearCap) perYear = perYear.slice(0, sec.yearCap);
+        rows.push(...perYear);
+      }
+      // de-dup by label across the whole page (keep earliest occurrence)
+      const out = [];
+      for (const r of rows) { const key = r.label.toLowerCase(); if (seen.has(key)) continue; seen.add(key); out.push(r); }
+      return out;
+    }
+
+    function ageTag(year, age) {
+      if (age < 0) return `${year} · before you were born`;
+      if (age === 0) return `${year} · the year you were born`;
+      return `${year} · you were ${age}`;
+    }
+
+    function sectionHTML(sec, birth, seen) {
+      const rows = collect(sec, birth, seen);
+      if (!rows.length) return "";
+      const items = rows.map(r =>
+        `<li><span class="nd-lbl">${esc(r.label)}</span>` +
+        (r.sub ? ` <span class="nd-sub">${esc(r.sub)}</span>` : "") +
+        `<span class="nd-age">${esc(ageTag(r.year, r.age))}</span></li>`
+      ).join("");
+      return `<section class="nd-sec">
+        <h2 class="nd-h2"><span class="nd-ic">${sec.icon}</span>${esc(sec.title)}</h2>
+        <p class="nd-note">${esc(sec.note)}</p>
+        <ul class="nd-items">${items}</ul>
+      </section>`;
+    }
+
+    function render(birth) {
+      const out = $("#nendaiOut");
+      const age = NOW - birth;
+      const era = (YEARS[String(birth)] || {}).era;
+      let html = `<div class="nd-greet">
+        <div class="nd-greet-big">Born in ${birth}${era ? ` <span class="nd-era">(${esc(era)})</span>` : ""}?</div>
+        <div class="nd-greet-sub">You're ${age} in ${NOW}. Here's the Japan you grew up with —
+        the touchstones a Japanese person your age would be expected to know.</div>
+      </div>`;
+
+      const seen = new Set();
+      const core = CORE.map(s => sectionHTML(s, birth, seen)).join("");
+      html += core || `<p class="nd-empty">Not much data lands in your formative years — the source covers ${MIN}–${MAX}, so this works best for birth years up to about ${MAX - 5}.</p>`;
+
+      const young = sectionHTML(EDGE_YOUNG, birth, seen);
+      const old = sectionHTML(EDGE_OLD, birth, seen);
+      if (young || old) {
+        html += `<div class="nd-edge-head">Because nobody grows up strictly on schedule…</div>`;
+        html += young + old;
+      }
+
+      html += `<p class="nd-src">The events, buzzword, fashion and product lists end in 2009 and the anime list in 2019, so those sections thin out for the most recent birth years. Tokusatsu and video games are hand-curated additions.</p>`;
+      out.innerHTML = html;
+    }
+
+    function submit(e) {
+      if (e) e.preventDefault();
+      const err = $("#nendaiErr");
+      const v = parseInt($("#birthYear").value, 10);
+      err.hidden = true;
+      if (!v || v < 1935 || v > 2020) {
+        err.textContent = "Enter a birth year between 1935 and 2020.";
+        err.hidden = false; $("#nendaiOut").innerHTML = ""; return;
+      }
+      localStorage.setItem(STORE, String(v));
+      render(v);
+    }
+
+    $("#nendaiForm").addEventListener("submit", submit);
+    const saved = localStorage.getItem(STORE);
+    if (saved) { $("#birthYear").value = saved; submit(); }
+  })();
+  </script>
+{{ end }}
