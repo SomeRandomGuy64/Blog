@@ -5,6 +5,18 @@
   {{ with .Content }}{{ . }}{{ end }}
 
   <div class="kyotsu-quiz">
+    <div class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+      <label for="speakerSel" style="font-weight:600;">Speaker</label>
+      <select id="speakerSel" class="nextbtn" style="cursor:pointer;padding:6px 10px;"></select>
+      <span id="speakerMeta" class="mono" style="font-size:.8rem;opacity:.65;"></span>
+      <span style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+        <label for="jumpInput" style="font-weight:600;">Go to pair</label>
+        <input id="jumpInput" type="number" min="1" inputmode="numeric" placeholder="#"
+          style="width:5em;padding:6px 8px;" />
+        <button class="nextbtn" id="jumpBtn">Go</button>
+      </span>
+    </div>
+
     <div class="card">
       <div class="prompt">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
@@ -43,10 +55,33 @@
   <script>
   (function(){
     const AUDIO_BASE="{{ relURL "kyotsu/audio/" }}";
+    // Each speaker: same 616 clips, own audio folder. `overrides` swaps the pitch
+    // pattern for clips the speaker naturally produced differently from the reference.
+    // Review test shows ALL 308 pairs for every speaker (pair-level exclusion for the
+    // Kobe trainer lives in quiz_data.js, not here). `overrides` swaps a pitch pattern
+    // per clip; `forceOk` forces every status chip to "ok" for that speaker.
+    const SPEAKERS=[
+      {id:"yura", label:"彩森遊楽 (Kobe)",  region:"native Kobe",              base:AUDIO_BASE,         overrides:{}},
+      {id:"nagi", label:"月野ナギ (Kyoto)", region:"Osaka-raised, Kyoto pitch", base:AUDIO_BASE+"nagi/", forceOk:true,
+        // only these 3 are truly speaker-specific (her own reported pitch); the rest are
+        // dictionary Kyoto values, not personal to her.
+        personal:new Set(["001A","089A","152B"]),
+        overrides:{
+        // her 3 personal deviations from the reference
+        "001A":"LLHL","089A":"LLHL","152B":"HLL",
+        // the Kobe-divergent (hyogo) pairs restored to their base Kyoto pitch
+        "009A":"HHH","021A":"LHL","103A":"LLH","221B":"LH↘","248B":"LLH","278B":"LH"}},
+    ];
     const $=s=>document.querySelector(s);
     const SMALL=new Set([..."ャュョァィゥェォヮ"]);
-    const STORE="kyotsu-test";
-    let flags=new Set(JSON.parse(localStorage.getItem(STORE)||"[]"));
+    const SPK_STORE="kyotsu-test-speaker";
+    // flags are kept per-speaker; yura keeps the legacy key for backward compat
+    const flagStore=s=>s.id==="yura"?"kyotsu-test":"kyotsu-test-"+s.id;
+    let spk=SPEAKERS.find(s=>s.id===localStorage.getItem(SPK_STORE))||SPEAKERS[0];
+    let flags=new Set(JSON.parse(localStorage.getItem(flagStore(spk))||"[]"));
+    const patternFor=m=>spk.overrides[m.audio]||m.pattern;
+    let rows=[];                       // pairs visible for the current speaker (all 308)
+    const buildRows=()=>{rows=TEST;if(i>=rows.length)i=0;};
     let i=0;
     const audioEl=new Audio();
     function moras(r){const o=[];for(const c of r){if(SMALL.has(c)&&o.length)o[o.length-1]+=c;else o.push(c);}return o;}
@@ -66,31 +101,33 @@
         labels+=`<text x="${x(g)}" y="${h-9}" font-size="12" text-anchor="middle" fill="var(--k-muted)" opacity=".7">ꜜ</text>`;}
       return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="var(--k-hi)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>${extra}${dots}${labels}</svg>`;
     }
-    function url(a){return AUDIO_BASE+a+".mp3";}
+    function url(a){return spk.base+a+".mp3";}
     function play(a){audioEl.src=url(a);audioEl.currentTime=0;audioEl.play().catch(()=>{});}
     function playBoth(p){play(p.members[0].audio);
       audioEl.onended=()=>{audioEl.onended=null;setTimeout(()=>play(p.members[1].audio),380);};}
     function renderFlags(){
       const arr=[...flags].sort();
       $("#flagList").textContent=arr.length?arr.join(", "):"— none yet —";
-      localStorage.setItem(STORE,JSON.stringify(arr));
+      localStorage.setItem(flagStore(spk),JSON.stringify(arr));
     }
     function show(){
-      const p=TEST[i];
-      $("#idx").textContent=`Pair ${p.n} · ${i+1}/${TEST.length}`;
+      const p=rows[i];
+      $("#idx").textContent=`Pair ${p.n} · ${i+1}/${rows.length}`;
       $("#reading").textContent=p.reading;
+      const st=spk.forceOk?"ok":p.status;
       const chip=$("#statusChip");
-      chip.textContent=p.status;
-      chip.parentElement.style.opacity=(p.status==="ok")?.5:1;
+      chip.textContent=st;
+      chip.parentElement.style.opacity=(st==="ok")?.5:1;
       const opts=$("#options");opts.innerHTML="";
       p.members.forEach((m,mi)=>{
         const flagged=flags.has(m.audio);
         const el=document.createElement("div");
         el.className="opt answered";el.style.cursor="default";
+        const pat=patternFor(m);
         el.innerHTML=
           `<div class="surface jp" style="font-size:1.3rem">${"AB"[mi]}: ${m.surface}</div>`+
-          contour(p.reading,m.pattern)+
-          `<div class="pat">${m.pattern}</div>`+
+          contour(p.reading,pat)+
+          `<div class="pat">${pat}${(spk.personal&&spk.personal.has(m.audio))?' <span style="opacity:.6">(speaker-specific)</span>':''}</div>`+
           `<div style="display:flex;gap:8px;margin-top:8px;">
              <button class="nextbtn playone" data-a="${m.audio}">▶ Play</button>
              <button class="nextbtn flagone ${flagged?'flagged':''}" data-a="${m.audio}"
@@ -105,17 +142,41 @@
       playBoth(p);
     }
     $("#prevBtn").onclick=()=>{if(i>0){i--;show();}};
-    $("#nextBtn").onclick=()=>{if(i<TEST.length-1){i++;show();}};
-    $("#replayBtn").onclick=()=>playBoth(TEST[i]);
+    $("#nextBtn").onclick=()=>{if(i<rows.length-1){i++;show();}};
+    $("#replayBtn").onclick=()=>playBoth(rows[i]);
+    function jumpTo(v){
+      const num=parseInt(v,10); if(!num) return;
+      const n=String(num).padStart(3,"0");
+      const idx=rows.findIndex(p=>p.n===n);
+      if(idx>=0){ i=idx; show(); }
+      else { const j=$("#jumpInput"); j.value=""; j.placeholder="no "+num; }
+    }
+    $("#jumpBtn").onclick=()=>jumpTo($("#jumpInput").value);
+    $("#jumpInput").addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault();jumpTo(e.target.value);} });
     $("#copyBtn").onclick=()=>{const t=[...flags].sort().join(", ");navigator.clipboard&&navigator.clipboard.writeText(t);$("#copyBtn").textContent="Copied!";setTimeout(()=>$("#copyBtn").textContent="Copy flagged list",1200);};
     $("#clearBtn").onclick=()=>{if(confirm("Clear all flags?")){flags.clear();renderFlags();show();}};
     document.addEventListener("keydown",e=>{
+      if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT")return;
       if(e.key==="ArrowRight")$("#nextBtn").click();
       else if(e.key==="ArrowLeft")$("#prevBtn").click();
       else if(e.key===" "){e.preventDefault();$("#replayBtn").click();}
     });
+    function refreshSpeakerMeta(){
+      $("#tStats").textContent=`${rows.length} pairs · ${rows.length*2} clips · ${spk.label}. `;
+      $("#speakerMeta").textContent=spk.region;
+    }
+    function setupSpeakers(){
+      const sel=$("#speakerSel");
+      sel.innerHTML=SPEAKERS.map(s=>`<option value="${s.id}"${s.id===spk.id?' selected':''}>${s.label}</option>`).join("");
+      sel.onchange=()=>{
+        spk=SPEAKERS.find(s=>s.id===sel.value)||SPEAKERS[0];
+        localStorage.setItem(SPK_STORE,spk.id);
+        flags=new Set(JSON.parse(localStorage.getItem(flagStore(spk))||"[]"));
+        buildRows();refreshSpeakerMeta();renderFlags();show();
+      };
+    }
     if(typeof TEST!=="undefined"){
-      $("#tStats").textContent=`${TEST.length} pairs · 616 clips · 彩森遊楽 (Kobe). `;
+      buildRows();setupSpeakers();refreshSpeakerMeta();
       renderFlags();show();
     }
   })();

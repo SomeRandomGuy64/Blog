@@ -39,7 +39,18 @@
   <script>
   (function(){
     const AUDIO_BASE="{{ relURL "kyotsu/audio/" }}";
-    const VOICE_NAME="彩森遊楽 (Kobe)";
+    // A speaker is picked at random for each question; the audio and the shown pitch
+    // both come from that speaker. `overrides` = clips a speaker produced with a
+    // different pitch than the reference (keyed by audio id).
+    const SPEAKERS=[
+      {id:"yura", label:"彩森遊楽 (Kobe)",  base:AUDIO_BASE},
+      {id:"nagi", label:"月野ナギ (Kyoto)", base:AUDIO_BASE+"nagi/", overrides:{
+        // her 3 personal deviations from the reference
+        "001A":"LLHL","089A":"LLHL","152B":"HLL",
+        // the Kobe-divergent (hyogo) pairs restored to their base Kyoto pitch
+        "009A":"HHH","021A":"LHL","103A":"LLH","221B":"LH↘","248B":"LLH","278B":"LH"}},
+    ];
+    const patternFor=(spk,m)=>(spk.overrides&&spk.overrides[m.audio])||m.pattern;
     const $=s=>document.querySelector(s);
     const rnd=n=>Math.floor(Math.random()*n);
     const SMALL=new Set([..."ャュョァィゥェォヮ"]);
@@ -75,41 +86,45 @@
 
     let cur=null, answered=false, correct=0, total=0, lastKey="";
     const audioEl=new Audio();
-    function clipUrl(m){ return AUDIO_BASE + m.audio + ".mp3"; }
+    function clipUrl(spk,m){ return spk.base + m.audio + ".mp3"; }
     function play(url){ audioEl.src=url; audioEl.currentTime=0; audioEl.play().catch(()=>{}); }
     let _preload=[];
-    function preload(pair){ _preload=pair.members.map(m=>{ const a=new Audio(); a.preload="auto"; a.src=clipUrl(m); return a; }); }
+    function preload(spk,pair){ _preload=pair.members.map(m=>{ const a=new Audio(); a.preload="auto"; a.src=clipUrl(spk,m); return a; }); }
 
     function newQuestion(){
       let pair, key;
       do{ pair=QUIZ[rnd(QUIZ.length)]; key=pair.reading; }while(QUIZ.length>1 && key===lastKey);
       lastKey=key;
+      // a pair may restrict which speakers can voice it (e.g. 278 is Kobe-indiscernible)
+      const allowed=pair.voices?SPEAKERS.filter(s=>pair.voices.includes(s.id)):SPEAKERS;
+      const speaker=allowed[rnd(allowed.length)];
       const target=rnd(2);
       const order=Math.random()<.5?[0,1]:[1,0];
-      cur={pair,target,order}; answered=false;
+      cur={pair,target,order,speaker}; answered=false;
 
       $("#reading").textContent=pair.reading;
-      $("#voiceName").textContent=VOICE_NAME;
+      $("#voiceName").textContent=speaker.label;
       $("#verdict").textContent=""; $("#verdict").className="verdict";
       $("#reveal").textContent=""; $("#nextBtn").hidden=true;
 
       const opts=$("#options"); opts.innerHTML="";
       order.forEach((mi,slot)=>{
         const m=pair.members[mi];
+        const pat=patternFor(speaker,m);
         const el=document.createElement("button");
         el.className="opt"; el.dataset.mi=mi;
         el.innerHTML=`<div class="playicon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></div>`+
-          `<div class="slot mono">${slot+1}</div>${contour(pair.reading,m.pattern)}<div class="pat">${m.pattern}</div>`;
-        el.addEventListener("click",()=>{ if(!answered) choose(mi); else play(clipUrl(pair.members[mi])); });
+          `<div class="slot mono">${slot+1}</div>${contour(pair.reading,pat)}<div class="pat">${pat}</div>`;
+        el.addEventListener("click",()=>{ if(!answered) choose(mi); else play(clipUrl(speaker,pair.members[mi])); });
         opts.appendChild(el);
       });
-      preload(pair);
-      setTimeout(()=>play(clipUrl(pair.members[target])),250);
+      preload(speaker,pair);
+      setTimeout(()=>play(clipUrl(speaker,pair.members[target])),250);
     }
 
     function choose(mi){
       if(answered) return; answered=true;
-      const {pair,target}=cur;
+      const {pair,target,speaker}=cur;
       total++; const ok=mi===target; if(ok)correct++;
       [...document.querySelectorAll(".opt")].forEach(b=>{ b.classList.add("answered");
         const bi=+b.dataset.mi;
@@ -121,16 +136,16 @@
       const v=$("#verdict");
       v.textContent=ok?"Correct":"Not quite"; v.className="verdict "+(ok?"good":"bad");
       const t=pair.members[target];
-      $("#reveal").innerHTML=`You heard <b class="jp">${t.surface}</b> · <span class="mono">${t.pattern}</span>, in ${VOICE_NAME}'s voice`;
+      $("#reveal").innerHTML=`You heard <b class="jp">${t.surface}</b> · <span class="mono">${patternFor(speaker,t)}</span>, in ${speaker.label}'s voice`;
       $("#nextBtn").hidden=false; $("#nextBtn").focus();
       $("#sCorrect").textContent=correct; $("#sTotal").textContent=total;
       $("#sAcc").textContent=Math.round(correct/total*100)+"%";
     }
 
-    $("#playBtn").addEventListener("click",()=>cur&&play(clipUrl(cur.pair.members[cur.target])));
+    $("#playBtn").addEventListener("click",()=>cur&&play(clipUrl(cur.speaker,cur.pair.members[cur.target])));
     $("#nextBtn").addEventListener("click",newQuestion);
     if(typeof QUIZ!=="undefined"){
-      $("#qStats").textContent=`${QUIZ.length} minimal pairs · ${VOICE_NAME}. `;
+      $("#qStats").textContent=`${QUIZ.length} minimal pairs · ${SPEAKERS.map(s=>s.label).join(" / ")}, random per word. `;
       newQuestion();
     }
   })();

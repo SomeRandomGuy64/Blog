@@ -274,7 +274,7 @@ const TEST = [
   {"n":"271","reading":"ヒー","status":"ok","members":[{"surface":"日","pattern":"HL","audio":"271A"}, {"surface":"火","pattern":"LH","audio":"271B"}]},
   {"n":"272","reading":"フク","status":"ok","members":[{"surface":"副","pattern":"HL","audio":"272A"}, {"surface":"複","pattern":"HH","audio":"272B"}]},
   {"n":"273","reading":"フゼイ","status":"ok","members":[{"surface":"府税","pattern":"LLH","audio":"273A"}, {"surface":"風情","pattern":"HLL","audio":"273B"}]},
-  {"n":"274","reading":"フドー","status":"hyogo","members":[{"surface":"府道","pattern":"LLH","audio":"274A"}, {"surface":"不動","pattern":"LHL","audio":"274B"}]},
+  {"n":"274","reading":"フドー","status":"ok","members":[{"surface":"府道","pattern":"LLH","audio":"274A"}, {"surface":"不動","pattern":"HLL","audio":"274B"}]},
   {"n":"275","reading":"ブドー","status":"ok","members":[{"surface":"武道","pattern":"HLL","audio":"275A"}, {"surface":"葡萄","pattern":"HHH","audio":"275B"}]},
   {"n":"276","reading":"ヘイ","status":"ok","members":[{"surface":"塀","pattern":"HH","audio":"276A"}, {"surface":"丙","pattern":"HL","audio":"276B"}]},
   {"n":"277","reading":"ヘイキ","status":"ok","members":[{"surface":"兵器","pattern":"HLL","audio":"277A"}, {"surface":"平気","pattern":"LLH","audio":"277B"}]},
