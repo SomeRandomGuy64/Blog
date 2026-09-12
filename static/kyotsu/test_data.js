@@ -131,7 +131,7 @@ const TEST = [
   {"n":"128","reading":"シュセキ","status":"ok","members":[{"surface":"主席","pattern":"LLH","audio":"128A"}, {"surface":"首席","pattern":"HHH","audio":"128B"}]},
   {"n":"129","reading":"シュチョー","status":"ok","members":[{"surface":"主張","pattern":"HHH","audio":"129A"}, {"surface":"首長","pattern":"HLL","audio":"129B"}]},
   {"n":"130","reading":"ショキ","status":"ok","members":[{"surface":"初期","pattern":"HL","audio":"130A"}, {"surface":"書記","pattern":"LH","audio":"130B"}]},
-  {"n":"131","reading":"ショクシュ","status":"ok","members":[{"surface":"触手","pattern":"HLL","audio":"131A"}, {"surface":"職種","pattern":"HHH","audio":"131B"}]},
+  {"n":"131","reading":"ショクシュ","status":"blacklist","members":[{"surface":"触手","pattern":"HLL","audio":"131A"}, {"surface":"職種","pattern":"HHH","audio":"131B"}]},
   {"n":"132","reading":"ショコー","status":"ok","members":[{"surface":"初校","pattern":"HHH","audio":"132A"}, {"surface":"初項","pattern":"HLL","audio":"132B"}]},
   {"n":"133","reading":"ショーガイ","status":"ok","members":[{"surface":"障害","pattern":"HHHH","audio":"133A"}, {"surface":"生涯","pattern":"LHLL","audio":"133B"}]},
   {"n":"134","reading":"ショーシャ","status":"ok","members":[{"surface":"勝者","pattern":"HLL","audio":"134A"}, {"surface":"照射","pattern":"LLH","audio":"134B"}]},

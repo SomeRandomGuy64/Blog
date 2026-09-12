@@ -2,6 +2,8 @@
 // 278 (ホー 法/穂): Kobe HH/LL (not discernible) so `voices:["nagi"]` — only the Kyoto
 // speaker voices it, where 穂 is LH (discernible). Per-pair `voices` limits which
 // SPEAKERS may be picked for that pair; absent = all.
+// 131 (ショクシュ 触手/職種): 131A pitch is wrong for Kobe (correct for Kyoto) so
+// `voices:["nagi"]` — Kyoto speaker only. Blacklisted for Kobe in test_data.js.
 // Hyogo pairs 009,021,103,221,248 store Kobe pitch; the Kyoto speaker overrides them in section.html.
 const QUIZ = [
   {"reading": "アイショー", "members": [{"surface": "相性", "pattern": "HLLL", "audio": "001A"}, {"surface": "愛称", "pattern": "HHHH", "audio": "001B"}]},
@@ -132,7 +134,7 @@ const QUIZ = [
   {"reading": "シュセキ", "members": [{"surface": "主席", "pattern": "LLH", "audio": "128A"}, {"surface": "首席", "pattern": "HHH", "audio": "128B"}]},
   {"reading": "シュチョー", "members": [{"surface": "主張", "pattern": "HHH", "audio": "129A"}, {"surface": "首長", "pattern": "HLL", "audio": "129B"}]},
   {"reading": "ショキ", "members": [{"surface": "初期", "pattern": "HL", "audio": "130A"}, {"surface": "書記", "pattern": "LH", "audio": "130B"}]},
-  {"reading": "ショクシュ", "members": [{"surface": "触手", "pattern": "HLL", "audio": "131A"}, {"surface": "職種", "pattern": "HHH", "audio": "131B"}]},
+  {"reading": "ショクシュ", "voices": ["nagi"], "members": [{"surface": "触手", "pattern": "HLL", "audio": "131A"}, {"surface": "職種", "pattern": "HHH", "audio": "131B"}]},
   {"reading": "ショコー", "members": [{"surface": "初校", "pattern": "HHH", "audio": "132A"}, {"surface": "初項", "pattern": "HLL", "audio": "132B"}]},
   {"reading": "ショーガイ", "members": [{"surface": "障害", "pattern": "HHHH", "audio": "133A"}, {"surface": "生涯", "pattern": "LHLL", "audio": "133B"}]},
   {"reading": "ショーシャ", "members": [{"surface": "勝者", "pattern": "HLL", "audio": "134A"}, {"surface": "照射", "pattern": "LLH", "audio": "134B"}]},
