@@ -1,4 +1,8 @@
-// Excluded: 002 (blacklist), 247/261 (undetermined), 055 (both HH).
+// Excluded: 002 (blacklist), 055 (both HH), 101 (ゴゴ 午後/五五 — identical in isolation,
+//   午後's downstep only lands on a following particle → no contrast; blacklist all voices),
+//   247/261 (undetermined).
+// Kobe-specific pitch (base = Yura/Kobe): 157A 自由=LLH, 248B 二重=LLH (both hyogo-flagged;
+//   Nagi overrides to Kyoto reference in section.html). Kyoto-specific: 065A 屑=LL (Nagi override).
 // 278 (ホー 法/穂): Kobe HH/LL (not discernible) so `voices:["nagi"]` — only the Kyoto
 // speaker voices it, where 穂 is LH (discernible). Per-pair `voices` limits which
 // SPEAKERS may be picked for that pair; absent = all.
@@ -104,7 +108,6 @@ const QUIZ = [
   {"reading": "コーフ", "members": [{"surface": "交付", "pattern": "LLH", "audio": "098A"}, {"surface": "甲府", "pattern": "HHH", "audio": "098B"}]},
   {"reading": "コーボ", "members": [{"surface": "公募", "pattern": "LLH", "audio": "099A"}, {"surface": "酵母", "pattern": "HLL", "audio": "099B"}]},
   {"reading": "ゴエン", "members": [{"surface": "五円", "pattern": "HHH", "audio": "100A"}, {"surface": "後宴", "pattern": "HLL", "audio": "100B"}]},
-  {"reading": "ゴゴ", "members": [{"surface": "午後", "pattern": "LH↘", "audio": "101A"}, {"surface": "五五", "pattern": "LH", "audio": "101B"}]},
   {"reading": "ゴジ", "members": [{"surface": "五時", "pattern": "HH", "audio": "102A"}, {"surface": "誤字", "pattern": "HL", "audio": "102B"}]},
   {"reading": "ゴセン", "members": [{"surface": "五千", "pattern": "LHL", "audio": "103A"}, {"surface": "五銭", "pattern": "HHH", "audio": "103B"}]},
   {"reading": "ゴハン", "members": [{"surface": "御判", "pattern": "HLL", "audio": "104A"}, {"surface": "御飯", "pattern": "HHH", "audio": "104B"}]},
@@ -160,7 +163,7 @@ const QUIZ = [
   {"reading": "ジュー", "members": [{"surface": "十", "pattern": "HH", "audio": "154A"}, {"surface": "銃", "pattern": "HL", "audio": "154B"}]},
   {"reading": "ジュージ", "members": [{"surface": "十時", "pattern": "HHL", "audio": "155A"}, {"surface": "従事", "pattern": "HLL", "audio": "155B"}]},
   {"reading": "ジューダイ", "members": [{"surface": "十代", "pattern": "LHLL", "audio": "156A"}, {"surface": "重大", "pattern": "HHHH", "audio": "156B"}]},
-  {"reading": "ジユー", "members": [{"surface": "自由", "pattern": "HLL", "audio": "157A"}, {"surface": "事由", "pattern": "HHH", "audio": "157B"}]},
+  {"reading": "ジユー", "members": [{"surface": "自由", "pattern": "LLH", "audio": "157A"}, {"surface": "事由", "pattern": "HHH", "audio": "157B"}]},
   {"reading": "ジョー", "members": [{"surface": "錠", "pattern": "HL", "audio": "158A"}, {"surface": "情", "pattern": "HH", "audio": "158B"}]},
   {"reading": "ジョーズ", "members": [{"surface": "上図", "pattern": "HLL", "audio": "159A"}, {"surface": "上手", "pattern": "LLH", "audio": "159B"}]},
   {"reading": "ジョーブ", "members": [{"surface": "上部", "pattern": "HLL", "audio": "160A"}, {"surface": "丈夫", "pattern": "LLH", "audio": "160B"}]},
@@ -250,7 +253,7 @@ const QUIZ = [
   {"reading": "ナン", "members": [{"surface": "何", "pattern": "LH", "audio": "244A"}, {"surface": "難", "pattern": "HL", "audio": "244B"}]},
   {"reading": "ナンカイ", "members": [{"surface": "何回", "pattern": "LHLL", "audio": "245A"}, {"surface": "何階", "pattern": "LLLH", "audio": "245B"}]},
   {"reading": "ナンキョク", "members": [{"surface": "何曲", "pattern": "LHLL", "audio": "246A"}, {"surface": "南極", "pattern": "HHHH", "audio": "246B"}]},
-  {"reading": "ニジュー", "members": [{"surface": "二十", "pattern": "HHH", "audio": "248A"}, {"surface": "二重", "pattern": "HHL", "audio": "248B"}]},
+  {"reading": "ニジュー", "members": [{"surface": "二十", "pattern": "HHH", "audio": "248A"}, {"surface": "二重", "pattern": "LLH", "audio": "248B"}]},
   {"reading": "ニッカン", "members": [{"surface": "日韓", "pattern": "HLLL", "audio": "249A"}, {"surface": "日刊", "pattern": "LLLH", "audio": "249B"}]},
   {"reading": "ニワ", "members": [{"surface": "二把", "pattern": "LH", "audio": "250A"}, {"surface": "丹羽", "pattern": "HL", "audio": "250B"}]},
   {"reading": "ニンギョ", "members": [{"surface": "人形", "pattern": "LLH", "audio": "251A"}, {"surface": "人魚", "pattern": "HLL", "audio": "251B"}]},
