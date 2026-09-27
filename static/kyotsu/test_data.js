@@ -174,7 +174,7 @@ const TEST = [
   {"n":"171","reading":"セイフク","status":"ok","members":[{"surface":"制服","pattern":"LLLH","audio":"171A"}, {"surface":"征服","pattern":"HHHH","audio":"171B"}]},
   {"n":"172","reading":"セイブ","status":"ok","members":[{"surface":"西武","pattern":"LHL","audio":"172A"}, {"surface":"西部","pattern":"HLL","audio":"172B"}]},
   {"n":"173","reading":"セイヤク","status":"ok","members":[{"surface":"制約","pattern":"HHHH","audio":"173A"}, {"surface":"製薬","pattern":"LLLH","audio":"173B"}]},
-  {"n":"174","reading":"セイリ","status":"ok","members":[{"surface":"整理","pattern":"LLH","audio":"174A"}, {"surface":"生理","pattern":"LHL","audio":"174B"}]},
+  {"n":"174","reading":"セイリ","status":"blacklist","members":[{"surface":"整理","pattern":"LLH","audio":"174A"}, {"surface":"生理","pattern":"LHL","audio":"174B"}]},
   {"n":"175","reading":"セキ","status":"ok","members":[{"surface":"席","pattern":"HH","audio":"175A"}, {"surface":"咳","pattern":"HL","audio":"175B"}]},
   {"n":"176","reading":"センカイ","status":"ok","members":[{"surface":"千階","pattern":"LLLH","audio":"176A"}, {"surface":"旋回","pattern":"HHHH","audio":"176B"}]},
   {"n":"177","reading":"センカン","status":"ok","members":[{"surface":"戦艦","pattern":"HHHH","audio":"177A"}, {"surface":"選管","pattern":"LLLH","audio":"177B"}]},
