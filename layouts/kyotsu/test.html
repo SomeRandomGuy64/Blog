@@ -94,8 +94,8 @@
       const ms=moras(reading),steps=[];let drop=[];
       for(const c of pattern){if(c==="H")steps.push(1);else if(c==="L")steps.push(0);else if(c==="↘")drop.push(steps.length-1);}
       const n=steps.length,endDrop=drop.includes(n-1),cols=n+(endDrop?1:0);
-      const w=Math.max(80,cols*34+20),h=54,padX=16,padTop=8,padBot=30;
-      const yH=padTop,yL=h-padBot,x=k=>padX+(cols===1?(w-2*padX)/2:k*(w-2*padX)/(cols-1)),y=k=>steps[k]?yH:yL;
+      const step=36,h=54,padX=16,padTop=8,padBot=30,w=Math.max(80,(cols-1)*step+2*padX);  // fixed mora spacing → identical slope everywhere
+      const yH=padTop,yL=h-padBot,x=k=>(w-(cols-1)*step)/2+k*step,y=k=>steps[k]?yH:yL;
       const pts=steps.map((s,k)=>`${x(k)},${y(k)}`).join(" ");let dots="",labels="",extra="";
       for(let k=0;k<n;k++){dots+=`<circle cx="${x(k)}" cy="${y(k)}" r="4.5" fill="${steps[k]?'var(--k-hi)':'var(--k-lo)'}"/>`;
         if(drop.includes(k)&&k<n-1)dots+=`<text x="${x(k)+8}" y="${y(k)-6}" font-size="12" fill="var(--k-hi)">˺</text>`;
