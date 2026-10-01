@@ -4,7 +4,7 @@
   <h1>{{ .Title }}</h1>
 
   <div class="instructions">
-    <p class="ins-meta">全 308 ペア（616 語）</p>
+    <p class="ins-meta">全 517 ペア（1,034 語）・使用漢字 計 1,858 字</p>
 
     <div class="ins-lead">
       <p>このたびは録音にご協力いただき、誠にありがとうございます。この音源は、日本語学習者が
@@ -35,7 +35,8 @@
       <li>ひとつの音声ファイルに<strong>続けて録音</strong>していただいて構いません（切り出しはこちらで行います）。</li>
     </ol>
 
-    <h2>語彙リスト（308 ペア）</h2>
+    <h2>語彙リスト（517 ペア）</h2>
     {{ partial "instructions_list.html" . }}
+    {{ partial "instructions_list_2.html" . }}
   </div>
 {{ end }}

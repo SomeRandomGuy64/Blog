@@ -171,3 +171,4 @@ body.light-mode {
   .theme-toggle-wrapper, .site-nav, .site-footer, .kyotsu-wordmark { display: none; }
   .ins-grid { gap: 5px 12px; } .ins-jp { font-size: 15px; }
 }
+.instructions h3.ins-sub { text-align: left; font-size: 0.95em; margin: 1.6em 0 0; color: var(--k-muted); }
