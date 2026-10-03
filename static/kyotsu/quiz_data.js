@@ -1,6 +1,8 @@
 // Excluded: 002 (blacklist), 055 (both HH), 101 (ゴゴ 午後/五五 — identical in isolation,
 //   午後's downstep only lands on a following particle → no contrast; blacklist all voices),
-//   247/261 (undetermined).
+//   247/261 (undetermined), 072 (ケン 剣/健 — all 3 voices say 剣 high-onset vs the LH label;
+//   dict marks LH as old pitch → blacklist all voices, incl. 厚崎ゆうま pre-emptively until his
+//   072 is ear-verified; then re-add with `voices:["atsuzaki"]`).
 // Kobe-specific pitch (base = Yura/Kobe): 157A 自由=LLH, 248B 二重=LLH (both hyogo-flagged;
 //   Nagi overrides to Kyoto reference in section.html). Kyoto-specific: 065A 屑=LL (Nagi override).
 // 278 (ホー 法/穂): Kobe HH/LL (not discernible) so `voices:["nagi"]` — only the Kyoto
@@ -9,6 +11,8 @@
 // 131 (ショクシュ 触手/職種): 131A pitch is wrong for Kobe (correct for Kyoto) so
 // `voices:["nagi"]` — Kyoto speaker only. Blacklisted for Kobe in test_data.js.
 // 174 (セイリ 整理/生理): 彩森遊楽 (Kobe) 174A sounds closer to HHL than LLH (unsure), so
+// `voices:["nagi","otowa"]` — blacklisted for Kobe in test_data.js.
+// 094 (コーテイ 皇帝/肯定): 彩森遊楽 (Kobe) delivery sounds off (user ear-check 2026-10-03), so
 // `voices:["nagi","otowa"]` — blacklisted for Kobe in test_data.js.
 // Hyogo pairs 009,021,103,221,248 store Kobe pitch; the Kyoto speaker overrides them in section.html.
 const QUIZ = [
@@ -81,7 +85,6 @@ const QUIZ = [
   {"reading": "クー", "members": [{"surface": "苦", "pattern": "LH", "audio": "069A"}, {"surface": "句", "pattern": "HH", "audio": "069B"}]},
   {"reading": "ケイ", "members": [{"surface": "計", "pattern": "HL", "audio": "070A"}, {"surface": "景", "pattern": "LH", "audio": "070B"}]},
   {"reading": "ケイゴ", "members": [{"surface": "敬語", "pattern": "LLH", "audio": "071A"}, {"surface": "警護", "pattern": "HLL", "audio": "071B"}]},
-  {"reading": "ケン", "members": [{"surface": "剣", "pattern": "LH", "audio": "072A"}, {"surface": "健", "pattern": "HL", "audio": "072B"}]},
   {"reading": "ゲンカイ", "members": [{"surface": "限界", "pattern": "HHHH", "audio": "073A"}, {"surface": "言海", "pattern": "HLLL", "audio": "073B"}]},
   {"reading": "ゲンシ", "members": [{"surface": "原子", "pattern": "HLL", "audio": "074A"}, {"surface": "原始", "pattern": "LLH", "audio": "074B"}]},
   {"reading": "ゲンジ", "members": [{"surface": "源氏", "pattern": "HHH", "audio": "075A"}, {"surface": "源治", "pattern": "HLL", "audio": "075B"}]},
@@ -103,7 +106,7 @@ const QUIZ = [
   {"reading": "コーセイ", "members": [{"surface": "構成", "pattern": "HHHH", "audio": "091A"}, {"surface": "後世", "pattern": "HLLL", "audio": "091B"}]},
   {"reading": "コーセン", "members": [{"surface": "光線", "pattern": "HHHH", "audio": "092A"}, {"surface": "工専", "pattern": "LLLH", "audio": "092B"}]},
   {"reading": "コーチ", "members": [{"surface": "高知", "pattern": "HHH", "audio": "093A"}, {"surface": "拘置", "pattern": "LLH", "audio": "093B"}]},
-  {"reading": "コーテイ", "members": [{"surface": "皇帝", "pattern": "LHLL", "audio": "094A"}, {"surface": "肯定", "pattern": "HHHH", "audio": "094B"}]},
+  {"reading": "コーテイ", "voices": ["nagi", "otowa"], "members": [{"surface": "皇帝", "pattern": "LHLL", "audio": "094A"}, {"surface": "肯定", "pattern": "HHHH", "audio": "094B"}]},
   {"reading": "コートー", "members": [{"surface": "高等", "pattern": "LLLH", "audio": "095A"}, {"surface": "高騰", "pattern": "HHHH", "audio": "095B"}]},
   {"reading": "コーハイ", "members": [{"surface": "後輩", "pattern": "LLLH", "audio": "096A"}, {"surface": "荒廃", "pattern": "HHHH", "audio": "096B"}]},
   {"reading": "コービ", "members": [{"surface": "交尾", "pattern": "LLH", "audio": "097A"}, {"surface": "後尾", "pattern": "HLL", "audio": "097B"}]},
