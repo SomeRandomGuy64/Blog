@@ -294,7 +294,7 @@ const TEST = [
   {"n":"291","reading":"モン","status":"ok","members":[{"surface":"門","pattern":"HL","audio":"291A"}, {"surface":"紋","pattern":"LH","audio":"291B"}]},
   {"n":"292","reading":"ヤク","status":"ok","members":[{"surface":"約","pattern":"HL","audio":"292A"}, {"surface":"厄","pattern":"HH","audio":"292B"}]},
   {"n":"293","reading":"ユーキ","status":"ok","members":[{"surface":"勇気","pattern":"HLL","audio":"293A"}, {"surface":"結城","pattern":"HHH","audio":"293B"}]},
-  {"n":"294","reading":"ユーシ","status":"ok","members":[{"surface":"融資","pattern":"LLH","audio":"294A"}, {"surface":"有志","pattern":"LHL","audio":"294B"}]},
+  {"n":"294","reading":"ユーシ","status":"blacklist","members":[{"surface":"融資","pattern":"LLH","audio":"294A"}, {"surface":"有志","pattern":"LHL","audio":"294B"}]},
   {"n":"295","reading":"ヨク","status":"ok","members":[{"surface":"欲","pattern":"HL","audio":"295A"}, {"surface":"翌","pattern":"HH","audio":"295B"}]},
   {"n":"296","reading":"ヨー","status":"ok","members":[{"surface":"用","pattern":"HH","audio":"296A"}, {"surface":"要","pattern":"HL","audio":"296B"}]},
   {"n":"297","reading":"ヨーゴ","status":"ok","members":[{"surface":"用語","pattern":"HLL","audio":"297A"}, {"surface":"養護","pattern":"LLH","audio":"297B"}]},

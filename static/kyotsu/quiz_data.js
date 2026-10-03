@@ -14,6 +14,8 @@
 // `voices:["nagi","otowa"]` — blacklisted for Kobe in test_data.js.
 // 094 (コーテイ 皇帝/肯定): 彩森遊楽 (Kobe) delivery sounds off (user ear-check 2026-10-03), so
 // `voices:["nagi","otowa"]` — blacklisted for Kobe in test_data.js.
+// 294 (ユーシ 融資/有志): 彩森遊楽 (Kobe) says both as rise-fall (merge; user ear-check 2026-10-03),
+// so `voices:["nagi","otowa"]` — blacklisted for Kobe in test_data.js.
 // Hyogo pairs 009,021,103,221,248 store Kobe pitch; the Kyoto speaker overrides them in section.html.
 const QUIZ = [
   {"reading": "アイショー", "members": [{"surface": "相性", "pattern": "HLLL", "audio": "001A"}, {"surface": "愛称", "pattern": "HHHH", "audio": "001B"}]},
@@ -303,7 +305,7 @@ const QUIZ = [
   {"reading": "モン", "members": [{"surface": "門", "pattern": "HL", "audio": "291A"}, {"surface": "紋", "pattern": "LH", "audio": "291B"}]},
   {"reading": "ヤク", "members": [{"surface": "約", "pattern": "HL", "audio": "292A"}, {"surface": "厄", "pattern": "HH", "audio": "292B"}]},
   {"reading": "ユーキ", "members": [{"surface": "勇気", "pattern": "HLL", "audio": "293A"}, {"surface": "結城", "pattern": "HHH", "audio": "293B"}]},
-  {"reading": "ユーシ", "members": [{"surface": "融資", "pattern": "LLH", "audio": "294A"}, {"surface": "有志", "pattern": "LHL", "audio": "294B"}]},
+  {"reading": "ユーシ", "voices": ["nagi", "otowa"], "members": [{"surface": "融資", "pattern": "LLH", "audio": "294A"}, {"surface": "有志", "pattern": "LHL", "audio": "294B"}]},
   {"reading": "ヨク", "members": [{"surface": "欲", "pattern": "HL", "audio": "295A"}, {"surface": "翌", "pattern": "HH", "audio": "295B"}]},
   {"reading": "ヨー", "members": [{"surface": "用", "pattern": "HH", "audio": "296A"}, {"surface": "要", "pattern": "HL", "audio": "296B"}]},
   {"reading": "ヨーゴ", "members": [{"surface": "用語", "pattern": "HLL", "audio": "297A"}, {"surface": "養護", "pattern": "LLH", "audio": "297B"}]},
