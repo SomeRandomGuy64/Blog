@@ -72,7 +72,7 @@ const TEST = [
   {"n":"069","reading":"クー","status":"ok","members":[{"surface":"苦","pattern":"LH","audio":"069A"}, {"surface":"句","pattern":"HH","audio":"069B"}]},
   {"n":"070","reading":"ケイ","status":"ok","members":[{"surface":"計","pattern":"HL","audio":"070A"}, {"surface":"景","pattern":"LH","audio":"070B"}]},
   {"n":"071","reading":"ケイゴ","status":"ok","members":[{"surface":"敬語","pattern":"LLH","audio":"071A"}, {"surface":"警護","pattern":"HLL","audio":"071B"}]},
-  {"n":"072","reading":"ケン","status":"ok","members":[{"surface":"剣","pattern":"LH","audio":"072A"}, {"surface":"健","pattern":"HL","audio":"072B"}]},
+  {"n":"072","reading":"ケン","status":"blacklist","members":[{"surface":"剣","pattern":"LH","audio":"072A"}, {"surface":"健","pattern":"HL","audio":"072B"}]},
   {"n":"073","reading":"ゲンカイ","status":"ok","members":[{"surface":"限界","pattern":"HHHH","audio":"073A"}, {"surface":"言海","pattern":"HLLL","audio":"073B"}]},
   {"n":"074","reading":"ゲンシ","status":"ok","members":[{"surface":"原子","pattern":"HLL","audio":"074A"}, {"surface":"原始","pattern":"LLH","audio":"074B"}]},
   {"n":"075","reading":"ゲンジ","status":"ok","members":[{"surface":"源氏","pattern":"HHH","audio":"075A"}, {"surface":"源治","pattern":"HLL","audio":"075B"}]},
