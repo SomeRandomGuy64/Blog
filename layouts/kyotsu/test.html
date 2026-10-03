@@ -61,7 +61,10 @@
     // Kobe trainer lives in quiz_data.js, not here). `overrides` swaps a pitch pattern
     // per clip; `forceOk` forces every status chip to "ok" for that speaker.
     const SPEAKERS=[
-      {id:"yura", label:"彩森遊楽 (Kobe)",  region:"native Kobe",              base:AUDIO_BASE,         overrides:{}},
+      {id:"yura", label:"彩森遊楽 (Kobe)",  region:"native Kobe",              base:AUDIO_BASE,
+        // her own Kobe pitch where it differs from the stored base (user ear-check 2026-10-03)
+        personal:new Set(["058A","067A","097A","081A","152A","077A","075A"]),
+        overrides:{"058A":"HHL","067A":"HL","097A":"HHL","081A":"LHHL","152A":"HLL","077A":"LLLH","075A":"LLH"}},
       {id:"nagi", label:"月野ナギ (Kyoto)", region:"Osaka-raised, Kyoto pitch", base:AUDIO_BASE+"nagi/", forceOk:true,
         // these are truly speaker-specific (her own reported pitch); the rest are
         // dictionary Kyoto values, not personal to her.

@@ -43,7 +43,9 @@
     // both come from that speaker. `overrides` = clips a speaker produced with a
     // different pitch than the reference (keyed by audio id).
     const SPEAKERS=[
-      {id:"yura", label:"彩森遊楽 (Kobe)",  base:AUDIO_BASE},
+      {id:"yura", label:"彩森遊楽 (Kobe)",  base:AUDIO_BASE,
+        // her own Kobe pitch where it differs from the stored base (user ear-check 2026-10-03)
+        overrides:{"058A":"HHL","067A":"HL","097A":"HHL","081A":"LHHL","152A":"HLL","077A":"LLLH","075A":"LLH"}},
       {id:"nagi", label:"月野ナギ (Kyoto)", base:AUDIO_BASE+"nagi/", overrides:{
         // her personal deviations from the reference
         "001A":"LLHL","089A":"LLHL","152B":"HLL","065A":"LL",
