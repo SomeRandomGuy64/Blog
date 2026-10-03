@@ -94,7 +94,7 @@ const TEST = [
   {"n":"091","reading":"コーセイ","status":"ok","members":[{"surface":"構成","pattern":"HHHH","audio":"091A"}, {"surface":"後世","pattern":"HLLL","audio":"091B"}]},
   {"n":"092","reading":"コーセン","status":"ok","members":[{"surface":"光線","pattern":"HHHH","audio":"092A"}, {"surface":"工専","pattern":"LLLH","audio":"092B"}]},
   {"n":"093","reading":"コーチ","status":"ok","members":[{"surface":"高知","pattern":"HHH","audio":"093A"}, {"surface":"拘置","pattern":"LLH","audio":"093B"}]},
-  {"n":"094","reading":"コーテイ","status":"ok","members":[{"surface":"皇帝","pattern":"LHLL","audio":"094A"}, {"surface":"肯定","pattern":"HHHH","audio":"094B"}]},
+  {"n":"094","reading":"コーテイ","status":"blacklist","members":[{"surface":"皇帝","pattern":"LHLL","audio":"094A"}, {"surface":"肯定","pattern":"HHHH","audio":"094B"}]},
   {"n":"095","reading":"コートー","status":"ok","members":[{"surface":"高等","pattern":"LLLH","audio":"095A"}, {"surface":"高騰","pattern":"HHHH","audio":"095B"}]},
   {"n":"096","reading":"コーハイ","status":"ok","members":[{"surface":"後輩","pattern":"LLLH","audio":"096A"}, {"surface":"荒廃","pattern":"HHHH","audio":"096B"}]},
   {"n":"097","reading":"コービ","status":"ok","members":[{"surface":"交尾","pattern":"LLH","audio":"097A"}, {"surface":"後尾","pattern":"HLL","audio":"097B"}]},
