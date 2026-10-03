@@ -48,13 +48,15 @@
         overrides:{"058A":"HHL","067A":"HL","097A":"HHL","081A":"LHHL","152A":"HLL","077A":"LLLH","075A":"LLH"}},
       {id:"nagi", label:"月野ナギ (Kyoto)", base:AUDIO_BASE+"nagi/", overrides:{
         // her personal deviations from the reference
-        "001A":"LLHL","089A":"LLHL","152B":"HLL","065A":"LL",
+        "001A":"LLHL","089A":"LLHL","152B":"HLL",
         // the Kobe-divergent (hyogo) pairs restored to their base Kyoto pitch
         "009A":"HHH","021A":"LHL","103A":"LLH","157A":"HLL","221B":"LH↘","248B":"LLH","278B":"LH"}},
       {id:"otowa", label:"音羽咲夜 (Nara)", base:AUDIO_BASE+"otowa/", overrides:{
         // Kyoto speaker: the Kobe-divergent (hyogo) base pairs restored to Kyoto pitch
-        // (per the 84k Kinki dictionary). No personal deviations — she matches the reference.
-        "009A":"HHH","021A":"LHL","103A":"LLH","157A":"HLL","221B":"LH↘","278B":"LH"}},
+        // (per the 84k Kinki dictionary).
+        "009A":"HHH","021A":"LHL","103A":"LLH","157A":"HLL","221B":"LH↘","278B":"LH",
+        // her own pitch where it differs from the reference (user ear-check 2026-10-03)
+        "221A":"LL","178A":"LLHH","152B":"HLL","233B":"LLH","227A":"LLH","131B":"LLH","159B":"LHL","097A":"LHL"}},
     ];
     const patternFor=(spk,m)=>(spk.overrides&&spk.overrides[m.audio])||m.pattern;
     const $=s=>document.querySelector(s);

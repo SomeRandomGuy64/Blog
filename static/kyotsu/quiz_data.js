@@ -4,7 +4,7 @@
 //   dict marks LH as old pitch → blacklist all voices, incl. 厚崎ゆうま pre-emptively until his
 //   072 is ear-verified; then re-add with `voices:["atsuzaki"]`).
 // Kobe-specific pitch (base = Yura/Kobe): 157A 自由=LLH, 248B 二重=LLH (both hyogo-flagged;
-//   Nagi overrides to Kyoto reference in section.html). Kyoto-specific: 065A 屑=LL (Nagi override).
+//   Nagi overrides to Kyoto reference in section.html). (065A 屑 Nagi override removed 2026-10-03 — she says LH.)
 // 278 (ホー 法/穂): Kobe HH/LL (not discernible) so `voices:["nagi"]` — only the Kyoto
 // speaker voices it, where 穂 is LH (discernible). Per-pair `voices` limits which
 // SPEAKERS may be picked for that pair; absent = all.
@@ -24,6 +24,11 @@
 //   081A 今度=LHHL (low-onset w/ kernel; cf. early Osaka rakugo コンド LHL — Kansai, not Tokyo HLL).
 // Tier 3: 006 (石 sounds HL) 114 145 235 (235A cut short, 235B is HL) 243.
 //   Overrides: 152A 自動=HLL, 077A 原料=LLLH, 075A 源氏=LLH.
+// Nagi ear-check 2026-10-03 (pitch-checker shortlist): 174 (also Yura) and 243 (also Yura) now
+//   Otowa-only; 219 (テツ 鉄/轍) Yura+Otowa only. 060A 強大 heard HHLH = phrasing (強+大), not a
+//   lexical pattern → kept HHHH. (test_data.js status is shared + Nagi is forceOk, so no per-Nagi chip.)
+// Otowa ear-check 2026-10-03: 012, 030 → Yura+Nagi only; 102 → Nagi only; 174 removed entirely
+//   (blacklisted for all 3 voices). Otowa speaker-specific overrides in section.html/test.html.
 // Hyogo pairs 009,021,103,221,248 store Kobe pitch; the Kyoto speaker overrides them in section.html.
 const QUIZ = [
   {"reading": "アイショー", "members": [{"surface": "相性", "pattern": "HLLL", "audio": "001A"}, {"surface": "愛称", "pattern": "HHHH", "audio": "001B"}]},
@@ -36,7 +41,7 @@ const QUIZ = [
   {"reading": "イズミ", "members": [{"surface": "泉", "pattern": "LHL", "audio": "009A"}, {"surface": "和泉", "pattern": "HLL", "audio": "009B"}]},
   {"reading": "イッショー", "members": [{"surface": "一生", "pattern": "HLLL", "audio": "010A"}, {"surface": "一将", "pattern": "HHHH", "audio": "010B"}]},
   {"reading": "イトー", "voices": ["nagi", "otowa"], "members": [{"surface": "伊藤", "pattern": "HHH", "audio": "011A"}, {"surface": "糸", "pattern": "LLH", "audio": "011B"}]},
-  {"reading": "イドー", "members": [{"surface": "移動", "pattern": "LLH", "audio": "012A"}, {"surface": "井戸", "pattern": "LHL", "audio": "012B"}]},
+  {"reading": "イドー", "voices": ["yura", "nagi"], "members": [{"surface": "移動", "pattern": "LLH", "audio": "012A"}, {"surface": "井戸", "pattern": "LHL", "audio": "012B"}]},
   {"reading": "イリョー", "voices": ["nagi", "otowa"], "members": [{"surface": "医療", "pattern": "LLH", "audio": "013A"}, {"surface": "衣料", "pattern": "HLL", "audio": "013B"}]},
   {"reading": "エンシュー", "members": [{"surface": "演習", "pattern": "HHHH", "audio": "014A"}, {"surface": "遠州", "pattern": "HLLL", "audio": "014B"}]},
   {"reading": "エンショー", "members": [{"surface": "円生", "pattern": "HLLL", "audio": "015A"}, {"surface": "炎症", "pattern": "HHHH", "audio": "015B"}]},
@@ -54,7 +59,7 @@ const QUIZ = [
   {"reading": "カサイ", "members": [{"surface": "火災", "pattern": "LLH", "audio": "027A"}, {"surface": "葛西", "pattern": "HLL", "audio": "027B"}]},
   {"reading": "カタ", "members": [{"surface": "型", "pattern": "HL", "audio": "028A"}, {"surface": "肩", "pattern": "LH", "audio": "028B"}]},
   {"reading": "カノー", "members": [{"surface": "可能", "pattern": "LLH", "audio": "029A"}, {"surface": "狩野", "pattern": "HHH", "audio": "029B"}]},
-  {"reading": "カブ", "members": [{"surface": "株", "pattern": "HH", "audio": "030A"}, {"surface": "下部", "pattern": "HL", "audio": "030B"}]},
+  {"reading": "カブ", "voices": ["yura", "nagi"], "members": [{"surface": "株", "pattern": "HH", "audio": "030A"}, {"surface": "下部", "pattern": "HL", "audio": "030B"}]},
   {"reading": "カマ", "members": [{"surface": "窯", "pattern": "HH", "audio": "031A"}, {"surface": "鎌", "pattern": "LH", "audio": "031B"}]},
   {"reading": "カミ", "voices": ["nagi", "otowa"], "members": [{"surface": "髪", "pattern": "HL", "audio": "032A"}, {"surface": "紙", "pattern": "HH", "audio": "032B"}]},
   {"reading": "カワ", "members": [{"surface": "川", "pattern": "HH", "audio": "033A"}, {"surface": "皮", "pattern": "LH", "audio": "033B"}]},
@@ -123,7 +128,7 @@ const QUIZ = [
   {"reading": "コーフ", "members": [{"surface": "交付", "pattern": "LLH", "audio": "098A"}, {"surface": "甲府", "pattern": "HHH", "audio": "098B"}]},
   {"reading": "コーボ", "members": [{"surface": "公募", "pattern": "LLH", "audio": "099A"}, {"surface": "酵母", "pattern": "HLL", "audio": "099B"}]},
   {"reading": "ゴエン", "members": [{"surface": "五円", "pattern": "HHH", "audio": "100A"}, {"surface": "後宴", "pattern": "HLL", "audio": "100B"}]},
-  {"reading": "ゴジ", "voices": ["nagi", "otowa"], "members": [{"surface": "五時", "pattern": "HH", "audio": "102A"}, {"surface": "誤字", "pattern": "HL", "audio": "102B"}]},
+  {"reading": "ゴジ", "voices": ["nagi"], "members": [{"surface": "五時", "pattern": "HH", "audio": "102A"}, {"surface": "誤字", "pattern": "HL", "audio": "102B"}]},
   {"reading": "ゴセン", "members": [{"surface": "五千", "pattern": "LHL", "audio": "103A"}, {"surface": "五銭", "pattern": "HHH", "audio": "103B"}]},
   {"reading": "ゴハン", "members": [{"surface": "御判", "pattern": "HLL", "audio": "104A"}, {"surface": "御飯", "pattern": "HHH", "audio": "104B"}]},
   {"reading": "ゴー", "voices": ["nagi", "otowa"], "members": [{"surface": "五", "pattern": "HH", "audio": "105A"}, {"surface": "碁", "pattern": "HL", "audio": "105B"}]},
@@ -195,7 +200,6 @@ const QUIZ = [
   {"reading": "セイフク", "members": [{"surface": "制服", "pattern": "LLLH", "audio": "171A"}, {"surface": "征服", "pattern": "HHHH", "audio": "171B"}]},
   {"reading": "セイブ", "members": [{"surface": "西武", "pattern": "LHL", "audio": "172A"}, {"surface": "西部", "pattern": "HLL", "audio": "172B"}]},
   {"reading": "セイヤク", "members": [{"surface": "制約", "pattern": "HHHH", "audio": "173A"}, {"surface": "製薬", "pattern": "LLLH", "audio": "173B"}]},
-  {"reading": "セイリ", "voices": ["nagi", "otowa"], "members": [{"surface": "整理", "pattern": "LLH", "audio": "174A"}, {"surface": "生理", "pattern": "LHL", "audio": "174B"}]},
   {"reading": "セキ", "voices": ["nagi", "otowa"], "members": [{"surface": "席", "pattern": "HH", "audio": "175A"}, {"surface": "咳", "pattern": "HL", "audio": "175B"}]},
   {"reading": "センカイ", "members": [{"surface": "千階", "pattern": "LLLH", "audio": "176A"}, {"surface": "旋回", "pattern": "HHHH", "audio": "176B"}]},
   {"reading": "センカン", "members": [{"surface": "戦艦", "pattern": "HHHH", "audio": "177A"}, {"surface": "選管", "pattern": "LLLH", "audio": "177B"}]},
@@ -240,7 +244,7 @@ const QUIZ = [
   {"reading": "ツーカ", "members": [{"surface": "通過", "pattern": "LLH", "audio": "216A"}, {"surface": "通貨", "pattern": "HLL", "audio": "216B"}]},
   {"reading": "テイカ", "voices": ["nagi", "otowa"], "members": [{"surface": "低下", "pattern": "LLH", "audio": "217A"}, {"surface": "定価", "pattern": "HLL", "audio": "217B"}]},
   {"reading": "テイジ", "members": [{"surface": "提示", "pattern": "LLH", "audio": "218A"}, {"surface": "定時", "pattern": "HLL", "audio": "218B"}]},
-  {"reading": "テツ", "members": [{"surface": "鉄", "pattern": "HH", "audio": "219A"}, {"surface": "轍", "pattern": "HL", "audio": "219B"}]},
+  {"reading": "テツ", "voices": ["yura", "otowa"], "members": [{"surface": "鉄", "pattern": "HH", "audio": "219A"}, {"surface": "轍", "pattern": "HL", "audio": "219B"}]},
   {"reading": "テツヤ", "members": [{"surface": "徹夜", "pattern": "HHH", "audio": "220A"}, {"surface": "哲也", "pattern": "HLL", "audio": "220B"}]},
   {"reading": "トク", "members": [{"surface": "得", "pattern": "HH", "audio": "221A"}, {"surface": "特", "pattern": "HL", "audio": "221B"}]},
   {"reading": "トクイ", "voices": ["nagi", "otowa"], "members": [{"surface": "得意", "pattern": "HHH", "audio": "222A"}, {"surface": "特異", "pattern": "LLH", "audio": "222B"}]},
@@ -264,7 +268,7 @@ const QUIZ = [
   {"reading": "ドーセイ", "members": [{"surface": "銅製", "pattern": "HHHH", "audio": "240A"}, {"surface": "同性", "pattern": "LLLH", "audio": "240B"}]},
   {"reading": "ドーヨー", "members": [{"surface": "同様", "pattern": "LLLH", "audio": "241A"}, {"surface": "動揺", "pattern": "HHHH", "audio": "241B"}]},
   {"reading": "ナガイ", "members": [{"surface": "永井", "pattern": "LLH", "audio": "242A"}, {"surface": "長居", "pattern": "HLL", "audio": "242B"}]},
-  {"reading": "ナミ", "voices": ["nagi", "otowa"], "members": [{"surface": "波", "pattern": "HH", "audio": "243A"}, {"surface": "奈美", "pattern": "HL", "audio": "243B"}]},
+  {"reading": "ナミ", "voices": ["otowa"], "members": [{"surface": "波", "pattern": "HH", "audio": "243A"}, {"surface": "奈美", "pattern": "HL", "audio": "243B"}]},
   {"reading": "ナン", "members": [{"surface": "何", "pattern": "LH", "audio": "244A"}, {"surface": "難", "pattern": "HL", "audio": "244B"}]},
   {"reading": "ナンカイ", "members": [{"surface": "何回", "pattern": "LHLL", "audio": "245A"}, {"surface": "何階", "pattern": "LLLH", "audio": "245B"}]},
   {"reading": "ナンキョク", "members": [{"surface": "何曲", "pattern": "LHLL", "audio": "246A"}, {"surface": "南極", "pattern": "HHHH", "audio": "246B"}]},
