@@ -29,6 +29,8 @@
 //   lexical pattern → kept HHHH. (test_data.js status is shared + Nagi is forceOk, so no per-Nagi chip.)
 // Otowa ear-check 2026-10-03: 012, 030 → Yura+Nagi only; 102 → Nagi only; 174 removed entirely
 //   (blacklisted for all 3 voices). Otowa speaker-specific overrides in section.html/test.html.
+// 2026-10-04: 042 (キカ 帰化 LH / 幾何 LH↘) and 065 (クズ 屑 LH / 葛 LH↘) blacklisted for all
+//   voices — the only difference is a word-final drop, which barely sounds in isolation.
 // Hyogo pairs 009,021,103,221,248 store Kobe pitch; the Kyoto speaker overrides them in section.html.
 const QUIZ = [
   {"reading": "アイショー", "members": [{"surface": "相性", "pattern": "HLLL", "audio": "001A"}, {"surface": "愛称", "pattern": "HHHH", "audio": "001B"}]},
@@ -71,7 +73,6 @@ const QUIZ = [
   {"reading": "カンチョー", "members": [{"surface": "官長", "pattern": "HHHH", "audio": "039A"}, {"surface": "艦長", "pattern": "HLLL", "audio": "039B"}]},
   {"reading": "ガイトー", "members": [{"surface": "該当", "pattern": "HHHH", "audio": "040A"}, {"surface": "街頭", "pattern": "LLLH", "audio": "040B"}]},
   {"reading": "ガン", "members": [{"surface": "癌", "pattern": "HL", "audio": "041A"}, {"surface": "雁", "pattern": "LH", "audio": "041B"}]},
-  {"reading": "キカ", "members": [{"surface": "帰化", "pattern": "LH", "audio": "042A"}, {"surface": "幾何", "pattern": "LH↘", "audio": "042B"}]},
   {"reading": "キカイ", "members": [{"surface": "機会", "pattern": "LLH", "audio": "043A"}, {"surface": "機械", "pattern": "HLL", "audio": "043B"}]},
   {"reading": "キケン", "members": [{"surface": "危険", "pattern": "HHH", "audio": "044A"}, {"surface": "棄権", "pattern": "LLH", "audio": "044B"}]},
   {"reading": "キコー", "members": [{"surface": "機構", "pattern": "HHH", "audio": "045A"}, {"surface": "帰校", "pattern": "LLH", "audio": "045B"}]},
@@ -93,7 +94,6 @@ const QUIZ = [
   {"reading": "キンコー", "members": [{"surface": "近郊", "pattern": "LLLH", "audio": "062A"}, {"surface": "均衡", "pattern": "HHHH", "audio": "062B"}]},
   {"reading": "キー", "members": [{"surface": "気", "pattern": "HH", "audio": "063A"}, {"surface": "木", "pattern": "LH", "audio": "063B"}]},
   {"reading": "ギフ", "members": [{"surface": "岐阜", "pattern": "HH", "audio": "064A"}, {"surface": "義父", "pattern": "HL", "audio": "064B"}]},
-  {"reading": "クズ", "members": [{"surface": "屑", "pattern": "LH", "audio": "065A"}, {"surface": "葛", "pattern": "LH↘", "audio": "065B"}]},
   {"reading": "クチョー", "members": [{"surface": "口調", "pattern": "HHH", "audio": "066A"}, {"surface": "区長", "pattern": "HLL", "audio": "066B"}]},
   {"reading": "クマ", "members": [{"surface": "熊", "pattern": "LH↘", "audio": "067A"}, {"surface": "隈", "pattern": "HH", "audio": "067B"}]},
   {"reading": "クラ", "members": [{"surface": "蔵", "pattern": "HH", "audio": "068A"}, {"surface": "鞍", "pattern": "HL", "audio": "068B"}]},
