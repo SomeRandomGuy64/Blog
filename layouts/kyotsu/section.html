@@ -11,12 +11,8 @@
       <button type="button" data-layout="kotu">Kotu-style</button>
     </div>
 
-    <div class="score">
-      <div class="cell"><div class="n" id="sCorrect">0</div><div class="k">Correct</div></div>
-      <div class="cell"><div class="n" id="sTotal">0</div><div class="k">Answered</div></div>
-      <div class="cell"><div class="n acc" id="sAcc">—</div><div class="k">Accuracy</div></div>
-    </div>
-
+    <div class="kq-grid">
+    <div class="kq-main">
     <div class="card">
       <div class="kotu-label">Prompt</div>
       <div class="prompt">
@@ -42,6 +38,40 @@
       After you answer, tap either word to replay it.<br>
       <span id="qStats"></span>Keihan pitch. <span class="for-classic">Pitch shown high/low per mora, ˺ marks a downstep.</span><span class="for-kotu">The line sits over high morae; a tick marks where the pitch drops (also after the last mora). Keys 1/2 pick a row.</span>
     </p>
+    </div>
+
+    <aside class="kq-side">
+      <section class="panel">
+        <div class="panel-h">Statistics</div>
+        <div class="acc-row">
+          <span class="acc-k">Accuracy</span>
+          <span class="acc-frac mono" id="accFrac">0 / 0</span>
+          <b class="acc-pct" id="accPct">—</b>
+          <svg class="ring" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="11" class="ring-bg"/><circle cx="14" cy="14" r="11" class="ring-fg" id="accRing"/></svg>
+        </div>
+        <div class="panel-sep"></div>
+        <div class="pat-head"><b>Pattern Stats</b><span id="patTotal">0 of 0 (0%)</span></div>
+        <div id="patRows"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-h">History</div>
+        <div class="hist" id="hist"></div>
+        <div class="hist-empty" id="histEmpty">Words you answer show up here. Tap one to hear it again.</div>
+      </section>
+
+      <section class="panel settings">
+        <label class="setting">
+          <span class="set-k">Pause After Correct Answers</span>
+          <input type="checkbox" class="sw-in" id="pauseOk"><span class="sw" aria-hidden="true"></span>
+        </label>
+        <label class="setting">
+          <span class="set-k">Pause After Incorrect Answers</span>
+          <input type="checkbox" class="sw-in" id="pauseBad"><span class="sw" aria-hidden="true"></span>
+        </label>
+      </section>
+    </aside>
+    </div>
   </div>
 
   <script src="{{ relURL "kyotsu/quiz_data.js" }}"></script>
@@ -120,7 +150,44 @@
     let layout="classic";
     try{ const q=new URLSearchParams(location.search).get("layout"), saved=localStorage.getItem(LAYOUT_KEY);
       layout=(q==="kotu"||q==="classic")?q:(saved==="kotu"?"kotu":"classic"); }catch(e){}
-    const stats={classic:{correct:0,total:0},kotu:{correct:0,total:0}};
+    const freshStats=()=>({correct:0,total:0,cats:{},hist:[]});
+    const stats={classic:freshStats(),kotu:freshStats()};
+
+    // Pattern Stats buckets: Keihan register 式 × kernel 核 (not Tokyo 平板/頭高/…).
+    // Isolated words can't show 無核 vs 尾核 except an explicit word-final ↘.
+    const CATS=[
+      {id:"HM",jp:"高起無核",en:"High · flat",     eg:"HHHH"},
+      {id:"HA",jp:"高起頭核",en:"High · head drop",eg:"HLLL"},
+      {id:"HN",jp:"高起中核",en:"High · mid drop", eg:"HHLL"},
+      {id:"HO",jp:"高起尾核",en:"High · tail drop",eg:"HHH↘"},
+      {id:"LM",jp:"低起無核",en:"Low · rise",      eg:"LLLH"},
+      {id:"LA",jp:"低起頭核",en:"Low · flat",      eg:"LLLL"},
+      {id:"LN",jp:"低起中核",en:"Low · mid drop",  eg:"LHLL"},
+      {id:"LO",jp:"低起尾核",en:"Low · tail drop", eg:"LLH↘"},
+    ];
+    function category(pattern){
+      const hs=[]; let endDrop=false;
+      for(const c of pattern){ if(c==="H"||c==="L") hs.push(c==="H"); else if(c==="↘"||c==="↓") endDrop=true; }
+      const reg=hs[0]?"H":"L";
+      if(endDrop) return reg+"O";
+      const fall=hs.findIndex((h,i)=>h&&i<hs.length-1&&!hs[i+1]);
+      if(fall===0) return "HA";
+      if(fall>0) return reg+"N";
+      return reg==="H"?"HM":(hs.some(Boolean)?"LM":"LA");
+    }
+    // only list the buckets that some clip in the pool can actually land in
+    let shownCats=CATS;
+    if(typeof QUIZ!=="undefined"){
+      const seen=new Set();
+      QUIZ.forEach(p=>p.members.forEach(m=>seen.add(category(m.pattern))));
+      SPEAKERS.forEach(sp=>Object.values(sp.overrides||{}).forEach(v=>seen.add(category(v))));
+      shownCats=CATS.filter(c=>seen.has(c.id));
+    }
+
+    // Pause toggles (kotu defaults: move on after a correct answer, wait after a wrong one)
+    const PAUSE_KEY="kyotsu-pause";
+    let pause={ok:false,bad:true};
+    try{ const p=JSON.parse(localStorage.getItem(PAUSE_KEY)||"null"); if(p) pause={ok:!!p.ok,bad:!!p.bad}; }catch(e){}
 
     let cur=null, answered=false, lastKey="";
     const audioEl=new Audio();
@@ -165,10 +232,10 @@
         el.innerHTML=layout==="kotu"
           ? icon+`<div class="badge">${slot+1}</div>${overline(pair.reading,pat)}<span class="ksurface jp"></span>`
           : icon+`<div class="slot mono">${slot+1}</div>${contour(pair.reading,pat)}<div class="pat">${pat}</div>`;
-        el.addEventListener("click",()=>{ if(!answered) choose(mi); else play(clipUrl(speaker,pair.members[mi])); });
+        el.addEventListener("click",()=>{ if(cur.skipping) return; if(!answered) choose(mi); else play(clipUrl(speaker,pair.members[mi])); });
         opts.appendChild(el);
       });
-      if(answered) markAnswered();
+      if(answered&&!cur.skipping) markAnswered();
     }
     function markAnswered(){
       const {pair,target,picked}=cur;
@@ -181,11 +248,20 @@
         else if(bi===picked) b.classList.add("wrong");
       });
     }
+    const pct=(c,t)=>t?Math.round(c/t*100):0;
     function renderStats(){
       const st=stats[layout];
-      $("#sCorrect").textContent=st.correct; $("#sTotal").textContent=st.total;
-      $("#sAcc").textContent=st.total?Math.round(st.correct/st.total*100)+"%":"—";
+      $("#accFrac").textContent=`${st.correct} / ${st.total}`;
+      $("#accPct").textContent=st.total?pct(st.correct,st.total)+"%":"—";
+      const circ=2*Math.PI*11;
+      $("#accRing").style.strokeDasharray=`${circ*st.correct/(st.total||1)} ${circ}`;
+      $("#patTotal").textContent=`${st.correct} of ${st.total} (${pct(st.correct,st.total)}%)`;
+      $("#patRows").innerHTML=shownCats.map(c=>{ const r=st.cats[c.id]||{c:0,t:0};
+        return `<div class="pat-row"><div><div class="pat-k">${c.en} <span class="jp">${c.jp}</span></div>${overline("◯".repeat(c.eg.replace(/[↘↓]/g,"").length),c.eg)}</div>`+
+          `<span class="pat-n">${r.c} of ${r.t} (${pct(r.c,r.t)}%)</span></div>`; }).join("");
       $("#kAnswered").textContent=st.total;
+      $("#hist").innerHTML=st.hist.map((h,i)=>`<button type="button" class="hchip ${h.ok?"good":"bad"}" data-i="${i}" title="${h.surface} · ${h.pat}">${overline(h.reading,h.pat)}</button>`).join("");
+      $("#histEmpty").hidden=st.hist.length>0;
     }
     function setLayout(l){
       layout=l; try{ localStorage.setItem(LAYOUT_KEY,l); }catch(e){}
@@ -195,26 +271,44 @@
       if(cur){ renderPrompt(); renderOptions(); }
     }
 
+    const PRESS_MS=350;
     function choose(mi){
       if(answered) return; answered=true;
       const {pair,target,speaker}=cur;
       cur.picked=mi;
       const st=stats[layout]; st.total++; const ok=mi===target; if(ok)st.correct++;
+      const t=pair.members[target], tPat=patternFor(speaker,t), cat=category(tPat);
+      const r=st.cats[cat]||(st.cats[cat]={c:0,t:0}); r.t++; if(ok) r.c++;
+      st.hist.unshift({reading:pair.reading,pat:tPat,surface:t.surface,ok,url:clipUrl(speaker,t)});
+      if(st.hist.length>60) st.hist.pop();
+      // the tapped option presses down for a short beat (input ignored meanwhile). Then:
+      // pause off for this outcome → straight to the next word, no feedback;
+      // pause on → it releases and the right/wrong colours + reveal appear.
+      cur.skipping=true;
+      const btn=document.querySelector(`.opt[data-mi="${mi}"]`); if(btn) btn.classList.add("pressed");
+      if(ok?!pause.ok:!pause.bad){ renderStats(); setTimeout(newQuestion,PRESS_MS); return; }
+      const q=cur;
+      setTimeout(()=>{ if(cur!==q) return; cur.skipping=false; showFeedback(ok,t,tPat,speaker); },PRESS_MS);
+    }
+    function showFeedback(ok,t,tPat,speaker){
+      document.querySelectorAll(".opt.pressed").forEach(b=>b.classList.remove("pressed"));
       markAnswered();
       const v=$("#verdict");
       v.textContent=ok?"Correct":"Not quite"; v.className="verdict "+(ok?"good":"bad");
-      const t=pair.members[target];
-      $("#reveal").innerHTML=`You heard <b class="jp">${t.surface}</b> · <span class="mono">${patternFor(speaker,t)}</span>, in ${speaker.label}'s voice`;
-      $("#nextBtn").hidden=false; $("#nextBtn").focus();
+      $("#reveal").innerHTML=`You heard <b class="jp">${t.surface}</b> · <span class="mono">${tPat}</span>, in ${speaker.label}'s voice`;
+      $("#nextBtn").hidden=false; $("#nextBtn").focus({preventScroll:true});
       renderStats();
     }
 
     $("#playBtn").addEventListener("click",()=>cur&&play(clipUrl(cur.speaker,cur.pair.members[cur.target])));
     $("#nextBtn").addEventListener("click",newQuestion);
     document.querySelectorAll(".layout-toggle button").forEach(b=>b.addEventListener("click",()=>setLayout(b.dataset.layout)));
+    $("#hist").addEventListener("click",e=>{ const b=e.target.closest(".hchip"); if(b) play(stats[layout].hist[+b.dataset.i].url); });
+    [["#pauseOk","ok"],["#pauseBad","bad"]].forEach(([sel,k])=>{ const el=$(sel); el.checked=pause[k];
+      el.addEventListener("change",()=>{ pause[k]=el.checked; try{ localStorage.setItem(PAUSE_KEY,JSON.stringify(pause)); }catch(e){} }); });
     // Kotu-style: number keys pick (or, once answered, replay) the row with that badge
     document.addEventListener("keydown",e=>{
-      if(layout!=="kotu"||!cur||e.ctrlKey||e.metaKey||e.altKey) return;
+      if(layout!=="kotu"||!cur||cur.skipping||e.ctrlKey||e.metaKey||e.altKey) return;
       const n=+e.key; if(n!==1&&n!==2) return;
       const mi=cur.order[n-1];
       if(!answered) choose(mi); else play(clipUrl(cur.speaker,cur.pair.members[mi]));
