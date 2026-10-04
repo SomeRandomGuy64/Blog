@@ -16,6 +16,7 @@
   --k-bad-soft: rgba(226, 86, 74, 0.15);
   --k-hi: #e07a2f;
   --k-lo: #6a6a6a;
+  --k-pitch: #e2564a;
 }
 
 body.light-mode {
@@ -32,6 +33,7 @@ body.light-mode {
   --k-bad-soft: rgba(204, 63, 52, 0.12);
   --k-hi: #3f9142;
   --k-lo: #b0b0b0;
+  --k-pitch: #d23a2e;
 }
 
 /* ---- section landing: tool cards ---- */
@@ -135,6 +137,85 @@ body.light-mode {
 }
 .kyotsu-quiz .nextbtn:active { transform: scale(0.97); }
 .kyotsu-quiz .nextbtn[hidden] { display: none; }
+
+/* ---- layout toggle (Kyōtsu cards ⇄ kotu.io-style rows) ---- */
+.kyotsu-quiz .layout-toggle {
+  display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 16px;
+  font-size: 12px;
+}
+.kyotsu-quiz .layout-toggle .lt-k {
+  color: var(--k-muted); letter-spacing: 0.1em; text-transform: uppercase; font-size: 10px; margin-right: 6px;
+}
+.kyotsu-quiz .layout-toggle button {
+  border: 1px solid var(--k-line); background: var(--k-surface); color: var(--k-muted); cursor: pointer;
+  font-family: inherit; font-size: 12px; padding: 5px 12px; border-radius: 999px;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+.kyotsu-quiz .layout-toggle button:hover { border-color: var(--k-accent); }
+.kyotsu-quiz .layout-toggle button[aria-pressed="true"] {
+  background: var(--k-accent-soft); border-color: var(--k-accent); color: var(--k-accent-ink); font-weight: 700;
+}
+
+.kyotsu-quiz .for-kotu, .kyotsu-note .for-kotu,
+.kyotsu-quiz .kotu-label, .kyotsu-quiz .kotu-sep, .kyotsu-quiz .kotu-foot { display: none; }
+.kyotsu-quiz.kotu .for-kotu, .kyotsu-quiz.kotu ~ .kyotsu-note .for-kotu { display: inline; }
+.kyotsu-quiz.kotu .for-classic, .kyotsu-quiz.kotu ~ .kyotsu-note .for-classic { display: none; }
+
+/* ---- Kotu-style layout ---- */
+.kyotsu-quiz.kotu .voicechip, .kyotsu-quiz.kotu .q { display: none; }
+.kyotsu-quiz.kotu .card {
+  display: flex; flex-direction: column; min-height: 560px; border-radius: 14px; padding: 30px 32px 22px;
+}
+.kyotsu-quiz.kotu .kotu-label {
+  display: block; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.kyotsu-quiz.kotu .prompt .reading { font-size: 22px; font-weight: 400; margin-top: 18px; letter-spacing: 0; }
+.kyotsu-quiz.kotu .prompt .hint { font-size: 15px; margin-top: 16px; }
+.kyotsu-quiz.kotu .play { margin: 16px 0 0; }
+.kyotsu-quiz.kotu .playbtn {
+  background: var(--k-accent-soft); color: var(--k-accent-ink); font-weight: 700; font-size: 13.5px;
+  padding: 9px 18px; border-radius: 10px;
+}
+.kyotsu-quiz.kotu .playbtn svg { display: none; }
+.kyotsu-quiz.kotu .kotu-sep { display: block; height: 3px; background: var(--k-line); margin: 20px 0 22px; border-radius: 2px; }
+.kyotsu-quiz.kotu .options { grid-template-columns: 1fr; }
+.kyotsu-quiz.kotu .opt {
+  flex-direction: row; justify-content: center; min-height: 50px; padding: 8px 56px;
+  background: var(--k-accent-soft); border-color: transparent;
+}
+.kyotsu-quiz.kotu .opt:not(.answered):hover { transform: none; border-color: var(--k-accent); }
+.kyotsu-quiz.kotu .opt .badge {
+  position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--k-line); border-radius: 6px; background: var(--k-surface2);
+  font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: var(--text-color);
+}
+.kyotsu-quiz.kotu .opt .playicon { top: 50%; right: 12px; transform: translateY(-50%); }
+.kyotsu-quiz.kotu .opt .ksurface {
+  position: absolute; right: 48px; top: 50%; transform: translateY(-50%);
+  font-size: 15px; color: var(--k-muted);
+}
+.kyotsu-quiz.kotu .opt.correct { border-color: var(--k-good); background: var(--k-good-soft); }
+.kyotsu-quiz.kotu .opt.wrong { border-color: var(--k-bad); background: var(--k-bad-soft); }
+.kyotsu-quiz.kotu .next { margin-top: 14px; }
+.kyotsu-quiz.kotu .kotu-foot {
+  display: block; margin-top: auto; padding-top: 24px; text-align: center; color: var(--k-muted); font-size: 13px;
+}
+/* the pitch line: over each high mora, with a short tick where the pitch drops */
+.kyotsu-quiz .kword { font-size: 19px; font-weight: 700; color: var(--k-accent-ink); line-height: 1.3; white-space: nowrap; }
+/* padding (not margin) spaces the morae so the line stays unbroken across a high run;
+   small kana inside one mora (ジョ) stay tight */
+.kyotsu-quiz .kword .m { position: relative; display: inline-block; padding: 0 2px; }
+.kyotsu-quiz .kword .m.hi::before {
+  content: ""; position: absolute; left: 0; right: 0; top: -5px; border-top: 1.5px solid var(--k-pitch);
+}
+/* the line starts at the kana edge (not in the gap) and only overhangs on a drop */
+.kyotsu-quiz .kword .m.hi:first-child::before,
+.kyotsu-quiz .kword .m:not(.hi) + .m.hi::before { left: 2px; }
+.kyotsu-quiz .kword .m.hi:last-child:not(.dn)::before { right: 2px; }
+.kyotsu-quiz .kword .m.dn::after {
+  content: ""; position: absolute; right: 0; top: -5px; height: 5px; border-right: 1.5px solid var(--k-pitch);
+}
 
 .kyotsu-note { text-align: center; color: var(--k-muted); font-size: 11.5px; line-height: 1.6; margin-top: 22px; }
 

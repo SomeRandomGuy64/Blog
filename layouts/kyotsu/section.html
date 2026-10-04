@@ -4,7 +4,13 @@
   <h1>{{ .Title }}</h1>
   {{ with .Content }}{{ . }}{{ end }}
 
-  <div class="kyotsu-quiz">
+  <div class="kyotsu-quiz" id="quiz">
+    <div class="layout-toggle" role="group" aria-label="Test layout">
+      <span class="lt-k">Layout</span>
+      <button type="button" data-layout="classic">Kyōtsu</button>
+      <button type="button" data-layout="kotu">Kotu-style</button>
+    </div>
+
     <div class="score">
       <div class="cell"><div class="n" id="sCorrect">0</div><div class="k">Correct</div></div>
       <div class="cell"><div class="n" id="sTotal">0</div><div class="k">Answered</div></div>
@@ -12,26 +18,29 @@
     </div>
 
     <div class="card">
+      <div class="kotu-label">Prompt</div>
       <div class="prompt">
         <div class="reading jp" id="reading">—</div>
-        <div class="hint">Which of the two words is this?</div>
+        <div class="hint"><span class="for-classic">Which of the two words is this?</span><span class="for-kotu">Choose the matching pitch pattern.</span></div>
         <div class="voicechip"><span class="dot"></span><span id="voiceName">—</span></div>
       </div>
       <div class="play">
-        <button class="playbtn" id="playBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Play word</button>
+        <button class="playbtn" id="playBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span class="for-classic">Play word</span><span class="for-kotu">Replay Audio</span></button>
       </div>
 
       <div class="q">Tap the word you heard</div>
+      <div class="kotu-sep"></div>
       <div class="options" id="options"></div>
 
       <div class="verdict" id="verdict"></div>
       <div class="reveal" id="reveal"></div>
       <div class="next"><button class="nextbtn" id="nextBtn" hidden>Next word →</button></div>
+      <div class="kotu-foot">Infinite Session · <span id="kAnswered">0</span> Answered</div>
     </div>
 
     <p class="kyotsu-note">
       After you answer, tap either word to replay it.<br>
-      <span id="qStats"></span>Keihan pitch. Pitch shown high/low per mora, ˺ marks a downstep.
+      <span id="qStats"></span>Keihan pitch. <span class="for-classic">Pitch shown high/low per mora, ˺ marks a downstep.</span><span class="for-kotu">The line sits over high morae; a tick marks where the pitch drops (also after the last mora). Keys 1/2 pick a row.</span>
     </p>
   </div>
 
@@ -92,7 +101,28 @@
         ${extra}${dots}${labels}</svg>`;
     }
 
-    let cur=null, answered=false, correct=0, total=0, lastKey="";
+    const hira=s=>s.replace(/[\u30A1-\u30F6]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60));
+    // Kotu-style word: katakana with a thin line over each high mora and a short tick
+    // down wherever the pitch drops — after a H followed by L, or a word-final ↘.
+    // Low morae get no line, so a Keihan low onset (LLH) just shows the line late.
+    function overline(reading, pattern){
+      const ms=moras(reading), hs=[], drop=new Set();
+      for(const c of pattern){ if(c==="H"||c==="L") hs.push(c==="H"); else if(c==="↘"||c==="↓") drop.add(hs.length-1); }
+      return `<span class="kword jp">`+ms.map((m,i)=>{
+        const hi=hs[i], dn=hi&&(drop.has(i)||(i<hs.length-1&&!hs[i+1]));
+        return `<span class="m${hi?" hi":""}${dn?" dn":""}">${m}</span>`;
+      }).join("")+`</span>`;
+    }
+
+    // Layout toggle: "classic" (Kyōtsu cards) or "kotu" (kotu.io-style rows). Each layout
+    // keeps its own session score so the two can be compared. ?layout=kotu|classic forces one.
+    const LAYOUT_KEY="kyotsu-layout";
+    let layout="classic";
+    try{ const q=new URLSearchParams(location.search).get("layout"), saved=localStorage.getItem(LAYOUT_KEY);
+      layout=(q==="kotu"||q==="classic")?q:(saved==="kotu"?"kotu":"classic"); }catch(e){}
+    const stats={classic:{correct:0,total:0},kotu:{correct:0,total:0}};
+
+    let cur=null, answered=false, lastKey="";
     const audioEl=new Audio();
     function clipUrl(spk,m){ return spk.base + m.audio + ".mp3"; }
     function play(url){ audioEl.src=url; audioEl.currentTime=0; audioEl.play().catch(()=>{}); }
@@ -110,48 +140,86 @@
       const order=Math.random()<.5?[0,1]:[1,0];
       cur={pair,target,order,speaker}; answered=false;
 
-      $("#reading").textContent=pair.reading;
+      renderPrompt();
       $("#voiceName").textContent=speaker.label;
       $("#verdict").textContent=""; $("#verdict").className="verdict";
       $("#reveal").textContent=""; $("#nextBtn").hidden=true;
 
+      renderOptions();
+      preload(speaker,pair);
+      setTimeout(()=>play(clipUrl(speaker,pair.members[target])),250);
+    }
+
+    function renderPrompt(){
+      $("#reading").textContent=layout==="kotu"?hira(cur.pair.reading):cur.pair.reading;
+    }
+    function renderOptions(){
+      const {pair,order,speaker}=cur;
       const opts=$("#options"); opts.innerHTML="";
       order.forEach((mi,slot)=>{
         const m=pair.members[mi];
         const pat=patternFor(speaker,m);
         const el=document.createElement("button");
         el.className="opt"; el.dataset.mi=mi;
-        el.innerHTML=`<div class="playicon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></div>`+
-          `<div class="slot mono">${slot+1}</div>${contour(pair.reading,pat)}<div class="pat">${pat}</div>`;
+        const icon=`<div class="playicon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></div>`;
+        el.innerHTML=layout==="kotu"
+          ? icon+`<div class="badge">${slot+1}</div>${overline(pair.reading,pat)}<span class="ksurface jp"></span>`
+          : icon+`<div class="slot mono">${slot+1}</div>${contour(pair.reading,pat)}<div class="pat">${pat}</div>`;
         el.addEventListener("click",()=>{ if(!answered) choose(mi); else play(clipUrl(speaker,pair.members[mi])); });
         opts.appendChild(el);
       });
-      preload(speaker,pair);
-      setTimeout(()=>play(clipUrl(speaker,pair.members[target])),250);
+      if(answered) markAnswered();
+    }
+    function markAnswered(){
+      const {pair,target,picked}=cur;
+      [...document.querySelectorAll(".opt")].forEach(b=>{ b.classList.add("answered");
+        const bi=+b.dataset.mi, surf=pair.members[bi].surface;
+        const slot=b.querySelector(".slot"); if(slot) slot.outerHTML=`<div class="surface jp">${surf}</div>`;
+        const ks=b.querySelector(".ksurface"); if(ks) ks.textContent=surf;
+        b.title="Play "+surf;
+        if(bi===target) b.classList.add("correct");
+        else if(bi===picked) b.classList.add("wrong");
+      });
+    }
+    function renderStats(){
+      const st=stats[layout];
+      $("#sCorrect").textContent=st.correct; $("#sTotal").textContent=st.total;
+      $("#sAcc").textContent=st.total?Math.round(st.correct/st.total*100)+"%":"—";
+      $("#kAnswered").textContent=st.total;
+    }
+    function setLayout(l){
+      layout=l; try{ localStorage.setItem(LAYOUT_KEY,l); }catch(e){}
+      $("#quiz").classList.toggle("kotu",l==="kotu");
+      document.querySelectorAll(".layout-toggle button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.layout===l));
+      renderStats();
+      if(cur){ renderPrompt(); renderOptions(); }
     }
 
     function choose(mi){
       if(answered) return; answered=true;
       const {pair,target,speaker}=cur;
-      total++; const ok=mi===target; if(ok)correct++;
-      [...document.querySelectorAll(".opt")].forEach(b=>{ b.classList.add("answered");
-        const bi=+b.dataset.mi;
-        b.querySelector(".slot").outerHTML=`<div class="surface jp">${pair.members[bi].surface}</div>`;
-        b.title="Play "+pair.members[bi].surface;
-        if(bi===target) b.classList.add("correct");
-        else if(bi===mi) b.classList.add("wrong");
-      });
+      cur.picked=mi;
+      const st=stats[layout]; st.total++; const ok=mi===target; if(ok)st.correct++;
+      markAnswered();
       const v=$("#verdict");
       v.textContent=ok?"Correct":"Not quite"; v.className="verdict "+(ok?"good":"bad");
       const t=pair.members[target];
       $("#reveal").innerHTML=`You heard <b class="jp">${t.surface}</b> · <span class="mono">${patternFor(speaker,t)}</span>, in ${speaker.label}'s voice`;
       $("#nextBtn").hidden=false; $("#nextBtn").focus();
-      $("#sCorrect").textContent=correct; $("#sTotal").textContent=total;
-      $("#sAcc").textContent=Math.round(correct/total*100)+"%";
+      renderStats();
     }
 
     $("#playBtn").addEventListener("click",()=>cur&&play(clipUrl(cur.speaker,cur.pair.members[cur.target])));
     $("#nextBtn").addEventListener("click",newQuestion);
+    document.querySelectorAll(".layout-toggle button").forEach(b=>b.addEventListener("click",()=>setLayout(b.dataset.layout)));
+    // Kotu-style: number keys pick (or, once answered, replay) the row with that badge
+    document.addEventListener("keydown",e=>{
+      if(layout!=="kotu"||!cur||e.ctrlKey||e.metaKey||e.altKey) return;
+      const n=+e.key; if(n!==1&&n!==2) return;
+      const mi=cur.order[n-1];
+      if(!answered) choose(mi); else play(clipUrl(cur.speaker,cur.pair.members[mi]));
+    });
+    setLayout(layout);
     if(typeof QUIZ!=="undefined"){
       $("#qStats").textContent=`${QUIZ.length} minimal pairs · ${SPEAKERS.map(s=>s.label).join(" / ")}, random per word. `;
       newQuestion();
