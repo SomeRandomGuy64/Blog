@@ -7,8 +7,8 @@
   <div class="kyotsu-quiz" id="quiz">
     <div class="layout-toggle" role="group" aria-label="Test layout">
       <span class="lt-k">Layout</span>
-      <button type="button" data-layout="classic">Kyōtsu</button>
       <button type="button" data-layout="kotu">Kotu-style</button>
+      <button type="button" data-layout="classic">Pitch Graph</button>
     </div>
 
     <div class="kq-grid">
@@ -31,7 +31,7 @@
       <div class="verdict" id="verdict"></div>
       <div class="reveal" id="reveal"></div>
       <div class="next"><button class="nextbtn" id="nextBtn" hidden>Next word →</button></div>
-      <div class="kotu-foot">Infinite Session · <span id="kAnswered">0</span> Answered</div>
+      <div class="kotu-foot"><span id="kAnswered">0</span> Answered</div>
     </div>
 
     <p class="kyotsu-note">
@@ -144,14 +144,13 @@
       }).join("")+`</span>`;
     }
 
-    // Layout toggle: "classic" (Kyōtsu cards) or "kotu" (kotu.io-style rows). Each layout
-    // keeps its own session score so the two can be compared. ?layout=kotu|classic forces one.
+    // Layout toggle: "kotu" (kotu.io-style rows, the default) or "classic" (pitch-graph cards).
+    // Score + history are shared across both. ?layout=kotu|classic forces one.
     const LAYOUT_KEY="kyotsu-layout";
-    let layout="classic";
+    let layout="kotu";
     try{ const q=new URLSearchParams(location.search).get("layout"), saved=localStorage.getItem(LAYOUT_KEY);
-      layout=(q==="kotu"||q==="classic")?q:(saved==="kotu"?"kotu":"classic"); }catch(e){}
-    const freshStats=()=>({correct:0,total:0,cats:{},hist:[]});
-    const stats={classic:freshStats(),kotu:freshStats()};
+      layout=(q==="kotu"||q==="classic")?q:(saved==="classic"?"classic":"kotu"); }catch(e){}
+    const stats={correct:0,total:0,cats:{},hist:[]};
 
     // Pattern Stats buckets: Keihan register 式 × kernel 核 (not Tokyo 平板/頭高/…).
     // Isolated words can't show 無核 vs 尾核 except an explicit word-final ↘.
@@ -250,16 +249,16 @@
     }
     const pct=(c,t)=>t?Math.round(c/t*100):0;
     function renderStats(){
-      const st=stats[layout];
+      const st=stats;
       $("#accFrac").textContent=`${st.correct} / ${st.total}`;
       $("#accPct").textContent=st.total?pct(st.correct,st.total)+"%":"—";
       const circ=2*Math.PI*11;
       $("#accRing").style.strokeDasharray=`${circ*st.correct/(st.total||1)} ${circ}`;
+      $("#kAnswered").textContent=st.total;
       $("#patTotal").textContent=`${st.correct} of ${st.total} (${pct(st.correct,st.total)}%)`;
       $("#patRows").innerHTML=shownCats.map(c=>{ const r=st.cats[c.id]||{c:0,t:0};
         return `<div class="pat-row"><div><div class="pat-k">${c.en} <span class="jp">${c.jp}</span></div>${overline("◯".repeat(c.eg.replace(/[↘↓]/g,"").length),c.eg)}</div>`+
           `<span class="pat-n">${r.c} of ${r.t} (${pct(r.c,r.t)}%)</span></div>`; }).join("");
-      $("#kAnswered").textContent=st.total;
       $("#hist").innerHTML=st.hist.map((h,i)=>`<button type="button" class="hchip ${h.ok?"good":"bad"}" data-i="${i}" title="${h.surface} · ${h.pat}">${overline(h.reading,h.pat)}</button>`).join("");
       $("#histEmpty").hidden=st.hist.length>0;
     }
@@ -276,7 +275,7 @@
       if(answered) return; answered=true;
       const {pair,target,speaker}=cur;
       cur.picked=mi;
-      const st=stats[layout]; st.total++; const ok=mi===target; if(ok)st.correct++;
+      const st=stats; st.total++; const ok=mi===target; if(ok)st.correct++;
       const t=pair.members[target], tPat=patternFor(speaker,t), cat=category(tPat);
       const r=st.cats[cat]||(st.cats[cat]={c:0,t:0}); r.t++; if(ok) r.c++;
       st.hist.unshift({reading:pair.reading,pat:tPat,surface:t.surface,ok,url:clipUrl(speaker,t)});
@@ -303,7 +302,7 @@
     $("#playBtn").addEventListener("click",()=>cur&&play(clipUrl(cur.speaker,cur.pair.members[cur.target])));
     $("#nextBtn").addEventListener("click",newQuestion);
     document.querySelectorAll(".layout-toggle button").forEach(b=>b.addEventListener("click",()=>setLayout(b.dataset.layout)));
-    $("#hist").addEventListener("click",e=>{ const b=e.target.closest(".hchip"); if(b) play(stats[layout].hist[+b.dataset.i].url); });
+    $("#hist").addEventListener("click",e=>{ const b=e.target.closest(".hchip"); if(b) play(stats.hist[+b.dataset.i].url); });
     [["#pauseOk","ok"],["#pauseBad","bad"]].forEach(([sel,k])=>{ const el=$(sel); el.checked=pause[k];
       el.addEventListener("change",()=>{ pause[k]=el.checked; try{ localStorage.setItem(PAUSE_KEY,JSON.stringify(pause)); }catch(e){} }); });
     // Kotu-style: number keys pick (or, once answered, replay) the row with that badge

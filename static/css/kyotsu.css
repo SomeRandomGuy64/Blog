@@ -185,7 +185,7 @@ body.light-mode {
 .kyotsu-quiz .nextbtn:active { transform: scale(0.97); }
 .kyotsu-quiz .nextbtn[hidden] { display: none; }
 
-/* ---- layout toggle (Kyōtsu cards ⇄ kotu.io-style rows) ---- */
+/* ---- layout toggle (pitch-graph cards ⇄ kotu.io-style rows) ---- */
 .kyotsu-quiz .layout-toggle {
   display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 16px;
   font-size: 12px;
