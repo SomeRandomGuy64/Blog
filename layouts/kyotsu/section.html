@@ -154,13 +154,13 @@
 
     // Pattern Stats buckets: Keihan register 式 × kernel 核 (not Tokyo 平板/頭高/…).
     // Isolated words can't show 無核 vs 尾核 except an explicit word-final ↘.
+    // No separate low-flat bucket: all-low words file under 低起無核 (Low · rise).
     const CATS=[
       {id:"HM",jp:"高起無核",en:"High · flat",     eg:"HHHH"},
       {id:"HA",jp:"高起頭核",en:"High · head drop",eg:"HLLL"},
       {id:"HN",jp:"高起中核",en:"High · mid drop", eg:"HHLL"},
       {id:"HO",jp:"高起尾核",en:"High · tail drop",eg:"HHH↘"},
       {id:"LM",jp:"低起無核",en:"Low · rise",      eg:"LLLH"},
-      {id:"LA",jp:"低起頭核",en:"Low · flat",      eg:"LLLL"},
       {id:"LN",jp:"低起中核",en:"Low · mid drop",  eg:"LHLL"},
       {id:"LO",jp:"低起尾核",en:"Low · tail drop", eg:"LLH↘"},
     ];
@@ -172,7 +172,7 @@
       const fall=hs.findIndex((h,i)=>h&&i<hs.length-1&&!hs[i+1]);
       if(fall===0) return "HA";
       if(fall>0) return reg+"N";
-      return reg==="H"?"HM":(hs.some(Boolean)?"LM":"LA");
+      return reg+"M"; // all-low (e.g. 穂 LL) is 低起無核 too: the rise lands on the following particle
     }
     // only list the buckets that some clip in the pool can actually land in
     let shownCats=CATS;
