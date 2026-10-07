@@ -329,7 +329,7 @@ $('ppc').value=PS.set.pc||'';$('ppcgo').onclick=setPC;$('ppc').onkeydown=e=>{if(
 $('ppc').onchange=setPC;
 $('pnohome').onchange=e=>{PS.set.noHome=e.target.checked;pcStatus();banner();renderGC();renderPicks();changed()};
 function updGo(){const ht=homeTravel(),n=PS.picks.filter(p=>FI[p.k]).length;
-  $('pgo').disabled=!n||!ht||running;if(!gBusy)$('pgo').textContent=running?'Planning…':!ht?'Set a starting postcode first':'Plan my schedule'}
+  $('pgo').disabled=!n||!ht||running;if(!gBusy)$('pgo').textContent=running?(Math.min(n,limit())>28?`Planning… (up to ${Math.round(budgetFor(Math.min(n,limit()))/1000)} s)`:'Planning…'):!ht?'Set a starting postcode first':'Plan my schedule'}
 // Google Maps key (own key, this browser only)
 function keyStatus(){const el=$('pkeyst'),n=Object.keys(GCACHE).length;$('pkeyforget').disabled=!gkey&&!n;
   el.className='pcst'+(gkey?' ok':'');
@@ -353,6 +353,8 @@ function candidates(){const s=PS.set,buf=+s.buf||0,late=+s.late||0;
     for(const h of F.shows){if(!pickAllows(p,D.shows[h.i].x,h.c,h.day,cs))continue;r.match++;
       const w=win[h.di];if(!w||w.e>h.st+late||h.en+buf>w.l)continue;L.push(h);used.add(h.c)}});
   return {win,used,info,per,buf,late}}
+// solver time limit: 2.5 s up to 28 films, then +0.625 s per film (10 s at 40) since bigger searches need longer to finish
+const budgetFor=n=>n>28?2500+(n-28)*625:2500;
 function buildProblem(){const s=PS.set,maxLeg=+s.maxLeg||0,ht=homeTravel();
   const {win,used,info,per,buf,late}=candidates(),{T,E}=rawTravel(ht);
   // shortest-path closure via candidate cinemas (a journey may route past another cinema): keeps feasibility monotone,
@@ -366,7 +368,7 @@ function buildProblem(){const s=PS.set,maxLeg=+s.maxLeg||0,ht=homeTravel();
     for(const h of per[pi]){const w=win[h.di],a=T[H*NC1+h.c],b=T[h.c*NC1+H];if(a<0||b<0)continue;
       if(w.e+a>h.st+late||h.en+buf+b>w.l)continue;r.win++;days[h.di].push({i:h.i,c:h.c,st:h.st,en:h.en})}
     if(!r.match)r.reason='constraints';else if(!r.win)r.reason='window';else{r.si=films.length;films.push({days})}});
-  return {P:{films,win,T,nc:NC,buf,late,maxDay:+s.maxDay||0,mode:s.obj,budget:2500},info,ht,win,T,E,buf,late,mode:s.obj,days:DAYS,lim:limit()}}
+  return {P:{films,win,T,nc:NC,buf,late,maxDay:+s.maxDay||0,mode:s.obj,budget:budgetFor(films.length)},info,ht,win,T,E,buf,late,mode:s.obj,days:DAYS,lim:limit()}}
 // fetch Google transit/walk times for every leg among home + cinemas with candidate showings that isn't cached yet
 async function fetchTimes(ht){const {used,per,buf,late}=candidates(),cs=[...used].filter(c=>CLL[c]),nodes=cs.map(c=>CLL[c]),h=HLL(ht);
   // cinema a -> b can only be used if, on some day, a candidate showing at a ends (plus buffer) before one at b starts
