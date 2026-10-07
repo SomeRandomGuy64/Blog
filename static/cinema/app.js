@@ -1,4 +1,4 @@
-/* Fazon Nexus · Cinema Planner — boot: fetch this week's listings from the API, show loading / error states, then
+/* Fazon Nexus · Cinema Planner — boot: fetch the listings from the API, show loading / error states, then
    start the Listings (listings.js) and Schedule (planner.js) tabs.
    API URL: the wrapper's data-api (front-matter param `api`). For local testing, ?api=<url> overrides it, but only for
    http://localhost or http://127.0.0.1 URLs. */
@@ -21,7 +21,7 @@ function showError(title,detail,retry){
 function valid(D){return D&&typeof D==='object'&&Array.isArray(D.cinemas)&&Array.isArray(D.shows)&&D.films&&typeof D.films==='object'&&
   typeof D.from==='string'&&typeof D.to==='string'}
 async function load(){if(loading)return;loading=true;
-  st.innerHTML='<div class="cload" role="status"><span class="spin" aria-hidden="true"></span>Loading this week’s listings…</div>';st.hidden=false;
+  st.innerHTML='<div class="cload" role="status"><span class="spin" aria-hidden="true"></span>Loading listings…</div>';st.hidden=false;
   let D;
   try{if(!API)throw new Error('no API address configured');
     const ac=typeof AbortController!=='undefined'?new AbortController():null,tm=ac&&setTimeout(()=>ac.abort(),30000);

@@ -4,7 +4,7 @@
   {{ with .Content }}<div class="cinema-intro">{{ . }}</div>{{ end }}
 
   <div class="cinema-app" id="cinema-app" data-api="{{ .Params.api }}">
-    <div class="cstatus" id="cstatus"><div class="cload" role="status"><span class="spin" aria-hidden="true"></span>Loading this week’s listings…</div></div>
+    <div class="cstatus" id="cstatus"><div class="cload" role="status"><span class="spin" aria-hidden="true"></span>Loading listings…</div></div>
     <noscript><div class="cerr"><b>The cinema planner needs JavaScript.</b></div></noscript>
     <div id="cbody" hidden>
     <div class="chead">
@@ -35,6 +35,9 @@
          <div class="srow"><input type="text" id="ppc" placeholder="Postcode, e.g. M1 1AE" autocomplete="postal-code" aria-label="Starting postcode"><button id="ppcgo">Set</button>
           <div class="pcst" id="ppcst"></div>
           <label class="chk"><input type="checkbox" id="pnohome"> No home — just start at the first cinema</label></div>
+         <div class="ol" style="margin-top:10px">Dates</div>
+         <div class="srow"><label class="dsel">From <select id="pstart" aria-label="First day of the plan"></select></label><label class="dsel">for <select id="plen" aria-label="Number of days"></select></label>
+          <div class="pcst" id="pdnote"></div></div>
          <div class="ol" style="margin-top:10px">When you’re free</div>
          <table class="dtab" id="pdays"></table>
          <div class="sgrid">
@@ -51,7 +54,7 @@
          <div class="khelp">Without a key, journeys are straight-line estimates. With one, the planner asks Google for bus/tram/train (and short walking) times for just the journeys it needs, straight from this browser, and caches them here for 30 days. The key is stored only in this browser. It needs the <b>Routes API</b> enabled on its Google Cloud project and must not be restricted to other APIs or websites that exclude this page. Requests count against <i>your</i> Google billing / free monthly allowance. <a href="https://developers.google.com/maps/documentation/routes/get-api-key" target="_blank" rel="noopener">How to get a key</a></div>
         </div>
        </details>
-       <button class="go" id="pgo">Plan my week</button>
+       <button class="go" id="pgo">Plan my schedule</button>
       </section>
       <section><div class="pout" id="pout"></div></section>
      </div>

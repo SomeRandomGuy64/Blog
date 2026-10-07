@@ -1,7 +1,8 @@
 // Cinema Planner unit tests (solver, screen types, Google Routes client) against the files the site serves.
-// Run from anywhere:  ~/.deno/bin/deno run --allow-read cinema-frontend-tests/test_solver.js
+// Run from anywhere:  node cinema-frontend-tests/test_solver.js  (or: deno run --allow-read cinema-frontend-tests/test_solver.js)
 // (Lives outside static/ so Hugo never publishes it.)
-const read = f => Deno.readTextFileSync(new URL('../static/cinema/' + f, import.meta.url));
+const fs = globalThis.Deno ? null : await import('node:fs');
+const read = f => { const u = new URL('../static/cinema/' + f, import.meta.url); return fs ? fs.readFileSync(u, 'utf8') : Deno.readTextFileSync(u); };
 const FILES = { SOLVER: read('solver.js'), ST: read('screentypes.js'), ROUTES: read('routes.js') };
 const src = FILES.SOLVER;
 const SOLVER = new Function(src + '\nreturn SOLVER;')();
@@ -130,13 +131,14 @@ ok(agree === tot, `case8 random brute-force cross-check ${agree}/${tot}`);
   ok(otherTags(['Subtitled', '3D', '4DX', 'Classic']).join() === 'Classic,Subtitled' && isScreen('3D') && !isScreen('Subtitled'), 'st: other tags separate');
   ok(['4DX 3D', 'Standard', 'IMAX 3D', 'IMAX', 'Luxe'].sort(stCmp).join('|') === 'Standard|IMAX|IMAX 3D|4DX 3D|Luxe', 'st: canonical sort ' + ['4DX 3D', 'Standard', 'IMAX 3D', 'IMAX', 'Luxe'].sort(stCmp).join('|'));
   const shows = [[], ['IMAX'], ['IMAX', '3D'], ['4DX', '3D', 'Classic'], ['Luxe', 'Subtitled'], ['Subtitled']];
-  const m = p => shows.filter(x => pickAllows({ st: [], req: [], exc: [], wd: null, ...p }, x, 0, 3, null)).length;
+  const m = p => shows.filter(x => pickAllows({ st: [], req: [], exc: [], dd: null, ...p }, x, 0, '2026-10-08', null)).length;
   ok(m({}) === 6, 'pick: no filter = all');
   ok(m({ st: ['IMAX 3D'] }) === 1 && m({ st: ['IMAX', 'IMAX 3D'] }) === 2 && m({ st: ['Standard'] }) === 2, 'pick: st exact match (IMAX 3D=1, IMAX+IMAX 3D=2, Standard=2)');
   ok(m({ req: ['3D'] }) === 2 && m({ exc: ['3D'] }) === 4, 'pick: "any 3D" via req/exc tag still works');
   ok(m({ st: ['Standard'], exc: ['Subtitled'] }) === 1 && m({ st: ['Luxe'], req: ['Subtitled'] }) === 1, 'pick: st combined with other-tag chips');
   ok(m({ req: ['IMAX'] }) === 2, 'pick: old saved req IMAX keeps working (raw tags)');
-  ok(m({ wd: [1, 2] }) === 0 && pickAllows({ st: [], req: [], exc: [], wd: null }, [], 2, 3, new Set([1])) === false, 'pick: weekday + cinema filters');
+  ok(m({ dd: ['2026-10-08'] }) === 0 && m({ dd: ['2026-10-09', '2026-10-17'] }) === 6 && pickAllows({ st: [], req: [], exc: [], dd: null }, [], 2, '2026-10-08', new Set([1])) === false, 'pick: excluded-date + cinema filters');
+  ok(pickAllows({ st: [], req: [], exc: [], wd: [1] }, [], 0, '2026-10-08', null), 'pick: old saved weekday list (wd) is ignored');
   ok(pickAllows({ cin: [] }, ['IMAX'], 0, 0, null), 'pick: old pick object without st/req/exc fields');
 }
 // 10) Google Routes client against a fake Routes API: headers, body, chunking, ROUTE_NOT_FOUND, streamed body, errors
