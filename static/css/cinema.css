@@ -187,7 +187,7 @@
 .cinema-app .dtab .dn{white-space:nowrap}
 .cinema-app .dtab th{font-weight:400;color:var(--mute);font-size:12px;text-align:left;padding:0 4px}
 .cinema-app .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
-.cinema-app .sgrid label{font-size:12.5px;color:var(--mute);display:flex;flex-direction:column;gap:3px}
+.cinema-app .sgrid label{font-size:12.5px;color:var(--mute);display:flex;flex-direction:column;justify-content:space-between;gap:3px}  /* inputs sit at the bottom so a row lines up even when one label wraps */
 .cinema-app .sgrid input,.cinema-app .sgrid select{color:var(--ink);font-size:14px;padding:5px 8px;width:100%}
 .cinema-app .sgrid .wide{grid-column:1/-1}
 .cinema-app .go{width:100%;padding:10px;font-size:15px;font-weight:700;background:var(--acc);color:#fff;border-color:var(--acc);border-radius:8px}
@@ -259,4 +259,11 @@
   .cinema-app .dtab { font-size: 12px; }
   .cinema-app .dtab input[type=time] { font-size: 12px; padding: 3px 2px; }
   .cinema-app .dtab input[type=time]::-webkit-calendar-picker-indicator { display: none; }
+}
+
+/* No site header on this page, so in portrait (where style.css pins the theme toggle top-right)
+   start the title below the toggle instead of under it. Padding, not margin: the h1's margin
+   collapses into body's, which the toggle is positioned against, so a margin would move both. */
+@media (max-aspect-ratio: 1/1) {
+  .cinema-title { padding-top: 72px; }
 }
