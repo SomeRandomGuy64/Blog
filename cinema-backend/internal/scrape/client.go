@@ -2,11 +2,13 @@ package scrape
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -48,12 +50,17 @@ type Session struct {
 
 // NewSession builds an impersonating client. memo may be nil.
 func NewSession(ctx context.Context, memo *Memo) (*Session, error) {
-	hc, err := tlsclient.NewHttpClient(tlsclient.NewNoopLogger(),
+	opts := []tlsclient.HttpClientOption{
 		tlsclient.WithClientProfile(profiles.Chrome_146),
 		tlsclient.WithCookieJar(tlsclient.NewCookieJar()),
 		tlsclient.WithTimeoutSeconds(180),
 		tlsclient.WithRandomTLSExtensionOrder(), // Chrome shuffles extensions since v110
-	)
+	}
+	// tls-client ignores the proxy environment variables, so honour HTTPS_PROXY explicitly.
+	if p := cmp.Or(os.Getenv("HTTPS_PROXY"), os.Getenv("https_proxy")); p != "" {
+		opts = append(opts, tlsclient.WithProxyUrl(p))
+	}
+	hc, err := tlsclient.NewHttpClient(tlsclient.NewNoopLogger(), opts...)
 	if err != nil {
 		return nil, err
 	}
