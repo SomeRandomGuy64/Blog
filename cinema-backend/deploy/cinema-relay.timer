@@ -1,0 +1,11 @@
+# systemd USER unit: ~/.config/systemd/user/cinema-relay.timer
+[Unit]
+Description=Run cinema-relay every 3 hours
+
+[Timer]
+OnCalendar=*-*-* 00/3:00:00
+RandomizedDelaySec=20min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

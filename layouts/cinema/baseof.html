@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="{{ or site.Language.Locale "en" }}">
+  <head>
+    {{ partial "head.html" . }}
+  </head>
+  <body>
+    {{/* Same as the site's baseof, minus the "Fazon Nexus" title and navbar: only the theme toggle stays. */}}
+    <div class="theme-toggle-wrapper">
+      <div id="themeToggle" class="toggle-button">
+        <img class="dark" src="{{ relURL "assets/images/full-moon.png" }}" alt="Dark Mode Icon"/>
+        <img class="light" src="{{ relURL "assets/images/sunny.png" }}" alt="Light Mode Icon"/>
+      </div>
+    </div>
+    <main>
+      {{ block "main" . }}{{ end }}
+    </main>
+    {{ partial "footer.html" . }}
+  </body>
+</html>
