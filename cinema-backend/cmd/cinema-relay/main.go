@@ -32,7 +32,7 @@ func main() {
 	server := flag.String("server", "https://cinema-api.fazon.nexus", "cinemad base URL")
 	all := flag.Bool("all", false, "scrape every cinema, not just the relay-flagged ones")
 	only := flag.String("only", "", "comma-separated substrings of cinema name/chain (any cinema)")
-	days := flag.Int("days", 7, "days to scrape, from today")
+	days := flag.Int("days", scrape.DefaultDays, "days to scrape, from today")
 	dry := flag.Bool("dry-run", false, "scrape and print a summary; don't upload")
 	workers := flag.Int("workers", 8, "parallel cinemas")
 	timeout := flag.Duration("cinema-timeout", 5*time.Minute, "per-cinema timeout")

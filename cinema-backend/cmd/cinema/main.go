@@ -48,7 +48,7 @@ func usage() {
 func scrapeCmd(args []string) {
 	fs := flag.NewFlagSet("scrape", flag.ExitOnError)
 	only := fs.String("only", "", "comma-separated substrings of cinema name/chain")
-	days := fs.Int("days", 7, "days in the window")
+	days := fs.Int("days", scrape.DefaultDays, "days in the window")
 	fromS := fs.String("from", "", "first day (default today, Europe/London)")
 	out := fs.String("out", "listings.json", "listings JSON output ('' to skip)")
 	rawOut := fs.String("raw-out", "", "also write raw per-cinema results here")
