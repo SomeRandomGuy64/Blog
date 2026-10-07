@@ -1,0 +1,298 @@
+{
+ "from": "2026-10-07",
+ "to": "2026-10-13",
+ "results": [
+  {
+   "name": "Odeon Oldham",
+   "shows": [
+    {
+     "film": "Before Window",
+     "start": "2026-10-06T23:30",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": null,
+     "duration": 90
+    },
+    {
+     "film": "After Window",
+     "start": "2026-10-14T00:10",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": null,
+     "duration": 90
+    },
+    {
+     "film": "Dupe Film",
+     "start": "2026-10-07T18:00",
+     "screen": "Screen 1",
+     "formats": [
+      "IMAX"
+     ],
+     "url": null,
+     "end": "2026-10-07T20:30",
+     "duration": 120
+    },
+    {
+     "film": "Dupe Film",
+     "start": "2026-10-07T18:00",
+     "screen": "Screen 1",
+     "formats": [
+      "IMAX"
+     ],
+     "url": null,
+     "end": "2026-10-07T20:30",
+     "duration": 120
+    },
+    {
+     "film": "Dupe Film",
+     "start": "2026-10-07T18:00",
+     "screen": "Screen 2",
+     "formats": [
+      "IMAX"
+     ],
+     "url": null,
+     "end": "2026-10-07T20:30",
+     "duration": 120
+    },
+    {
+     "film": "Spirited Away (Dubbed)",
+     "start": "2026-10-08T12:00",
+     "screen": "Screen 3",
+     "formats": [],
+     "url": null,
+     "end": "2026-10-08T14:30",
+     "duration": null
+    },
+    {
+     "film": "Classic Mix",
+     "start": "2026-10-08T15:00",
+     "screen": null,
+     "formats": [
+      "Classic"
+     ],
+     "url": null,
+     "end": null,
+     "duration": null
+    },
+    {
+     "film": "Classic Mix",
+     "start": "2026-10-09T15:00",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": null,
+     "duration": null
+    },
+    {
+     "film": "Runtime Vote",
+     "start": "2026-10-09T10:00",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": null,
+     "duration": 120
+    },
+    {
+     "film": "Only Placeholder",
+     "start": "2026-10-09T11:00",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": null,
+     "duration": 120
+    },
+    {
+     "film": "Half Even",
+     "start": "2026-10-09T12:00",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": null,
+     "duration": 100
+    },
+    {
+     "film": "Short Slot",
+     "start": "2026-10-10T10:00",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": "2026-10-10T11:00",
+     "duration": 150
+    },
+    {
+     "film": "No Info",
+     "start": "2026-10-10T13:00",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": null,
+     "duration": null
+    },
+    {
+     "film": "Film A",
+     "start": "2026-10-11T13:00",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": null,
+     "duration": null
+    },
+    {
+     "film": "Film A",
+     "start": "2026-10-11T16:00",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": null,
+     "duration": null
+    },
+    {
+     "film": "Noisy Tags",
+     "start": "2026-10-11T19:00",
+     "screen": null,
+     "formats": [
+      "IMAX with Laser",
+      "Audio Described",
+      "imax",
+      "Wheelchair"
+     ],
+     "url": null,
+     "end": null,
+     "duration": null
+    },
+    {
+     "film": "Vote Earlier",
+     "start": "2026-10-12T10:00",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": "2026-10-12T12:00",
+     "duration": 95
+    }
+   ],
+   "error": null
+  },
+  {
+   "name": "Vue Bury",
+   "shows": [
+    {
+     "film": "Runtime Vote",
+     "start": "2026-10-09T10:00",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": null,
+     "duration": 129
+    },
+    {
+     "film": "Runtime Vote",
+     "start": "2026-10-09T13:00",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": null,
+     "duration": 200
+    },
+    {
+     "film": "Spirited Away (Subtitled)",
+     "start": "2026-10-08T12:00",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": "2026-10-08T14:40",
+     "duration": null
+    },
+    {
+     "film": "FILM A",
+     "start": "2026-10-11T13:00",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": null,
+     "duration": null
+    },
+    {
+     "film": "Classic Mix",
+     "start": "2026-10-08T15:00",
+     "screen": null,
+     "formats": [
+      "Classic"
+     ],
+     "url": null,
+     "end": null,
+     "duration": null
+    },
+    {
+     "film": "Classic Mix",
+     "start": "2026-10-09T15:00",
+     "screen": null,
+     "formats": [
+      "Throwback"
+     ],
+     "url": null,
+     "end": null,
+     "duration": null
+    },
+    {
+     "film": "Half Even",
+     "start": "2026-10-09T12:00",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": null,
+     "duration": 101
+    },
+    {
+     "film": "Only Placeholder",
+     "start": "2026-10-09T11:00",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": null,
+     "duration": 120
+    }
+   ],
+   "error": null
+  },
+  {
+   "name": "Cultplex",
+   "shows": [
+    {
+     "film": "Runtime Vote",
+     "start": "2026-10-09T19:30",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": null,
+     "duration": 131
+    },
+    {
+     "film": "The Spirited Away",
+     "start": "2026-10-13T19:30",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": "2026-10-13T21:45",
+     "duration": null
+    },
+    {
+     "film": "Dupe Film (2026)",
+     "start": "2026-10-13T20:00",
+     "screen": null,
+     "formats": [],
+     "url": null,
+     "end": null,
+     "duration": 118
+    }
+   ],
+   "error": null
+  },
+  {
+   "name": "Showroom Sheffield",
+   "shows": [],
+   "error": "HTTPError: 503"
+  }
+ ]
+}

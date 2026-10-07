@@ -1,0 +1,419 @@
+{
+ "from": "2026-10-07",
+ "to": "2026-10-13",
+ "cinemas": [
+  {
+   "name": "Odeon Oldham",
+   "chain": "Odeon",
+   "url": "https://www.odeon.co.uk/cinemas/oldham/",
+   "error": null,
+   "count": 14,
+   "lat": 53.5418,
+   "lng": -2.1111
+  },
+  {
+   "name": "Vue Bury",
+   "chain": "Vue",
+   "url": "https://www.myvue.com/cinema/bury-the-rock/whats-on",
+   "error": null,
+   "count": 8,
+   "lat": 53.59423,
+   "lng": -2.29161
+  },
+  {
+   "name": "Cultplex",
+   "chain": "Independent",
+   "url": "https://cultplex.co.uk",
+   "error": null,
+   "count": 3,
+   "lat": 53.49161,
+   "lng": -2.23792
+  },
+  {
+   "name": "Showroom Sheffield",
+   "chain": "Independent",
+   "url": "https://showroomworkstation.org.uk",
+   "error": "HTTPError: 503",
+   "count": 0,
+   "lat": 53.37706,
+   "lng": -1.46566
+  }
+ ],
+ "films": {
+  "dupefilm": "Dupe Film",
+  "spiritedaway": "Spirited Away",
+  "classicmix": "Classic Mix",
+  "runtimevote": "Runtime Vote",
+  "onlyplaceholder": "Only Placeholder",
+  "halfeven": "Half Even",
+  "shortslot": "Short Slot",
+  "noinfo": "No Info",
+  "filma": "Film A",
+  "noisytags": "Noisy Tags",
+  "voteearlier": "Vote Earlier"
+ },
+ "shows": [
+  {
+   "k": "dupefilm",
+   "c": 0,
+   "t": "2026-10-07T18:00",
+   "s": "Screen 1",
+   "x": [
+    "IMAX"
+   ],
+   "u": null,
+   "e": "2026-10-07T20:30",
+   "d": 118
+  },
+  {
+   "k": "dupefilm",
+   "c": 0,
+   "t": "2026-10-07T18:00",
+   "s": "Screen 2",
+   "x": [
+    "IMAX"
+   ],
+   "u": null,
+   "e": "2026-10-07T20:30",
+   "d": 118
+  },
+  {
+   "k": "spiritedaway",
+   "c": 0,
+   "t": "2026-10-08T12:00",
+   "s": "Screen 3",
+   "x": [
+    "Dubbed"
+   ],
+   "u": null,
+   "e": "2026-10-08T14:30",
+   "d": 125
+  },
+  {
+   "k": "classicmix",
+   "c": 0,
+   "t": "2026-10-08T15:00",
+   "s": null,
+   "x": [],
+   "u": null,
+   "es": true,
+   "e": "2026-10-08T17:25",
+   "d": 120
+  },
+  {
+   "k": "classicmix",
+   "c": 0,
+   "t": "2026-10-09T15:00",
+   "s": null,
+   "x": [],
+   "u": null,
+   "es": true,
+   "e": "2026-10-09T17:25",
+   "d": 120
+  },
+  {
+   "k": "runtimevote",
+   "c": 0,
+   "t": "2026-10-09T10:00",
+   "s": null,
+   "x": [],
+   "u": null,
+   "es": true,
+   "e": "2026-10-09T12:35",
+   "d": 130
+  },
+  {
+   "k": "onlyplaceholder",
+   "c": 0,
+   "t": "2026-10-09T11:00",
+   "s": null,
+   "x": [],
+   "u": null,
+   "es": true,
+   "e": "2026-10-09T13:25",
+   "d": 120
+  },
+  {
+   "k": "halfeven",
+   "c": 0,
+   "t": "2026-10-09T12:00",
+   "s": null,
+   "x": [],
+   "u": null,
+   "es": true,
+   "e": "2026-10-09T14:05",
+   "d": 100
+  },
+  {
+   "k": "shortslot",
+   "c": 0,
+   "t": "2026-10-10T10:00",
+   "s": null,
+   "x": [],
+   "u": null,
+   "es": true,
+   "e": "2026-10-10T12:55",
+   "d": 150
+  },
+  {
+   "k": "noinfo",
+   "c": 0,
+   "t": "2026-10-10T13:00",
+   "s": null,
+   "x": [],
+   "u": null,
+   "es": true,
+   "e": "2026-10-10T15:25",
+   "d": 120
+  },
+  {
+   "k": "filma",
+   "c": 0,
+   "t": "2026-10-11T13:00",
+   "s": null,
+   "x": [],
+   "u": null,
+   "es": true,
+   "e": "2026-10-11T15:25",
+   "d": 120
+  },
+  {
+   "k": "filma",
+   "c": 0,
+   "t": "2026-10-11T16:00",
+   "s": null,
+   "x": [],
+   "u": null,
+   "es": true,
+   "e": "2026-10-11T18:25",
+   "d": 120
+  },
+  {
+   "k": "noisytags",
+   "c": 0,
+   "t": "2026-10-11T19:00",
+   "s": null,
+   "x": [
+    "IMAX"
+   ],
+   "u": null,
+   "es": true,
+   "e": "2026-10-11T21:25",
+   "d": 120
+  },
+  {
+   "k": "voteearlier",
+   "c": 0,
+   "t": "2026-10-12T10:00",
+   "s": null,
+   "x": [],
+   "u": null,
+   "e": "2026-10-12T12:00",
+   "d": 95
+  },
+  {
+   "k": "runtimevote",
+   "c": 1,
+   "t": "2026-10-09T10:00",
+   "s": null,
+   "x": [],
+   "u": null,
+   "es": true,
+   "e": "2026-10-09T12:34",
+   "d": 129
+  },
+  {
+   "k": "runtimevote",
+   "c": 1,
+   "t": "2026-10-09T13:00",
+   "s": null,
+   "x": [],
+   "u": null,
+   "es": true,
+   "e": "2026-10-09T16:45",
+   "d": 200
+  },
+  {
+   "k": "spiritedaway",
+   "c": 1,
+   "t": "2026-10-08T12:00",
+   "s": null,
+   "x": [
+    "Subtitled"
+   ],
+   "u": null,
+   "e": "2026-10-08T14:40",
+   "d": 135
+  },
+  {
+   "k": "filma",
+   "c": 1,
+   "t": "2026-10-11T13:00",
+   "s": null,
+   "x": [],
+   "u": null,
+   "es": true,
+   "e": "2026-10-11T15:25",
+   "d": 120
+  },
+  {
+   "k": "classicmix",
+   "c": 1,
+   "t": "2026-10-08T15:00",
+   "s": null,
+   "x": [
+    "Classic"
+   ],
+   "u": null,
+   "es": true,
+   "e": "2026-10-08T17:25",
+   "d": 120
+  },
+  {
+   "k": "classicmix",
+   "c": 1,
+   "t": "2026-10-09T15:00",
+   "s": null,
+   "x": [
+    "Classic"
+   ],
+   "u": null,
+   "es": true,
+   "e": "2026-10-09T17:25",
+   "d": 120
+  },
+  {
+   "k": "halfeven",
+   "c": 1,
+   "t": "2026-10-09T12:00",
+   "s": null,
+   "x": [],
+   "u": null,
+   "es": true,
+   "e": "2026-10-09T14:06",
+   "d": 101
+  },
+  {
+   "k": "onlyplaceholder",
+   "c": 1,
+   "t": "2026-10-09T11:00",
+   "s": null,
+   "x": [],
+   "u": null,
+   "es": true,
+   "e": "2026-10-09T13:25",
+   "d": 120
+  },
+  {
+   "k": "runtimevote",
+   "c": 2,
+   "t": "2026-10-09T19:30",
+   "s": null,
+   "x": [],
+   "u": null,
+   "es": true,
+   "e": "2026-10-09T21:51",
+   "d": 131
+  },
+  {
+   "k": "spiritedaway",
+   "c": 2,
+   "t": "2026-10-13T19:30",
+   "s": null,
+   "x": [],
+   "u": null,
+   "e": "2026-10-13T21:45",
+   "d": 125
+  },
+  {
+   "k": "dupefilm",
+   "c": 2,
+   "t": "2026-10-13T20:00",
+   "s": null,
+   "x": [],
+   "u": null,
+   "es": true,
+   "e": "2026-10-13T22:08",
+   "d": 118
+  }
+ ],
+ "premium": [
+  "35mm",
+  "3D",
+  "4DX",
+  "4K",
+  "70mm",
+  "D-BOX",
+  "Dolby Atmos",
+  "Dolby Cinema",
+  "EPIC",
+  "IMAX",
+  "IMAX 1.43:1",
+  "Infinity Vision",
+  "Luxe",
+  "ScreenX",
+  "Superscreen",
+  "Ultra Lux",
+  "XPlus",
+  "iSense"
+ ],
+ "travel": {
+  "source": "estimate",
+  "places": [
+   "Odeon Oldham",
+   "Vue Bury",
+   "Cultplex",
+   "Showroom Sheffield"
+  ],
+  "mins": [
+   [
+    0,
+    52,
+    48,
+    93
+   ],
+   [
+    52,
+    0,
+    50,
+    110
+   ],
+   [
+    48,
+    50,
+    0,
+    101
+   ],
+   [
+    93,
+    110,
+    101,
+    0
+   ]
+  ],
+  "coords": [
+   [
+    53.5418,
+    -2.1111
+   ],
+   [
+    53.59423,
+    -2.29161
+   ],
+   [
+    53.49161,
+    -2.23792
+   ],
+   [
+    53.37706,
+    -1.46566
+   ]
+  ],
+  "estimate": {
+   "walk_km_max": 2.2,
+   "walk_min_per_km": 17.0,
+   "transit_base_min": 35.0,
+   "transit_min_per_km": 1.25
+  }
+ }
+}

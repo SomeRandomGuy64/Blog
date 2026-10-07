@@ -1,0 +1,12 @@
+# systemd USER unit: ~/.config/systemd/user/cinema-relay.service
+[Unit]
+Description=Scrape relay-only cinemas and upload to cinema-api.fazon.nexus
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Token: ~/.config/cinema-relay/token (or Environment=CINEMA_RELAY_TOKEN=...)
+ExecStart=%h/.local/bin/cinema-relay --server https://cinema-api.fazon.nexus
+TimeoutStartSec=15min
+Nice=10
