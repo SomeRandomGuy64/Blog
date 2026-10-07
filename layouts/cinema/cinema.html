@@ -38,6 +38,11 @@
          <div class="ol" style="margin-top:10px">Dates</div>
          <div class="srow"><label class="dsel">From <select id="pstart" aria-label="First day of the plan"></select></label><label class="dsel">for <select id="plen" aria-label="Number of days"></select></label>
           <div class="pcst" id="pdnote"></div></div>
+         <div class="ol" style="margin-top:10px">Cinemas for all films <span class="meta">— none ticked = any; each film’s own Options can narrow it further</span></div>
+         <details class="gcin" id="pgc"><summary><span id="pgcsum">Any cinema</span> <span class="meta">— choose…</span></summary>
+          <div class="srow" style="margin:6px 0 0"><input type="search" class="cf" id="pgcf" placeholder="Filter cinemas or chains…" aria-label="Filter cinemas">
+           <button type="button" class="ib" id="pgcall">Tick all shown</button><button type="button" class="ib" id="pgcclr">Any cinema</button></div>
+          <div class="clist" id="pgclist"></div></details>
          <div class="ol" style="margin-top:10px">When you’re free</div>
          <table class="dtab" id="pdays"></table>
          <div class="sgrid">

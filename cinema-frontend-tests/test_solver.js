@@ -120,6 +120,119 @@ for (let it = 0; it < 400; it++) {
 console.log('cost-optimal', costEq, '/', tot, 'worse by', costWorse);
 ok(agree === tot, `case8 random brute-force cross-check ${agree}/${tot}`);
 
+// 8b) up to 40 films: film sets no longer fit in 32-bit ints. Checks use films with indices >= 31.
+const OLD = (() => { const u = new URL('./solver_32bit_ref.js', import.meta.url);
+  return new Function((fs ? fs.readFileSync(u, 'utf8') : Deno.readTextFileSync(u)) + '\nreturn SOLVER;')()().solve; })();
+const strip = r => JSON.stringify({ ...r, ms: 0 });
+const nd = (n, d) => Array.from({ length: n }, (_, i) => d);
+// (1) n <= 28: identical output (schedule, unfit reasons, status, node count) to the old 32-bit solver
+function randInst(n, ndays, nc, perDay, mode) {
+  const M = Array.from({ length: nc + 1 }, () => Array.from({ length: nc + 1 }, () => rnd() < 0.08 ? -1 : 5 + Math.floor(rnd() * 40)));
+  const T = mkT(nc, (a, b) => M[a][b]); closure(T, nc + 1);
+  const films = Array.from({ length: n }, () => film(ndays, Object.fromEntries(Array.from({ length: ndays }, (_, d) => [d, Array.from({ length: Math.floor(rnd() * perDay) }, () => {
+    const st = 600 + Math.floor(rnd() * 660); return { i: sid++, c: Math.floor(rnd() * nc), st, en: st + 85 + Math.floor(rnd() * 70) }; })]))));
+  const win = Array.from({ length: ndays }, () => rnd() < 0.15 ? null : W(rnd() < 0.5 ? '10:00' : '13:00', rnd() < 0.5 ? '23:30' : '21:00'));
+  return { films, win, T, nc, buf: 10, late: rnd() < 0.3 ? 15 : 0, maxDay: rnd() < 0.2 ? 2 : 0, mode, budget: 20000 };
+}
+{ seed = 4242; let same = 0, cmp = 0, maxN = 0;
+  for (let it = 0; it < 60; it++) {
+    const n = it < 40 ? 4 + Math.floor(rnd() * 8) : 20 + Math.floor(rnd() * 9), P = n > 12 ? randInst(n, 7, 4, 1.25, rnd() < 0.5 ? 'most' : 'strict') : randInst(n, 3, 3, 2.6, rnd() < 0.5 ? 'most' : 'strict');
+    const a = OLD({ ...P }), b = solve({ ...P });
+    if (a.status !== 'optimal' || b.status !== 'optimal') continue;   // timing-dependent otherwise
+    cmp++; maxN = Math.max(maxN, n); if (strip(a) === strip(b)) same++; else console.log('differs', it, n, a.chosen, b.chosen, a.nodes, b.nodes);
+  }
+  ok(cmp >= 50 && same === cmp, `case8b n<=28 identical to the old solver on ${same}/${cmp} seeded instances (largest n=${maxN})`);
+}
+// (2a) 40 films x 10 days, one showing each, 4 per day at 10:00/13:00/16:00/19:00 (2 h, same cinema): everything fits
+const grid = (f, d, slot, len = 120) => ({ i: 10000 + f, c: 0, st: 600 + slot * 180, en: 600 + slot * 180 + len, d });
+function gridInst(mode, tweak) {
+  const sh = Array.from({ length: 40 }, (_, f) => grid(f, Math.floor(f / 4), f % 4)); if (tweak) tweak(sh);
+  return { films: sh.map(s => film(10, { [s.d]: [{ i: s.i, c: s.c, st: s.st, en: s.en }] })), win: nd(10, W('09:00', '23:59')), T: mkT(1, () => 15), nc: 1, buf: 10, late: 0, maxDay: 0, mode, budget: 2500 };
+}
+for (const mode of ['most', 'strict']) {
+  const r = solve(gridInst(mode));
+  ok(r.status === 'optimal' && r.chosen.length === 40 && r.chosen.join() === Array.from({ length: 40 }, (_, i) => i).join() && r.days.length === 10 && r.days.every(d => d.seq.length === 4),
+    `case8c ${mode}: 40 films x 10 days all scheduled (${r.chosen.length}, ${r.status}, ${r.ms} ms)`);
+  ok(r.days.find(d => d.d === 9).seq.join() === '10036,10037,10038,10039' && r.days.every(d => d.cost === 180), `case8c ${mode}: films 36-39 on the last day, cost 180 per day (15+15 travel + 3x50 wait)`);
+}
+// (2b) film 32 moves to day 9 as one long 10:00-17:30 showing, clashing with films 36, 37, 38 (all ranked lower)
+//      most: skip 32 (-1) rather than 36-38 (-3) -> 39 films; strict: 32 beats 36-38 -> 32 + 39 on day 9 -> 37 films
+{ const tw = sh => { sh[32] = { ...grid(32, 9, 0, 450) }; };
+  const m = solve(gridInst('most', tw)), s = solve(gridInst('strict', tw));
+  ok(m.status === 'optimal' && m.chosen.length === 39 && !m.chosen.includes(32) && m.chosen.includes(36) && m.chosen.includes(39) && m.unfit[32] && m.unfit[32].higher === true,
+    'case8d most: drops film 32 for 36-38 ' + JSON.stringify(m.unfit));
+  ok(s.status === 'optimal' && s.chosen.length === 37 && s.chosen.includes(32) && s.chosen.includes(39) && ![36, 37, 38].some(f => s.chosen.includes(f)) && s.unfit[36].higher === false,
+    'case8d strict: keeps film 32, drops 36-38 ' + JSON.stringify(s.unfit));
+  ok(s.days.find(d => d.d === 9).seq.join() === '10032,10039' && s.days.find(d => d.d === 8).seq.join() === '10033,10034,10035', 'case8d strict day plans');
+  // two high-ranked showings at the same time on day 8: 33 (higher) wins in both modes
+  const tw2 = sh => { sh[38] = { ...grid(38, 8, 1) }; };
+  for (const mode of ['most', 'strict']) { const r = solve(gridInst(mode, tw2));
+    ok(r.status === 'optimal' && r.chosen.length === 39 && r.chosen.includes(33) && !r.chosen.includes(38), `case8e ${mode}: same-time clash 33 vs 38 -> 33`); }
+}
+// (2c) random small instances padded to 36-40 films with 31+ films that have no usable showing first, so the real films
+//      get indices >= 31; their result must match brute force (and the unpadded solve) after the index shift
+{ seed = 99; let agree2 = 0, tot2 = 0;
+  for (let it = 0; it < 60; it++) {
+    const nc = 3, n = 3 + Math.floor(rnd() * 3), pad = 31 + Math.floor(rnd() * (40 - n - 30));
+    const M = Array.from({ length: nc + 1 }, () => Array.from({ length: nc + 1 }, () => rnd() < 0.1 ? -1 : 5 + Math.floor(rnd() * 50)));
+    const T = mkT(nc, (a, b) => M[a][b]); closure(T, nc + 1);
+    const films = Array.from({ length: n }, () => film(2, Object.fromEntries([0, 1].map(d => [d, Array.from({ length: Math.floor(rnd() * 3) }, () => { const st = 600 + Math.floor(rnd() * 600); return { i: sid++, c: Math.floor(rnd() * nc), st, en: st + 90 + Math.floor(rnd() * 60) }; })]))));
+    const mode = rnd() < 0.5 ? 'most' : 'strict', P = { films, win: [W('10:00', '23:30'), W('11:00', '22:30')], T, nc, buf: 10, late: 0, maxDay: 0, mode, budget: 2000 };
+    // padding: no showings at all, or only on an unavailable 3rd day
+    const dead = Array.from({ length: pad }, (_, k) => k % 2 ? film(3, {}) : film(3, { 2: [{ i: sid++, c: 0, st: 700, en: 800 }] }));
+    const r = solve({ ...P, films: [...dead, ...films.map(f => ({ days: [...f.days, []] }))], win: [...P.win, null] });
+    const [b, bc] = brute(P), got = r.chosen.map(f => f - pad);
+    let k = 0; got.forEach(f => k += 2 ** (n - 1 - f)); if (mode !== 'strict') k += got.length * 2 ** 28;
+    const rc = r.days.reduce((a, d) => a + d.cost, 0); tot2++;
+    if (k === b && Math.abs(rc - bc) < 1e-6 && r.chosen.every(f => f >= 31) && r.status === 'optimal') agree2++; else console.log('padded mismatch', it, mode, b, k, bc, rc, r.chosen);
+  }
+  ok(agree2 === tot2, `case8f films at indices 31-39 match brute force (count, priority, travel) ${agree2}/${tot2}`);
+}
+// (2d) two independent halves: days 0-4 only show films 0-19, days 5-9 only films 20-39. Both objectives decompose,
+//      so the 40-film optimum = the two 20-film optima side by side (solved separately with the old 32-bit solver)
+{ seed = 2024; let good = 0, runs = 0;
+  for (let it = 0; it < 6; it++) {
+    const mode = it % 2 ? 'strict' : 'most', A = randInst(20, 5, 4, 1.2, mode), Bp = randInst(20, 5, 4, 1.2, mode);
+    const Tm = A.T;   // share A's travel matrix
+    const P = { ...A, budget: 20000, films: [...A.films.map(f => ({ days: [...f.days, ...nd(5, [])] })), ...Bp.films.map(f => ({ days: [...nd(5, []), ...f.days] }))], win: [...A.win, ...Bp.win], T: Tm };
+    const ra = OLD({ ...A, budget: 20000 }), rb = OLD({ ...Bp, T: Tm, buf: A.buf, late: A.late, maxDay: A.maxDay, budget: 20000 }), r = solve(P);
+    if (ra.status !== 'optimal' || rb.status !== 'optimal') continue; runs++;
+    const want = [...ra.chosen, ...rb.chosen.map(f => f + 20)].join(), wc = ra.days.reduce((a, d) => a + d.cost, 0) + rb.days.reduce((a, d) => a + d.cost, 0), rc = r.days.reduce((a, d) => a + d.cost, 0);
+    if (r.chosen.join() === want && Math.abs(rc - wc) < 1e-6 && r.status === 'optimal') good++; else console.log('halves mismatch', it, mode, r.status, want, r.chosen.join(), wc, rc);
+  }
+  ok(runs >= 4 && good === runs, `case8g 40 films = two independent 20-film halves ${good}/${runs}`);
+}
+// (3) performance: realistic 40 films x 10 days (12 cinemas, several showings per film per day) stays within the budget,
+//     and a 28-film run is about as fast as with the old solver
+function realInst(n, ndays, mode, budget) { seed = 777;
+  const nc = 12, xy = Array.from({ length: nc + 1 }, () => [rnd() * 30, rnd() * 30]);
+  const T = mkT(nc, (a, b) => Math.round(10 + 2.2 * Math.hypot(xy[a][0] - xy[b][0], xy[a][1] - xy[b][1])));
+  const films = Array.from({ length: n }, (_, f) => { const pop = f < 10 ? 6 : f < 25 ? 3 : 1.5;
+    return film(ndays, Object.fromEntries(Array.from({ length: ndays }, (_, d) => [d, Array.from({ length: Math.floor(rnd() * pop * 2) }, () => {
+      const st = 600 + Math.floor(rnd() * 44) * 15; return { i: sid++, c: Math.floor(rnd() * nc), st, en: st + 95 + Math.floor(rnd() * 80) }; })]))); });
+  return { films, win: Array.from({ length: ndays }, (_, d) => d % 7 < 5 ? W('17:00', '23:59') : W('10:00', '23:59')), T, nc, buf: 10, late: 10, maxDay: 0, mode, budget };
+}
+for (const mode of ['most', 'strict']) {
+  const P = realInst(40, 10, mode, 2500), t = Date.now(), r = solve(P), ms = Date.now() - t;
+  const valid = r.days.every(d => d.seq.length && d.seq.length <= r.cap[d.d]) && new Set(r.chosen).size === r.chosen.length && r.days.reduce((a, d) => a + d.seq.length, 0) === r.chosen.length;
+  console.log(`   perf 40x10 ${mode}: ${r.status}, ${r.chosen.length}/40 films (max index ${Math.max(...r.chosen)}), ${ms} ms, ${r.nodes} nodes, memo ${r.memo}`);
+  ok(ms <= 2500 + 800 && ['optimal', 'films', 'timeout'].includes(r.status) && r.chosen.length >= 20 && r.chosen.some(f => f >= 31) && valid, `case8h 40x10 ${mode} within budget (${ms} ms, ${r.status})`);
+}
+{ const P = realInst(28, 7, 'most', 2500); let to = 0, tn = 0; const ro = [], rn = [];
+  for (let k = 0; k < 2; k++) { let t = Date.now(); ro.push(OLD({ ...P })); to += Date.now() - t; t = Date.now(); rn.push(solve({ ...P })); tn += Date.now() - t; }
+  console.log(`   perf 28x7: old ${ro.map(r => r.status + ' ' + r.chosen.length + ' films ' + r.nodes + ' nodes ' + r.ms + ' ms').join(' | ')}`);
+  console.log(`   perf 28x7: new ${rn.map(r => r.status + ' ' + r.chosen.length + ' films ' + r.nodes + ' nodes ' + r.ms + ' ms').join(' | ')}`);
+  ok(rn.every(r => r.status === ro[0].status && r.chosen.length === ro[0].chosen.length), 'case8i 28x7: same status and film count as the old solver');
+  // same-work speed check: a smaller instance both solvers finish (fixed node count), compare wall time
+  const Q = realInst(24, 6, 'most', 60000); let qo = 0, qn = 0, a, b;
+  for (let k = 0; k < 3; k++) { let t = Date.now(); a = OLD({ ...Q }); qo += Date.now() - t; t = Date.now(); b = solve({ ...Q }); qn += Date.now() - t; }
+  console.log(`   perf same-work (n=24, 6 days, ${a.nodes} nodes, ${a.status}): old ${qo / 3 | 0} ms, new ${qn / 3 | 0} ms`);
+  ok(strip(a) === strip(b) && qn <= qo * 1.5 + 50, `case8j same work: identical result, new ${qn / 3 | 0} ms vs old ${qo / 3 | 0} ms`);
+}
+// too many films is a clear error, not a wrong answer
+{ let e = null; try { solve({ ...gridInst('most'), films: Array.from({ length: 48 }, () => film(10, {})) }); } catch (x) { e = x; }
+  ok(e && /at most 47 films/.test(e.message), 'case8k >47 films throws'); }
+
 // 9) screen types: one combined label per showing, canonical order, 3D last; pick filtering by p.st
 { const xs = s => FILES[s];
   const { screenType, otherTags, stCmp, pickAllows, isScreen } = new Function(xs('ST') + '\nreturn SCREENTYPES;')()(new Set(['35mm','3D','4DX','4K','70mm','D-BOX','Dolby Atmos','Dolby Cinema','EPIC','IMAX','IMAX 1.43:1','Infinity Vision','Luxe','ScreenX','Superscreen','Ultra Lux','XPlus','iSense']));
