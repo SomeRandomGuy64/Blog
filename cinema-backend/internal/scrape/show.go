@@ -169,6 +169,10 @@ func Day(t time.Time) time.Time {
 // ParseDate parses "2006-01-02".
 func ParseDate(s string) (time.Time, error) { return time.Parse(DateFmt, s) }
 
+// DefaultDays is the default listings window, from today: the planner lets people start a plan up to
+// 6 days ahead and run it for up to 10 days.
+const DefaultDays = 16
+
 // Days lists every date from..to inclusive.
 func Days(from, to time.Time) []time.Time {
 	var out []time.Time

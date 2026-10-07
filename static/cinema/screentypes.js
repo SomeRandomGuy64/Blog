@@ -15,10 +15,11 @@ function SCREENTYPES(P){
   const otherTags=x=>x.filter(t=>!isScreen(t)).sort((a,b)=>a.localeCompare(b));
   function stCmp(a,b){const A=RK.get(a),B=RK.get(b);if(!A||!B)return (!A)-(!B)||a.localeCompare(b);
     for(let i=0;i<Math.min(A.length,B.length);i++)if(A[i]!==B[i])return A[i]-B[i];return A.length-B.length||a.localeCompare(b)}
-  // does a planner pick allow this showing? p:{st,req,exc,wd}; cs: Set of allowed cinema indices or null; w: weekday 0-6
-  function pickAllows(p,x,c,w,cs){if(cs&&!cs.has(c))return false;
+  // does a planner pick allow this showing? p:{st,req,exc,dd}; cs: Set of allowed cinema indices or null; day: "YYYY-MM-DD"
+  // (p.dd = dates the pick is excluded on, null = any day)
+  function pickAllows(p,x,c,day,cs){if(cs&&!cs.has(c))return false;
     if(p.st&&p.st.length&&!p.st.includes(screenType(x)))return false;
     if(p.req&&p.req.length&&!x.some(v=>p.req.includes(v)))return false;
     if(p.exc&&p.exc.length&&x.some(v=>p.exc.includes(v)))return false;
-    return !(p.wd&&!p.wd.includes(w))}
+    return !(p.dd&&p.dd.includes(day))}
   return {screenType,otherTags,isScreen,stCmp,pickAllows}}

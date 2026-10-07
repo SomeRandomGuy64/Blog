@@ -267,3 +267,6 @@
 @media (max-aspect-ratio: 1/1) {
   .cinema-title { padding-top: 72px; }
 }
+/* plan dates (start + length) */
+.cinema-app .dsel { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.cinema-app .dsel select { padding: 4px 8px; font-size: 13.5px; }

@@ -13,24 +13,34 @@ const dnum=s=>Date.UTC(+s.slice(0,4),+s.slice(5,7)-1,+s.slice(8,10))/864e5;
 const toMin=(t,day)=>(dnum(t.slice(0,10))-dnum(day))*1440+(+t.slice(11,13))*60+(+t.slice(14,16));
 const parseHM=s=>{const m=/^(\d{1,2}):(\d{2})/.exec(s||'');return m?+m[1]*60+ +m[2]:null};
 const wdOf=day=>new Date(day+'T12:00:00Z').getUTCDay();
-const WDN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const dayLbl=day=>new Date(day+'T12:00:00Z').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'});
+const dshort=day=>dayLbl(day).replace(/ \w+$/,'').replace(',','');   // "Mon 12"
+const dadd=(day,n)=>new Date((dnum(day)+n)*864e5).toISOString().slice(0,10);
+const isDay=s=>typeof s==='string'&&/^\d{4}-\d\d-\d\d$/.test(s);
 const normPC=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 const fmtPC=s=>{s=normPC(s);return s.length>3?s.slice(0,-3)+' '+s.slice(-3):s};
 
 // ---------- static data ----------
-const DAYS=[];{const a=dnum(D.from),b=dnum(D.to);for(let i=0;a+i<=b&&i<14;i++)DAYS.push(new Date((a+i)*864e5).toISOString().slice(0,10))}
+// The plan covers DAYS = start … start+len-1 (start: today … today+6, len 1–10), clamped to the data's D.from..D.to.
+// DAYS, each showing's day index (SH[].di) and the film index FI are rebuilt by setWindow() whenever those change.
+const TD=(d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()))(new Date()),MAXLEN=10;   // today (local)
+const D0=D.from>TD?D.from:TD,SOPT=[];   // first plannable day; start-date choices
+for(let d=D0;d<=dadd(TD,6)&&d<=D.to;d=dadd(d,1))SOPT.push(d);if(!SOPT.length&&D0<=D.to)SOPT.push(D0);
 const NC=D.cinemas.length,NC1=NC+1,H=NC,CIDX=new Map(D.cinemas.map((c,i)=>[c.name,i]));
 const now=Date.now();
 const SH=D.shows.map((s,i)=>{const day=s.t.slice(0,10),st=toMin(s.t,day);
   let en=s.e?toMin(s.e,day):NaN;const est=!s.e||!!s.es;if(!(en>st))en=st+20+(s.d>0?s.d:120);
   const past=new Date(s.t).getTime()<now;
-  return {i,k:s.k,c:s.c,day,di:DAYS.indexOf(day),st,en,est,past}});
-const FI={};
-for(const h of SH){if(h.di<0||h.past)continue;const f=FI[h.k]||(FI[h.k]={shows:[],cin:new Map(),fmt:new Map(),stc:new Map()});
-  const x=D.shows[h.i].x,st=screenType(x);f.stc.set(st,(f.stc.get(st)||0)+1);
-  f.shows.push(h);f.cin.set(h.c,(f.cin.get(h.c)||0)+1);for(const v of x)if(v==='3D'||!isScreen(v))f.fmt.set(v,(f.fmt.get(v)||0)+1)}
-const FILMS=Object.keys(FI).sort((a,b)=>FI[b].shows.length-FI[a].shows.length);
+  return {i,k:s.k,c:s.c,day,di:-1,st,en,est,past}});
+let DAYS=[],FI={},FILMS=[];
+function setWindow(){const s=PS.set;if(!SOPT.includes(s.start))s.start=SOPT[0]||TD;
+  s.len=Math.min(MAXLEN,Math.max(1,Math.round(+s.len)||7));
+  DAYS=[];for(let i=0;i<s.len;i++){const d=dadd(s.start,i);if(d>D.to)break;DAYS.push(d)}
+  const DI=new Map(DAYS.map((d,i)=>[d,i]));FI={};
+  for(const h of SH){h.di=DI.has(h.day)?DI.get(h.day):-1;if(h.di<0||h.past)continue;const f=FI[h.k]||(FI[h.k]={shows:[],cin:new Map(),fmt:new Map(),stc:new Map()});
+    const x=D.shows[h.i].x,st=screenType(x);f.stc.set(st,(f.stc.get(st)||0)+1);
+    f.shows.push(h);f.cin.set(h.c,(f.cin.get(h.c)||0)+1);for(const v of x)if(v==='3D'||!isScreen(v))f.fmt.set(v,(f.fmt.get(v)||0)+1)}
+  FILMS=Object.keys(FI).sort((a,b)=>FI[b].shows.length-FI[a].shows.length)}
 const title=k=>D.films[k]||k;
 
 // ---------- travel ----------
@@ -88,20 +98,28 @@ function rawTravel(ht){const T=new Int32Array(NC1*NC1).fill(-1),E=new Uint8Array
   T[H*NC1+H]=0;E[H*NC1+H]=0;return {T,E}}
 
 // ---------- persisted state ----------
-const DEF={days:{},buf:10,late:0,maxDay:'',maxLeg:'',obj:'most',pc:'',geo:null,gc:{},noHome:false};
+// availability: set.days[0..6] = per-weekday template, set.dates["YYYY-MM-DD"] = a date the user edited (wins)
+const DEF={days:{},dates:{},start:'',len:7,buf:10,late:0,maxDay:'',maxLeg:'',obj:'most',pc:'',geo:null,gc:{},noHome:false};
 for(let w=0;w<7;w++)DEF.days[w]={on:true,e:'10:00',l:'00:00'};
 const saved=store.get(LSK)||{};
 const PS={picks:[],set:Object.assign({},DEF,saved.set||{})};
 PS.set.days=Object.assign({},DEF.days,PS.set.days||{});if(!PS.set.gc||typeof PS.set.gc!=='object')PS.set.gc={};
+{const o=PS.set.dates,n={};if(o&&typeof o==='object')for(const d in o)if(isDay(d)&&d>=TD&&o[d]&&typeof o[d]==='object')n[d]=Object.assign({},DEF.days[0],o[d]);PS.set.dates=n}
+const avail=day=>PS.set.dates[day]||PS.set.days[wdOf(day)];
+// per-pick excluded dates (p.dd, null = any); an old weekday list (p.wd = allowed weekdays) becomes the dates it excluded
+const ddOf=p=>{let r=null;if(Array.isArray(p.dd))r=p.dd.filter(d=>isDay(d)&&d>=TD);
+  else if(Array.isArray(p.wd)){r=[];for(let d=D0;d<=D.to;d=dadd(d,1))if(!p.wd.includes(wdOf(d)))r.push(d)}
+  return r&&r.length?[...new Set(r)].sort():null};
 if(Array.isArray(saved.picks))for(const p of saved.picks.slice(0,MAXP))if(p&&typeof p.k==='string')
   PS.picks.push({k:p.k,t:p.t||title(p.k),cin:Array.isArray(p.cin)?p.cin:[],st:Array.isArray(p.st)?p.st.filter(v=>typeof v==='string'):[],
-    req:Array.isArray(p.req)?p.req:[],exc:Array.isArray(p.exc)?p.exc:[],wd:Array.isArray(p.wd)?p.wd:null});
+    req:Array.isArray(p.req)?p.req:[],exc:Array.isArray(p.exc)?p.exc:[],dd:ddOf(p)});
+setWindow();
 if(!PS.set.pc&&D.home&&D.home.postcode&&hasLL(D.home)){PS.set.pc=fmtPC(D.home.postcode);
   PS.set.geo={pc:PS.set.pc,lat:D.home.lat,lng:D.home.lng,area:(D.home.label||'').replace(/\s*\([^)]*\)\s*$/,'')||'Home'}}
 const OPEN=new Set();let lastRes=null,dirty=false;
 function save(){store.set(LSK,{picks:PS.picks,set:PS.set})}
 function changed(){save();if(lastRes&&!dirty){dirty=true;$('pout').classList.add('stale');
-  $('pout').insertAdjacentHTML('afterbegin','<div class="stalenote" id="pstale">Picks or settings changed — press “Plan my week” again.</div>')}updGo()}
+  $('pout').insertAdjacentHTML('afterbegin','<div class="stalenote" id="pstale">Picks or settings changed — press “Plan my schedule” again.</div>')}updGo()}
 
 // ---------- mode toggle ----------
 function setMode(m){const plan=m==='plan';$('lbar').hidden=plan;$('lmain').hidden=plan;$('pmain').hidden=!plan;
@@ -128,7 +146,7 @@ function sugg(){const q=$('pq').value.trim().toLowerCase(),have=new Set(PS.picks
   $('psugg').innerHTML=l.length?l.map((k,i)=>`<div data-k="${esc(k)}" class="${i===hl?'hl':''}"><span>${esc(title(k))}</span><span class="meta">${FI[k].shows.length} · ${FI[k].cin.size} cin.</span></div>`).join(''):'<div class="meta">No matching films with showings.</div>';
   $('psugg').hidden=false}
 function addFilm(k){if(!k||PS.picks.length>=MAXP||PS.picks.some(p=>p.k===k))return;
-  PS.picks.push({k,t:title(k),cin:[],st:[],req:[],exc:[],wd:null});$('pq').value='';hl=0;renderPicks();changed();sugg()}
+  PS.picks.push({k,t:title(k),cin:[],st:[],req:[],exc:[],dd:null});$('pq').value='';hl=0;renderPicks();changed();sugg()}
 $('pq').onfocus=sugg;$('pq').oninput=()=>{hl=0;sugg()};
 $('pq').onkeydown=e=>{const it=[...$('psugg').querySelectorAll('[data-k]')];
   if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();hl=(hl+(e.key==='ArrowDown'?1:-1)+it.length)%Math.max(1,it.length);it.forEach((x,i)=>x.classList.toggle('hl',i===hl));it[hl]&&it[hl].scrollIntoView({block:'nearest'})}
@@ -140,16 +158,17 @@ $('pq').onblur=()=>setTimeout(()=>{$('psugg').hidden=true},120);
 // ---------- pick list ----------
 const cinSet=p=>p.cin.length?new Set(p.cin.map(n=>CIDX.get(n))):null;
 function matchCount(p){const F=FI[p.k];if(!F)return [0,0];const cs=cinSet(p);let m=0;
-  for(const h of F.shows)if(pickAllows(p,D.shows[h.i].x,h.c,wdOf(h.day),cs))m++;
+  for(const h of F.shows)if(pickAllows(p,D.shows[h.i].x,h.c,h.day,cs))m++;
   return [m,F.shows.length]}
-const goneMsg=k=>D.films[k]?'No upcoming showings left this week':'Not in this week’s listings';
+const goneMsg=k=>!D.films[k]?'Not in the current listings':SH.some(h=>h.k===k&&!h.past)?'No showings in the chosen dates':'No upcoming showings left';
+const ddIn=p=>p.dd?DAYS.filter(d=>p.dd.includes(d)):[];   // excluded dates inside the plan's window
 function pickMeta(p){const F=FI[p.k];if(!F)return goneMsg(p.k);
   const bits=[],[m,n]=matchCount(p);bits.push(m===n?`${n} showings`:`${m} of ${n} showings`);
   if(p.cin.length)bits.push(p.cin.length===1?p.cin[0]:p.cin.length+' cinemas');
   if(p.st.length)bits.push(p.st.join(' / ')+' only');
   if(p.req.length)bits.push(p.req.join('/')+' only');if(p.exc.length)bits.push('no '+p.exc.join('/'));
-  if(p.wd)bits.push(p.wd.length?p.wd.map(w=>WDN[w]).join(' '):'no days');return bits.join(' · ')}
-function optsHTML(p,pi){const F=FI[p.k];if(!F)return '<div class="meta">This film has no showings in the current data. It is skipped when planning; remove it or keep it for when it returns.</div>';
+  const ex=ddIn(p);if(ex.length)bits.push(ex.length===DAYS.length?'no days':'not '+ex.map(dshort).join(', '));return bits.join(' · ')}
+function optsHTML(p,pi){const F=FI[p.k];if(!F)return '<div class="meta">This film has no showings in the chosen dates. It is skipped when planning; remove it, change the dates, or keep it for when it returns.</div>';
   const ht=homeTravel(),cins=[...F.cin.keys()].sort((a,b)=>ht&&!ht.none?((ht.to[a]<0?1e9:ht.to[a])-(ht.to[b]<0?1e9:ht.to[b])):D.cinemas[a].name.localeCompare(D.cinemas[b].name));
   const sel=new Set(p.cin);
   const cl=cins.map(c=>{const nm=D.cinemas[c].name,[t,te]=ht&&!ht.none?homeLeg(ht,c,false):[null,0];
@@ -160,8 +179,8 @@ function optsHTML(p,pi){const F=FI[p.k];if(!F)return '<div class="meta">This fil
   fm.sort((a,b)=>((b==='3D')-(a==='3D'))||(F.fmt.get(b)||0)-(F.fmt.get(a)||0)||a.localeCompare(b));
   const fchips=fm.length?fm.map(x=>`<button class="chip${p.req.includes(x)?' req':p.exc.includes(x)?' exc':''}" data-act="fmt" data-v="${esc(x)}" title="Click: require → exclude → either">${esc(x)}</button>`).join(''):'<span class="meta">No other tags</span>';
   const fdays=[...new Set(F.shows.map(h=>h.day))].sort();
-  const dchips=DAYS.map(day=>{const w=wdOf(day),has=fdays.includes(day),on=!p.wd||p.wd.includes(w);
-    return `<button class="chip${on?'':' off'}" data-act="wd" data-v="${w}"${has?'':' disabled title="No showings this day"'}>${dayLbl(day).replace(/ \w+$/,'')}</button>`}).join('');
+  const dchips=DAYS.map(day=>{const has=fdays.includes(day),on=!p.dd||!p.dd.includes(day);
+    return `<button class="chip${on?'':' off'}" data-act="dd" data-v="${day}" title="${esc(dayLbl(day))}${has?'':' · no showings this day'}"${has?'':' disabled'}>${esc(dshort(day))}</button>`}).join('');
   return `<div class="opt"><div class="ol">Cinemas <span class="meta">— none ticked = any${ht&&!ht.none?' · sorted by distance from home':''}</span></div>
    ${cins.length>8?`<input type="search" class="cf" placeholder="Filter cinemas…" data-act="cf">`:''}<div class="clist">${cl}</div>
    ${p.cin.length?'<button class="ib" data-act="cinclr" style="margin-top:4px">Clear (any cinema)</button>':''}</div>
@@ -194,8 +213,8 @@ $('picks').addEventListener('click',e=>{const b=e.target.closest('[data-act]'),l
     if(p.req.includes(v)){p.req=p.req.filter(x=>x!==v);p.exc.push(v);b.className='chip exc'}
     else if(p.exc.includes(v)){p.exc=p.exc.filter(x=>x!==v);b.className='chip'}
     else{p.req.push(v);b.className='chip req'}refreshMeta(li,p);changed()}
-  else if(a==='wd'){const w=+b.dataset.v;let s=p.wd?p.wd.slice():[0,1,2,3,4,5,6];
-    s=s.includes(w)?s.filter(x=>x!==w):s.concat(w);p.wd=s.length===7?null:s.sort();b.classList.toggle('off',!(!p.wd||p.wd.includes(w)));refreshMeta(li,p);changed()}});
+  else if(a==='dd'){const d=b.dataset.v,s=p.dd||[],off=!s.includes(d);
+    p.dd=off?s.concat(d).sort():s.filter(x=>x!==d);if(!p.dd.length)p.dd=null;b.classList.toggle('off',off);refreshMeta(li,p);changed()}});
 $('picks').addEventListener('change',e=>{const t=e.target;if(t.dataset.act!=='cin')return;const li=t.closest('li.pick'),p=PS.picks[+li.dataset.i];
   p.cin=t.checked?[...new Set(p.cin.concat(t.value))]:p.cin.filter(n=>n!==t.value);refreshMeta(li,p);changed()});
 $('picks').addEventListener('input',e=>{const t=e.target;if(t.dataset.act!=='cf')return;const q=t.value.trim().toLowerCase();
@@ -211,16 +230,30 @@ $('picks').addEventListener('drop',e=>{if(dragI<0)return;const li=e.target.close
   const r=li.getBoundingClientRect();let j=+li.dataset.i+(e.clientY<r.top+r.height/2?0:1);if(j>dragI)j--;const i=dragI;dragI=-1;move(i,j)});
 $('picks').addEventListener('dragend',()=>{dragI=-1;clearDrag()});
 
-// ---------- settings ----------
-function renderDays(){const s=PS.set.days;
-  $('pdays').innerHTML='<tr><th></th><th>Day</th><th>Leave from</th><th>Home by</th></tr>'+DAYS.map(day=>{const w=wdOf(day),x=s[w];
-    return `<tr class="${x.on?'':'off'}" data-w="${w}"><td><input type="checkbox" data-f="on"${x.on?' checked':''} aria-label="Free on ${dayLbl(day)}"></td><td class="dn">${dayLbl(day)}</td>
+// ---------- settings: plan dates ----------
+$('pstart').innerHTML=SOPT.map(d=>`<option value="${d}">${esc(dayLbl(d))}${d===TD?' (today)':''}</option>`).join('');
+$('plen').innerHTML=Array.from({length:MAXLEN},(_,i)=>`<option value="${i+1}">${i+1} day${i?'s':''}</option>`).join('');
+$('pstart').disabled=SOPT.length<2;
+function dateNote(){const s=PS.set,n=DAYS.length,el=$('pdnote');$('pstart').value=s.start;$('plen').value=s.len;
+  if(!n){el.className='pcst bad';el.textContent='No upcoming listings to plan with.';return}
+  const rng=n>1?dayLbl(DAYS[0])+' – '+dayLbl(DAYS[n-1]):dayLbl(DAYS[0]);
+  const t=[n<s.len?`Listings only go up to ${dayLbl(D.to)}, so the plan covers ${n} day${n>1?'s':''} (${rng}).`:`Plan covers ${rng}.`];
+  if(DAYS[n-1]>dadd(TD,6))t.push('Cinemas publish less far ahead, so later days may have fewer listings yet.');
+  el.className='pcst';el.textContent=t.join(' ')}
+function winChange(){setWindow();dateNote();renderDays();renderPicks();changed()}
+$('pstart').onchange=()=>{PS.set.start=$('pstart').value;winChange()};
+$('plen').onchange=()=>{PS.set.len=+$('plen').value;winChange()};
+// availability per date (an untouched date follows its weekday's template)
+function renderDays(){
+  $('pdays').innerHTML='<tr><th></th><th>Day</th><th>Leave from</th><th>Home by</th></tr>'+DAYS.map(day=>{const x=avail(day);
+    return `<tr class="${x.on?'':'off'}" data-d="${day}"><td><input type="checkbox" data-f="on"${x.on?' checked':''} aria-label="Free on ${esc(dayLbl(day))}"></td><td class="dn">${esc(dayLbl(day))}</td>
      <td><input type="time" data-f="e" value="${esc(x.e)}"${x.on?'':' disabled'}></td><td><input type="time" data-f="l" value="${esc(x.l)}"${x.on?'':' disabled'} title="Earlier than the leave time = after midnight"></td></tr>`}).join('')+
-   '<tr><td></td><td colspan="3"><button class="ib" id="pcopy">Copy first day’s times to all</button></td></tr>'}
-$('pdays').addEventListener('change',e=>{const t=e.target,tr=t.closest('tr[data-w]');if(!tr)return;const x=PS.set.days[tr.dataset.w];
+   (DAYS.length>1?'<tr><td></td><td colspan="3"><button class="ib" id="pcopy">Copy first day’s times to all</button></td></tr>':'')}
+const own=d=>PS.set.dates[d]||(PS.set.dates[d]=Object.assign({},avail(d)));
+$('pdays').addEventListener('change',e=>{const t=e.target,tr=t.closest('tr[data-d]');if(!tr)return;const x=own(tr.dataset.d);
   if(t.dataset.f==='on'){x.on=t.checked;renderDays()}else if(t.value)x[t.dataset.f]=t.value;changed()});
-$('pdays').addEventListener('click',e=>{if(e.target.id!=='pcopy')return;const f=PS.set.days[wdOf(DAYS[0])];
-  for(let w=0;w<7;w++){PS.set.days[w].e=f.e;PS.set.days[w].l=f.l}renderDays();changed()});
+$('pdays').addEventListener('click',e=>{if(e.target.id!=='pcopy')return;const f=Object.assign({},avail(DAYS[0]));
+  for(const d of DAYS){const x=own(d);x.e=f.e;x.l=f.l}for(let w=0;w<7;w++){PS.set.days[w].e=f.e;PS.set.days[w].l=f.l}renderDays();changed()});
 const numF=[['pbuf','buf'],['plate','late'],['pmaxd','maxDay'],['pmaxl','maxLeg']];
 for(const [id,k] of numF){$(id).value=PS.set[k];$(id).onchange=()=>{const v=$(id).value.trim();PS.set[k]=v===''?(k==='buf'||k==='late'?0:''):Math.max(0,+v||0);changed()}}
 $('pobj').value=PS.set.obj;$('pobj').onchange=()=>{PS.set.obj=$('pobj').value;changed()};
@@ -253,7 +286,7 @@ $('ppc').value=PS.set.pc||'';$('ppcgo').onclick=setPC;$('ppc').onkeydown=e=>{if(
 $('ppc').onchange=setPC;
 $('pnohome').onchange=e=>{PS.set.noHome=e.target.checked;pcStatus();banner();renderPicks();changed()};
 function updGo(){const ht=homeTravel(),n=PS.picks.filter(p=>FI[p.k]).length;
-  $('pgo').disabled=!n||!ht||running;if(!gBusy)$('pgo').textContent=running?'Planning…':!ht?'Set a starting postcode first':'Plan my week'}
+  $('pgo').disabled=!n||!ht||running;if(!gBusy)$('pgo').textContent=running?'Planning…':!ht?'Set a starting postcode first':'Plan my schedule'}
 // Google Maps key (own key, this browser only)
 function keyStatus(){const el=$('pkeyst'),n=Object.keys(GCACHE).length;$('pkeyforget').disabled=!gkey&&!n;
   el.className='pcst'+(gkey?' ok':'');
@@ -269,11 +302,11 @@ $('pkeyforget').onclick=()=>{$('pkey').value='';GCACHE={};lsSet(GC,null);gkey='x
 let running=false,worker=null,noWorker=false;
 // showings each pick allows that could fit their day's window (travel aside), and the cinemas they use
 function candidates(){const s=PS.set,buf=+s.buf||0,late=+s.late||0;
-  const win=DAYS.map(day=>{const w=s.days[wdOf(day)];if(!w||!w.on)return null;const e=parseHM(w.e)??0;let l=parseHM(w.l)??1440;if(l<=e)l+=1440;return {e,l}});
+  const win=DAYS.map(day=>{const w=avail(day);if(!w||!w.on)return null;const e=parseHM(w.e)??0;let l=parseHM(w.l)??1440;if(l<=e)l+=1440;return {e,l}});
   const used=new Set(),info=[],per=[];
   PS.picks.forEach((p,pi)=>{const F=FI[p.k],r={pi,p,match:0,win:0,reason:null,si:-1},L=[];info.push(r);per.push(L);
     if(!F){r.reason='gone';return}const cs=cinSet(p);
-    for(const h of F.shows){if(!pickAllows(p,D.shows[h.i].x,h.c,wdOf(h.day),cs))continue;r.match++;
+    for(const h of F.shows){if(!pickAllows(p,D.shows[h.i].x,h.c,h.day,cs))continue;r.match++;
       const w=win[h.di];if(!w||w.e>h.st+late||h.en+buf>w.l)continue;L.push(h);used.add(h.c)}});
   return {win,used,info,per,buf,late}}
 function buildProblem(){const s=PS.set,maxLeg=+s.maxLeg||0,ht=homeTravel();
@@ -289,7 +322,7 @@ function buildProblem(){const s=PS.set,maxLeg=+s.maxLeg||0,ht=homeTravel();
     for(const h of per[pi]){const w=win[h.di],a=T[H*NC1+h.c],b=T[h.c*NC1+H];if(a<0||b<0)continue;
       if(w.e+a>h.st+late||h.en+buf+b>w.l)continue;r.win++;days[h.di].push({i:h.i,c:h.c,st:h.st,en:h.en})}
     if(!r.match)r.reason='constraints';else if(!r.win)r.reason='window';else{r.si=films.length;films.push({days})}});
-  return {P:{films,win,T,nc:NC,buf,late,maxDay:+s.maxDay||0,mode:s.obj,budget:2500},info,ht,win,T,E,buf,late,mode:s.obj}}
+  return {P:{films,win,T,nc:NC,buf,late,maxDay:+s.maxDay||0,mode:s.obj,budget:2500},info,ht,win,T,E,buf,late,mode:s.obj,days:DAYS}}
 // fetch Google transit/walk times for every leg among home + cinemas with candidate showings that isn't cached yet
 async function fetchTimes(ht){const {used,per,buf,late}=candidates(),cs=[...used].filter(c=>CLL[c]),nodes=cs.map(c=>CLL[c]),h=HLL(ht);
   // cinema a -> b can only be used if, on some day, a candidate showing at a ends (plus buffer) before one at b starts
@@ -349,12 +382,12 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
     if(!noHome){const t=T[L.c*NC1+H],dep=L.en+buf,ti=tilde(L.c*NC1+H);trv+=t;tEnd=dep+t;dayEst=dayEst||!!ti;
       tl+=`<div class="ev leg">Leave ${hm(dep)} · ${ti}${dur(t)} home${LC?` · <a href="${gmap(LC,null)}" target="_blank" rel="noopener">route</a>`:''}</div><div class="ev home">Home by <b>${seq.some(h=>h.est)||dayEst?'~':''}${hm(tEnd)}</b></div>`}
     totTr+=trv;
-    html+=`<div class="iday"><div class="ih"><b>${dayLbl(DAYS[dd.d])}</b><span class="meta">${seq.length} film${seq.length>1?'s':''} · ${noHome?'':'out '}${hm(t0)}–${hm(tEnd)}${noHome?'':' · '+(dayEst?'~':'')+dur(trv)+' travel'}</span></div><div class="tl">${tl}</div></div>`}
+    html+=`<div class="iday"><div class="ih"><b>${esc(dayLbl(ctx.days[dd.d]))}</b><span class="meta">${seq.length} film${seq.length>1?'s':''} · ${noHome?'':'out '}${hm(t0)}–${hm(tEnd)}${noHome?'':' · '+(dayEst?'~':'')+dur(trv)+' travel'}</span></div><div class="tl">${tl}</div></div>`}
   lastRes.legs={n:nLeg,est:nEst};
   // unfitted
   const why=x=>{const p=x.p;
     if(x.reason==='gone')return goneMsg(p.k)+'.';
-    if(x.reason==='constraints')return p.cin.length||p.st.length||p.req.length||p.exc.length||p.wd?'No upcoming showings match your cinema / screen type / tag / day choices.':'No upcoming showings.';
+    if(x.reason==='constraints')return p.cin.length||p.st.length||p.req.length||p.exc.length||ddIn(p).length?'No upcoming showings match your cinema / screen type / tag / day choices.':'No upcoming showings.';
     if(x.reason==='window')return `None of its ${x.match} matching showing${x.match>1?'s':''}${p.st.length?' ('+p.st.join(' / ')+')':''} fit your available times${noHome?'':' with travel from and back home'}${+PS.set.maxLeg?' and journey limit':''}.`;
     const u=r.unfit[x.si];if(!u)return '';
     if(ctx.mode==='strict'||!u.higher)return 'Clashes with your higher-priority picks.';
@@ -369,6 +402,6 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
   if(miss.length)html+=`<div class="unf"><h3>Not scheduled (${miss.length})</h3>${miss.map(x=>`<div><b>${x.pi+1}. ${esc(FI[x.p.k]?title(x.p.k):x.p.t)}</b><span class="meta">${esc(why(x))}</span></div>`).join('')}</div>`;
   out.innerHTML=`<div class="res">${html}</div>`;banner()}
 
-function emptyOut(){if(!lastRes)$('pout').innerHTML='<div class="pempty">Add the films you want to see, set when you’re free, then press <b>Plan my week</b>.<br><br>The planner finds the week that fits the most of your picks (or follows strict priority), using public transport and walking times between cinemas.</div>'}
-renderDays();pcStatus();keyStatus();banner();renderPicks();emptyOut();
+function emptyOut(){if(!lastRes)$('pout').innerHTML='<div class="pempty">Add the films you want to see, set when you’re free, then press <b>Plan my schedule</b>.<br><br>The planner finds the schedule over your chosen dates that fits the most of your picks (or follows strict priority), using public transport and walking times between cinemas.</div>'}
+dateNote();renderDays();pcStatus();keyStatus();banner();renderPicks();emptyOut();
 }

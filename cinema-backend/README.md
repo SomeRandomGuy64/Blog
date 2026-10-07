@@ -33,7 +33,7 @@ go build -o bin/cinema ./cmd/cinema
 Local scrape (same output as `python3 cinemas.py`):
 
 ```sh
-bin/cinema scrape [--only odeon,vue] [--days 7] [--out listings.json] [--raw-out raw.json] [--relay|--server]
+bin/cinema scrape [--only odeon,vue] [--days 16] [--out listings.json] [--raw-out raw.json] [--relay|--server]
 bin/cinema build --raw raw.json --out listings.json   # rebuild from a raw dump, no network
 ```
 
