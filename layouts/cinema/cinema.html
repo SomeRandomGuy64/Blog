@@ -1,6 +1,6 @@
 {{ define "main" }}
   <link rel="stylesheet" href="{{ relURL "css/cinema.css" }}?v={{ substr (readFile "static/css/cinema.css" | md5) 0 10 }}">
-  <h1>{{ .Title }}</h1>
+  <h1 class="cinema-title">{{ .Title }}</h1>
   {{ with .Content }}<div class="cinema-intro">{{ . }}</div>{{ end }}
 
   <div class="cinema-app" id="cinema-app" data-api="{{ .Params.api }}">
