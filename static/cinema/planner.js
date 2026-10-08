@@ -3,7 +3,7 @@
    Uses the globals SOLVER (solver.js, also stringified into a Blob Web Worker) and GROUTES (routes.js). */
 function CINEMA_PLANNER(D,L){
 const {screenType,isScreen,stCmp,pickAllows,esc,tagBadges,staleNote}=L;
-const $=id=>document.getElementById(id), PERDAY=4, LSK='fazon-cinema-planner', MODEK='fazon-cinema-mode';
+const $=id=>document.getElementById(id), PERDAY=5, LSK='fazon-cinema-planner', MODEK='fazon-cinema-mode';
 const store={get(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}},
              set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const pad=n=>String(n).padStart(2,'0');
@@ -24,9 +24,9 @@ const fmtPC=s=>{s=normPC(s);return s.length>3?s.slice(0,-3)+' '+s.slice(-3):s};
 // The plan covers DAYS = start … start+len-1 (start: today … today+6, len 1–10), clamped to the data's D.from..D.to.
 // DAYS, each showing's day index (SH[].di) and the film index FI are rebuilt by setWindow() whenever those change.
 const TD=(d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()))(new Date()),MAXLEN=10;   // today (local)
-// Pick limit: PERDAY films per planned day (4–40). Shortening the plan never deletes picks: the ones past the limit
+// Pick limit: PERDAY films per planned day, capped at MAXP (5–47; the solver handles at most 47 films). Shortening the plan never deletes picks: the ones past the limit
 // stay in the list (marked) but aren't planned. MAXP is the hard ceiling (also when loading saved picks).
-const MAXP=PERDAY*MAXLEN,limit=()=>Math.max(1,DAYS.length)*PERDAY;
+const MAXP=47,limit=()=>Math.min(MAXP,Math.max(1,DAYS.length)*PERDAY);
 const ndays=n=>n+' day'+(n===1?'':'s');
 const D0=D.from>TD?D.from:TD,SOPT=[];   // first plannable day; start-date choices
 for(let d=D0;d<=dadd(TD,6)&&d<=D.to;d=dadd(d,1))SOPT.push(d);if(!SOPT.length&&D0<=D.to)SOPT.push(D0);
@@ -35,13 +35,18 @@ const now=Date.now();
 const SH=D.shows.map((s,i)=>{const day=s.t.slice(0,10),st=toMin(s.t,day);
   let en=s.e?toMin(s.e,day):NaN;const est=!s.e||!!s.es;if(!(en>st))en=st+20+(s.d>0?s.d:120);
   const past=new Date(s.t).getTime()<now;
-  return {i,k:s.k,c:s.c,day,di:-1,st,en,est,past}});
+  return {i,k:s.k,c:s.c,day,di:-1,st,en,est,past,d0:day,st0:st,en0:en}});
+// Showings starting before 05:00 belong to the previous evening when that day is in the plan (a 02:00 film on the 11th
+// is 26:00 on the 10th), so a late "Home by" can reach them; otherwise they stay on their own date.
+const EARLY=300;
 let DAYS=[],FI={},FILMS=[];
 function setWindow(){const s=PS.set;if(!SOPT.includes(s.start))s.start=SOPT[0]||TD;
   s.len=Math.min(MAXLEN,Math.max(1,Math.round(+s.len)||7));
   DAYS=[];for(let i=0;i<s.len;i++){const d=dadd(s.start,i);if(d>D.to)break;DAYS.push(d)}
   const DI=new Map(DAYS.map((d,i)=>[d,i]));FI={};
-  for(const h of SH){h.di=DI.has(h.day)?DI.get(h.day):-1;if(h.di<0||h.past)continue;const f=FI[h.k]||(FI[h.k]={shows:[],cin:new Map(),fmt:new Map(),stc:new Map()});
+  for(const h of SH){const pv=h.st0<EARLY&&dadd(h.d0,-1);
+    if(pv&&DI.has(pv)){h.day=pv;h.st=h.st0+1440;h.en=h.en0+1440}else{h.day=h.d0;h.st=h.st0;h.en=h.en0}
+    h.di=DI.has(h.day)?DI.get(h.day):-1;if(h.di<0||h.past)continue;const f=FI[h.k]||(FI[h.k]={shows:[],cin:new Map(),fmt:new Map(),stc:new Map()});
     const x=D.shows[h.i].x,st=screenType(x);f.stc.set(st,(f.stc.get(st)||0)+1);
     f.shows.push(h);f.cin.set(h.c,(f.cin.get(h.c)||0)+1);for(const v of x)if(v==='3D'||!isScreen(v))f.fmt.set(v,(f.fmt.get(v)||0)+1)}
   FILMS=Object.keys(FI).sort((a,b)=>FI[b].shows.length-FI[a].shows.length)}
@@ -208,7 +213,7 @@ function optsHTML(p,pi){const F=FI[p.k];if(!F)return '<div class="meta">This fil
 const limEl=document.createElement('div');limEl.id='plimit';limEl.className='pcst bad plimit';limEl.setAttribute('role','status');limEl.hidden=true;$('picks').before(limEl);
 function renderPicks(){
   const L=PS.picks,N=limit(),over=L.length>N;$('pcount').textContent=`${L.length}/${N}`;$('pcount').classList.toggle('over',over);
-  $('pcount').title=`Up to ${PERDAY} films per plan day (${N} for ${ndays(DAYS.length)})`;
+  $('pcount').title=`Up to ${PERDAY} films per plan day, ${MAXP} at most (${N} for ${ndays(DAYS.length)})`;
   $('pq').disabled=L.length>=N;$('pq').placeholder=L.length>=N?`Maximum of ${N} films`:'Add a film…';
   limEl.hidden=!over;limEl.textContent=over?`Only the top ${N} picks are planned for ${ndays(DAYS.length)} — lengthen the plan or remove some.`:'';
   $('picks').innerHTML=L.map((p,i)=>{const gone=!FI[p.k],open=OPEN.has(p.k),ov=i>=N;
@@ -353,7 +358,7 @@ function candidates(){const s=PS.set,buf=+s.buf||0,late=+s.late||0;
     for(const h of F.shows){if(!pickAllows(p,D.shows[h.i].x,h.c,h.day,cs))continue;r.match++;
       const w=win[h.di];if(!w||w.e>h.st+late||h.en+buf>w.l)continue;L.push(h);used.add(h.c)}});
   return {win,used,info,per,buf,late}}
-// solver time limit: 2.5 s up to 28 films, then +0.625 s per film (10 s at 40) since bigger searches need longer to finish
+// solver time limit: 2.5 s up to 28 films, then +0.625 s per film (14.4 s at 47) since bigger searches need longer to finish
 const budgetFor=n=>n>28?2500+(n-28)*625:2500;
 function buildProblem(){const s=PS.set,maxLeg=+s.maxLeg||0,ht=homeTravel();
   const {win,used,info,per,buf,late}=candidates(),{T,E}=rawTravel(ht);
