@@ -35,13 +35,18 @@ const now=Date.now();
 const SH=D.shows.map((s,i)=>{const day=s.t.slice(0,10),st=toMin(s.t,day);
   let en=s.e?toMin(s.e,day):NaN;const est=!s.e||!!s.es;if(!(en>st))en=st+20+(s.d>0?s.d:120);
   const past=new Date(s.t).getTime()<now;
-  return {i,k:s.k,c:s.c,day,di:-1,st,en,est,past}});
+  return {i,k:s.k,c:s.c,day,di:-1,st,en,est,past,d0:day,st0:st,en0:en}});
+// Showings starting before 05:00 belong to the previous evening when that day is in the plan (a 02:00 film on the 11th
+// is 26:00 on the 10th), so a late "Home by" can reach them; otherwise they stay on their own date.
+const EARLY=300;
 let DAYS=[],FI={},FILMS=[];
 function setWindow(){const s=PS.set;if(!SOPT.includes(s.start))s.start=SOPT[0]||TD;
   s.len=Math.min(MAXLEN,Math.max(1,Math.round(+s.len)||7));
   DAYS=[];for(let i=0;i<s.len;i++){const d=dadd(s.start,i);if(d>D.to)break;DAYS.push(d)}
   const DI=new Map(DAYS.map((d,i)=>[d,i]));FI={};
-  for(const h of SH){h.di=DI.has(h.day)?DI.get(h.day):-1;if(h.di<0||h.past)continue;const f=FI[h.k]||(FI[h.k]={shows:[],cin:new Map(),fmt:new Map(),stc:new Map()});
+  for(const h of SH){const pv=h.st0<EARLY&&dadd(h.d0,-1);
+    if(pv&&DI.has(pv)){h.day=pv;h.st=h.st0+1440;h.en=h.en0+1440}else{h.day=h.d0;h.st=h.st0;h.en=h.en0}
+    h.di=DI.has(h.day)?DI.get(h.day):-1;if(h.di<0||h.past)continue;const f=FI[h.k]||(FI[h.k]={shows:[],cin:new Map(),fmt:new Map(),stc:new Map()});
     const x=D.shows[h.i].x,st=screenType(x);f.stc.set(st,(f.stc.get(st)||0)+1);
     f.shows.push(h);f.cin.set(h.c,(f.cin.get(h.c)||0)+1);for(const v of x)if(v==='3D'||!isScreen(v))f.fmt.set(v,(f.fmt.get(v)||0)+1)}
   FILMS=Object.keys(FI).sort((a,b)=>FI[b].shows.length-FI[a].shows.length)}
