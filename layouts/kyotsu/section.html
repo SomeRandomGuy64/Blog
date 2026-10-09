@@ -11,9 +11,9 @@
       <button type="button" data-layout="classic">Pitch Graph</button>
     </div>
 
-    <label class="adv-bar" id="advBar">
-      <span class="adv-k">Advanced Mode<small>One listen per word, no replays</small></span>
-      <input type="checkbox" class="sw-in" id="advMode"><span class="sw" aria-hidden="true"></span>
+    <label class="listen-bar" id="listenBar">
+      <span class="listen-k">Advanced Mode<small>One listen per word, no replays</small></span>
+      <input type="checkbox" class="sw-in" id="listenMode"><span class="sw" aria-hidden="true"></span>
     </label>
 
     <div class="kq-grid">
@@ -360,11 +360,11 @@
       el.addEventListener("change",()=>{ pause[k]=el.checked; try{ localStorage.setItem(PAUSE_KEY,JSON.stringify(pause)); }catch(e){} }); });
     // switching mode wipes the score and history and starts a fresh word, so scores from the two
     // modes never mix (and you can't flip to normal mode for a replay mid-run)
-    $("#advMode").addEventListener("change",e=>{
+    $("#listenMode").addEventListener("change",e=>{
       if(stats.total&&!confirm(`Turning Advanced Mode ${e.target.checked?"on":"off"} resets your answers. Continue?`)){
         e.target.checked=advanced; return; }
       advanced=e.target.checked; padPending=advanced;
-      $("#advBar").classList.toggle("on",advanced);
+      $("#listenBar").classList.toggle("on",advanced);
       Object.assign(stats,{correct:0,total:0,cats:{},hist:[]}); renderStats();
       newQuestion(); });
     // Kotu-style: number keys pick (or, once answered, replay) the row with that badge
