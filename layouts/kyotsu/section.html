@@ -11,6 +11,11 @@
       <button type="button" data-layout="classic">Pitch Graph</button>
     </div>
 
+    <label class="adv-bar" id="advBar">
+      <span class="adv-k">Advanced Mode<small>One listen per word, no replays</small></span>
+      <input type="checkbox" class="sw-in" id="advMode"><span class="sw" aria-hidden="true"></span>
+    </label>
+
     <div class="kq-grid">
     <div class="kq-main">
     <div class="card">
@@ -197,11 +202,47 @@
     const PAUSE_KEY="kyotsu-pause";
     let pause={ok:false,bad:true};
     try{ const p=JSON.parse(localStorage.getItem(PAUSE_KEY)||"null"); if(p) pause={ok:!!p.ok,bad:!!p.bad}; }catch(e){}
+    // Advanced mode (off on every load): one listen per word — the prompt clip can't be replayed
+    // before you answer (tapping the options afterwards still plays them). The first word after
+    // it's switched on gets PAD_S of silence in front, since the very first clip tends to lose its
+    // onset while the audio output wakes up.
+    const PAD_S=0.7;
+    let advanced=false, padPending=false;
 
     let cur=null, answered=false, lastKey="";
     const audioEl=new Audio();
     function clipUrl(spk,m){ return spk.base + m.audio + ".mp3"; }
-    function play(url){ audioEl.src=url; audioEl.currentTime=0; audioEl.play().catch(()=>{}); }
+    let actx=null, padSrc=null;
+    function stopPadded(){ if(padSrc){ try{ padSrc.stop(); }catch(e){} padSrc=null; } }
+    function play(url){ stopPadded(); audioEl.src=url; audioEl.currentTime=0; const p=audioEl.play(); p.catch(()=>{}); return p; }
+    // decode the clip and play it with `pad` seconds of silence prepended (Web Audio)
+    async function playPadded(url,pad,isCurrent){
+      actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+      if(actx.state!=="running"){ await Promise.race([actx.resume(),new Promise(r=>setTimeout(r,200))]);
+        if(actx.state!=="running") throw new Error("audio context blocked"); }
+      const clip=await actx.decodeAudioData(await (await fetch(url)).arrayBuffer());
+      if(!isCurrent()) throw new Error("stale");
+      const off=Math.round(pad*clip.sampleRate);
+      const buf=actx.createBuffer(clip.numberOfChannels,clip.length+off,clip.sampleRate);
+      for(let c=0;c<clip.numberOfChannels;c++) buf.getChannelData(c).set(clip.getChannelData(c),off);
+      audioEl.pause(); stopPadded();
+      const src=actx.createBufferSource(); src.buffer=buf; src.connect(actx.destination); src.start();
+      padSrc=src; src.onended=()=>{ if(padSrc===src) padSrc=null; };
+    }
+    // (also dark while the auto-play is queued, so it doesn't flash light at the start of each word)
+    function updatePlayBtn(){ $("#playBtn").disabled=!!(advanced&&cur&&(cur.heard||cur.playing||cur.queued)); }
+    // play the word being asked about; in advanced mode only until one listen has actually started
+    // (a blocked autoplay doesn't use it up)
+    function playTarget(){
+      const q=cur; if(!q||(advanced&&(q.heard||q.playing))) return;
+      q.queued=false;
+      const url=clipUrl(q.speaker,q.pair.members[q.target]);
+      const pad=advanced&&padPending;
+      q.playing=true; updatePlayBtn();
+      (pad?playPadded(url,PAD_S,()=>cur===q).catch(e=>{ if(cur!==q) throw e; return play(url); }):play(url))
+        .then(()=>{ q.heard=true; if(pad) padPending=false; },()=>{})
+        .finally(()=>{ q.playing=false; if(cur===q) updatePlayBtn(); });
+    }
     let _preload=[];
     function preload(spk,pair){ _preload=pair.members.map(m=>{ const a=new Audio(); a.preload="auto"; a.src=clipUrl(spk,m); return a; }); }
 
@@ -216,7 +257,7 @@
       const speaker=allowed[rnd(allowed.length)];
       const target=rnd(2);
       const order=Math.random()<.5?[0,1]:[1,0];
-      cur={pair,target,order,speaker}; answered=false;
+      cur={pair,target,order,speaker,queued:true}; answered=false; updatePlayBtn();
 
       renderPrompt();
       $("#voiceName").textContent=speaker.label;
@@ -225,7 +266,7 @@
 
       renderOptions();
       preload(speaker,pair);
-      setTimeout(()=>play(clipUrl(speaker,pair.members[target])),250);
+      const q=cur; setTimeout(()=>{ if(cur===q) playTarget(); },250);
     }
 
     function renderPrompt(){
@@ -296,13 +337,13 @@
       // pause off for this outcome → straight to the next word, no feedback;
       // pause on → it releases and the right/wrong colours + reveal appear.
       cur.skipping=true;
-      const btn=document.querySelector(`.opt[data-mi="${mi}"]`); if(btn) btn.classList.add("pressed");
+      const btn=document.querySelector(`.opt[data-mi="${mi}"]`); if(btn) btn.classList.add("pressed",ok?"ok":"bad");
       if(ok?!pause.ok:!pause.bad){ renderStats(); setTimeout(newQuestion,PRESS_MS); return; }
       const q=cur;
       setTimeout(()=>{ if(cur!==q) return; cur.skipping=false; showFeedback(ok,t,tPat,speaker); },PRESS_MS);
     }
     function showFeedback(ok,t,tPat,speaker){
-      document.querySelectorAll(".opt.pressed").forEach(b=>b.classList.remove("pressed"));
+      document.querySelectorAll(".opt.pressed").forEach(b=>b.classList.remove("pressed","ok","bad"));
       markAnswered();
       const v=$("#verdict");
       v.textContent=ok?"Correct":"Not quite"; v.className="verdict "+(ok?"good":"bad");
@@ -311,12 +352,21 @@
       renderStats();
     }
 
-    $("#playBtn").addEventListener("click",()=>cur&&play(clipUrl(cur.speaker,cur.pair.members[cur.target])));
+    $("#playBtn").addEventListener("click",playTarget);
     $("#nextBtn").addEventListener("click",newQuestion);
     document.querySelectorAll(".layout-toggle button").forEach(b=>b.addEventListener("click",()=>setLayout(b.dataset.layout)));
     $("#hist").addEventListener("click",e=>{ const b=e.target.closest(".hchip"); if(b) play(stats.hist[+b.dataset.i].url); });
     [["#pauseOk","ok"],["#pauseBad","bad"]].forEach(([sel,k])=>{ const el=$(sel); el.checked=pause[k];
       el.addEventListener("change",()=>{ pause[k]=el.checked; try{ localStorage.setItem(PAUSE_KEY,JSON.stringify(pause)); }catch(e){} }); });
+    // switching mode wipes the score and history and starts a fresh word, so scores from the two
+    // modes never mix (and you can't flip to normal mode for a replay mid-run)
+    $("#advMode").addEventListener("change",e=>{
+      if(stats.total&&!confirm(`Turning Advanced Mode ${e.target.checked?"on":"off"} resets your answers. Continue?`)){
+        e.target.checked=advanced; return; }
+      advanced=e.target.checked; padPending=advanced;
+      $("#advBar").classList.toggle("on",advanced);
+      Object.assign(stats,{correct:0,total:0,cats:{},hist:[]}); renderStats();
+      newQuestion(); });
     // Kotu-style: number keys pick (or, once answered, replay) the row with that badge
     document.addEventListener("keydown",e=>{
       if(layout!=="kotu"||!cur||cur.skipping||e.ctrlKey||e.metaKey||e.altKey) return;
