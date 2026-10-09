@@ -137,6 +137,8 @@ body.light-mode {
 .kyotsu-quiz .playbtn:hover { filter: brightness(1.08); }
 .kyotsu-quiz .playbtn:active { transform: scale(0.97); }
 .kyotsu-quiz .playbtn svg { width: 15px; height: 15px; fill: currentColor; }
+/* advanced mode: the one listen is spent */
+.kyotsu-quiz .playbtn:disabled { opacity: 0.4; cursor: not-allowed; filter: none; transform: none; }
 
 .kyotsu-quiz .q {
   font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--k-muted);
@@ -184,6 +186,18 @@ body.light-mode {
 }
 .kyotsu-quiz .nextbtn:active { transform: scale(0.97); }
 .kyotsu-quiz .nextbtn[hidden] { display: none; }
+
+/* ---- advanced mode: its own bar above the test, louder than the sidebar settings ---- */
+.kyotsu-quiz .adv-bar {
+  display: flex; align-items: center; gap: 14px; cursor: pointer; margin-bottom: 18px;
+  background: var(--k-surface); border: 1.5px solid var(--k-line); border-radius: 14px; padding: 14px 20px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.kyotsu-quiz .adv-bar:hover { border-color: var(--k-accent); }
+.kyotsu-quiz .adv-bar.on { border-color: var(--k-accent); background: var(--k-accent-soft); }
+.kyotsu-quiz .adv-k { font-size: 15px; font-weight: 700; margin-right: auto; }
+.kyotsu-quiz .adv-k small { display: inline; font-size: 12.5px; font-weight: 400; color: var(--k-muted); margin-left: 10px; }
+@media (max-width: 520px) { .kyotsu-quiz .adv-k small { display: block; margin: 2px 0 0; } }
 
 /* ---- layout toggle (pitch-graph cards ⇄ kotu.io-style rows) ---- */
 .kyotsu-quiz .layout-toggle {
@@ -268,7 +282,7 @@ body.light-mode {
   content: ""; position: absolute; right: 0; top: -5px; height: 5px; border-right: 1.5px solid var(--k-pitch);
 }
 
-/* pause-off beat: the tapped option greys out and sinks, like a pressed key.
+/* answer beat: the tapped option sinks, like a pressed key.
    Re-pointing the colour tokens on the button greys everything inside it
    (text, badge, pitch line, contour) in both themes. */
 .kyotsu-quiz .opt.pressed {
@@ -281,6 +295,17 @@ body.light-mode {
 .kyotsu-quiz .opt .kword .m::before, .kyotsu-quiz .opt .kword .m::after { transition: border-color 0.2s ease; }
 .kyotsu-quiz .opt svg * { transition: fill 0.2s ease, stroke 0.2s ease; }
 .kyotsu-quiz.kotu .opt.pressed .badge { color: var(--k-muted); }
+/* ...tinted green if the answer was right, red if wrong */
+.kyotsu-quiz .opt.pressed.ok {
+  --k-accent-ink: var(--k-good); --k-pitch: var(--k-good); --k-hi: var(--k-good); --k-accent: var(--k-good);
+  color: var(--k-good); background: var(--k-good-soft); border-color: var(--k-good);
+}
+.kyotsu-quiz .opt.pressed.bad {
+  --k-accent-ink: var(--k-bad); --k-pitch: var(--k-bad); --k-hi: var(--k-bad); --k-accent: var(--k-bad);
+  color: var(--k-bad); background: var(--k-bad-soft); border-color: var(--k-bad);
+}
+.kyotsu-quiz.kotu .opt.pressed.ok .badge { color: var(--k-good); }
+.kyotsu-quiz.kotu .opt.pressed.bad .badge { color: var(--k-bad); }
 
 .kyotsu-note { text-align: center; color: var(--k-muted); font-size: 11.5px; line-height: 1.6; margin-top: 22px; }
 
