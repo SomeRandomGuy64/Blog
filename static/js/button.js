@@ -7,10 +7,17 @@ let isLightMode = false;
 if (localStorage.getItem("theme") === "light") {
     body.classList.add("light-mode");
     isLightMode = true;
-}
+}
 
+
+let fadeTimer;
 toggleButton.addEventListener("click", () => {
-    body.classList.toggle("light-mode");
+    // turn on the colour fade (style.css .theme-fading) just for the switch
+    document.documentElement.classList.add("theme-fading");
+    clearTimeout(fadeTimer);
+    fadeTimer = setTimeout(() => document.documentElement.classList.remove("theme-fading"), 200);
+    body.classList.toggle("light-mode");
+
     document.dispatchEvent(new CustomEvent("themeChange", { detail: isLightMode }));
 
     // Save preference to local storage

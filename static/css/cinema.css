@@ -53,7 +53,7 @@
   border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px;
 }
 .cinema-app input[type=checkbox] { padding: 0; width: 15px; height: 15px; flex: none; accent-color: var(--acc); }
-.cinema-app button { cursor: pointer; transition: border-color .12s ease; }
+.cinema-app button { cursor: pointer; transition: var(--theme-fade); }
 .cinema-app button:hover:not(:disabled) { border-color: var(--acc); }
 .cinema-app input:focus, .cinema-app select:focus { outline: none; border-color: var(--acc); }
 .cinema-app button:focus-visible, .cinema-app input[type=checkbox]:focus-visible, .cinema-app summary:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
