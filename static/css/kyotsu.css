@@ -188,16 +188,16 @@ body.light-mode {
 .kyotsu-quiz .nextbtn[hidden] { display: none; }
 
 /* ---- advanced mode: its own bar above the test, louder than the sidebar settings ---- */
-.kyotsu-quiz .adv-bar {
+.kyotsu-quiz .listen-bar {
   display: flex; align-items: center; gap: 14px; cursor: pointer; margin-bottom: 18px;
   background: var(--k-surface); border: 1.5px solid var(--k-line); border-radius: 14px; padding: 14px 20px;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
-.kyotsu-quiz .adv-bar:hover { border-color: var(--k-accent); }
-.kyotsu-quiz .adv-bar.on { border-color: var(--k-accent); background: var(--k-accent-soft); }
-.kyotsu-quiz .adv-k { font-size: 15px; font-weight: 700; margin-right: auto; }
-.kyotsu-quiz .adv-k small { display: inline; font-size: 12.5px; font-weight: 400; color: var(--k-muted); margin-left: 10px; }
-@media (max-width: 520px) { .kyotsu-quiz .adv-k small { display: block; margin: 2px 0 0; } }
+.kyotsu-quiz .listen-bar:hover { border-color: var(--k-accent); }
+.kyotsu-quiz .listen-bar.on { border-color: var(--k-accent); background: var(--k-accent-soft); }
+.kyotsu-quiz .listen-k { font-size: 15px; font-weight: 700; margin-right: auto; }
+.kyotsu-quiz .listen-k small { display: inline; font-size: 12.5px; font-weight: 400; color: var(--k-muted); margin-left: 10px; }
+@media (max-width: 520px) { .kyotsu-quiz .listen-k small { display: block; margin: 2px 0 0; } }
 
 /* ---- layout toggle (pitch-graph cards ⇄ kotu.io-style rows) ---- */
 .kyotsu-quiz .layout-toggle {
