@@ -318,3 +318,9 @@ body.light-mode {
   .ins-grid { gap: 5px 12px; } .ins-jp { font-size: 15px; }
 }
 .instructions h3.ins-sub { text-align: left; font-size: 0.95em; margin: 1.6em 0 0; color: var(--k-muted); }
+
+/* review page (/kyotsu/test/): kotu-style word row, matching the trainer's kotu layout */
+.kyotsu-quiz .krow { display: flex; justify-content: center; align-items: center; min-height: 50px; margin-top: 10px;
+  padding: 8px 12px; border-radius: 10px; background: var(--k-accent-soft); }
+.kyotsu-quiz .krow .kword { display: inline-block; line-height: 1; padding-top: 8px; }
+.kyotsu-quiz .krow .kword .m.hi::before, .kyotsu-quiz .krow .kword .m.dn::after { top: -8px; }
