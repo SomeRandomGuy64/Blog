@@ -243,6 +243,10 @@ body.light-mode {
   flex-direction: row; justify-content: center; min-height: 50px; padding: 8px 56px;
   background: var(--k-accent-soft); border-color: transparent;
 }
+/* light mode: the accent is green, same as "correct", so unanswered rows go neutral grey
+   (must stay above the .correct/.wrong/.pressed rules, which share this specificity) */
+.light-mode .kyotsu-quiz.kotu .opt { background: var(--k-surface2); --k-accent-ink: var(--text-color); }
+.light-mode .kyotsu-quiz.kotu .opt:not(.answered):not(.pressed):hover { border-color: var(--text-color); }
 .kyotsu-quiz.kotu .opt:not(.answered):not(.pressed):hover { transform: none; border-color: var(--k-accent); }
 /* reserve the pitch line's space above the kana so line + word centre as one unit */
 .kyotsu-quiz.kotu .opt .kword { display: inline-block; line-height: 1; padding-top: 8px; }
