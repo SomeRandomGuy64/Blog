@@ -6,7 +6,8 @@
   var root = document.getElementById("comments");
   if (!F || !root) return;
 
-  var PAGE = root.dataset.page, TITLE = root.dataset.title || document.title;
+  // The API takes the page's title from the published site (/comment-pages.json), not from us.
+  var PAGE = root.dataset.page;
   var MAX = 5000;
   var listEl = document.getElementById("cmtList");
   var composerEl = document.getElementById("cmtComposer");
@@ -57,7 +58,7 @@
       if (post.disabled) return;
       sending = true; update(); err.textContent = "";
       post.textContent = "Sending…";
-      F.api("/v1/comments", { method: "POST", body: { page: PAGE, title: TITLE, parent: opts.parent || null, body: ta.value.trim() } })
+      F.api("/v1/comments", { method: "POST", body: { page: PAGE, parent: opts.parent || null, body: ta.value.trim() } })
         .then(function (c) {
           ta.value = "";
           opts.onDone(c);

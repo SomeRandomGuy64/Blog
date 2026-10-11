@@ -55,7 +55,7 @@ func TestUserTextVerbatimAndHTMLEscaped(t *testing.T) {
 }
 
 // Bidi embedding/override/isolate controls are refused in names (display and sub-category)
-// and dropped from page titles: an unclosed U+202E would reverse the surrounding notification text.
+// and dropped from (published) page titles: an unclosed U+202E would reverse the surrounding notification text.
 func TestBidiControlsInNamesAndTitles(t *testing.T) {
 	e := newEnv(t)
 	for _, n := range []string{"Eve‮txt.exe", "a‪b", "x⁦y", "⁩"} {
@@ -65,7 +65,8 @@ func TestBidiControlsInNamesAndTitles(t *testing.T) {
 	// ordinary right-to-left text is fine
 	eq(t, "hebrew name", e.alice.do("POST", "/v1/me/profile", map[string]any{"name": "שלום Alice"}).Code, 200)
 
-	e.bob.post(map[string]any{"title": "Hello‮ world⁦", "body": "hi"})
+	e.setIndex(map[string]string{page: "Hello‮ world⁦"})
+	e.bob.post(map[string]any{"body": "hi"})
 	list, _ := e.admin.notifications()
 	eq(t, "notifications", len(list), 1)
 	eq(t, "title without bidi controls", list[0]["page_title"].(string), "Hello  world")

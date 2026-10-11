@@ -46,6 +46,9 @@ func (f *fakeMailer) all() []mail.Message {
 	return append([]mail.Message(nil), f.msgs...)
 }
 
+// testPages is the comment-pages index the test site publishes (see env.setIndex).
+var testPages = map[string]string{page: "Hello post", "/articles/other/": "Other post", "/articles/spam/": "Spam"}
+
 type env struct {
 	t     *testing.T
 	s     *Server
@@ -56,6 +59,39 @@ type env struct {
 	ips   int
 
 	admin, alice, bob *client
+
+	idxMu    sync.Mutex
+	index    []byte // what the fake site serves as /comment-pages.json
+	indexErr error  // or this, if set
+	fetches  int
+}
+
+// setIndex changes what the fake site serves: a map[string]string of pages, or raw bytes.
+func (e *env) setIndex(v any) {
+	e.t.Helper()
+	b, ok := v.([]byte)
+	if !ok {
+		var err error
+		if b, err = json.Marshal(map[string]any{"pages": v}); err != nil {
+			e.t.Fatal(err)
+		}
+	}
+	e.idxMu.Lock()
+	defer e.idxMu.Unlock()
+	e.index, e.indexErr = b, nil
+}
+
+func (e *env) fetchIndex(context.Context) ([]byte, error) {
+	e.idxMu.Lock()
+	defer e.idxMu.Unlock()
+	e.fetches++
+	return e.index, e.indexErr
+}
+
+func (e *env) fetchCount() int {
+	e.idxMu.Lock()
+	defer e.idxMu.Unlock()
+	return e.fetches
 }
 
 func newEnv(t *testing.T) *env {
@@ -77,7 +113,8 @@ func newEnv(t *testing.T) *env {
 	fm := &fakeMailer{}
 	e := &env{t: t, db: d, mail: fm, clock: time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)}
 	e.s = New(d, Config{Site: site, Origins: []string{origin, "http://localhost:1313", "http://127.0.0.1:*"},
-		CookieSecure: true, Mailer: fm})
+		CookieSecure: true, Mailer: fm, Pages: e.fetchIndex})
+	e.setIndex(testPages)
 	e.s.now = func() time.Time { return e.clock }
 	e.h = e.s.Handler()
 	e.admin = e.login("admin@example.com")
@@ -495,7 +532,7 @@ func TestCommentsCRUD(t *testing.T) {
 	anon := e.anon()
 	eq(t, "logged-out post", anon.do("POST", "/v1/comments", map[string]any{"page": page, "body": "x"}).Code, 401)
 
-	id := e.alice.post(map[string]any{"title": "  Hello  ", "body": "  first\r\nline two  "})
+	id := e.alice.post(map[string]any{"title": "  Hello  ", "body": "  first\r\nline two  "}) // title ignored
 	list := anon.comments(page)
 	eq(t, "count", len(list), 1)
 	c := list[0]
@@ -513,7 +550,7 @@ func TestCommentsCRUD(t *testing.T) {
 	eq(t, "other page empty", len(anon.comments("/articles/other/")), 0)
 	var title string
 	e.db.QueryRow(`SELECT title FROM pages WHERE path = ?`, page).Scan(&title)
-	eq(t, "page title", title, "Hello")
+	eq(t, "page title", title, "Hello post")
 
 	// Replies.
 	reply := e.bob.post(map[string]any{"parent": id, "body": "reply"})
@@ -637,7 +674,7 @@ func TestLikes(t *testing.T) {
 func TestNotificationRules(t *testing.T) {
 	e := newEnv(t)
 	// Alice comments: admin gets "comment"; Alice gets nothing.
-	a1 := e.alice.post(map[string]any{"title": "Hello post", "body": "A1"})
+	a1 := e.alice.post(map[string]any{"body": "A1"})
 	eqStrings(t, "admin", e.admin.kinds(), []string{fmt.Sprint("comment:Alice:", a1)})
 	eqStrings(t, "alice", e.alice.kinds(), nil)
 

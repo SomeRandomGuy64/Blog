@@ -8,7 +8,7 @@ One binary, one SQLite file (`modernc.org/sqlite`, pure Go, so it cross-compiles
 `fetch(..., {credentials: "include"})`.
 
 ```
-cmd/fazond         main: config (flags / FAZOND_* env), serve, CLI, hourly maintenance (purge, backup)
+cmd/fazond         main: config (flags / FAZOND_* env), serve, CLI, hourly maintenance (comment-pages reload, purge, backup)
 internal/api       handlers, session auth, CORS/CSRF, rate limits; api_test.go covers the spec
 internal/db        open + pragmas, embedded migrations (PRAGMA user_version; 0001 init, 0002 avatars,
                    0003 track + bio, 0004 track 'anki' category), users/tokens, backup, purge
@@ -28,7 +28,7 @@ All JSON; errors are `{"error":"msg"}` with 400/401/403/404/409/413/415/429/500.
 | `POST /v1/auth/logout` | deletes the session, clears the cookie |
 | `GET /v1/me` | `{"user":null}` or `{"user":{id,name,email,admin},"unread":N}` |
 | `GET /v1/comments?page=/articles/x/` | `{"comments":[…]}` oldest first; deleted comments with live replies come back as tombstones |
-| `POST /v1/comments` `{page,title,parent,body}` | 201 comment (login) |
+| `POST /v1/comments` `{page,parent,body}` | 201 comment (login); 404 if `page` isn't in the site's comment-pages index, 503 if no index has loaded yet. A `title` field (older frontends) is ignored |
 | `DELETE /v1/comments/{id}` | author or admin; soft delete (also drops its likes and notifications) |
 | `POST`/`DELETE /v1/comments/{id}/like` | `{"likes":N,"liked":bool}`, idempotent |
 | `GET /v1/notifications?limit=50&before=ID` | `{"notifications":[…],"unread":N}` newest first |
@@ -64,6 +64,19 @@ the trainer sessions that ended that day. Summaries are public unless marked pri
 Notifications: `reply` to the parent's author, `like` to the liked comment's author, and `comment`
 to admins for every new comment by someone else — never two for one comment, never to yourself.
 Unliking or deleting withdraws them.
+
+Comment pages: the site publishes `/comment-pages.json`, `{"pages":{"/articles/x/":"Title",…}}`,
+listing every page that renders a comment thread (`layouts/home.commentpages.json`, same condition
+as `layouts/page.html`). fazond fetches `$FAZOND_SITE/comment-pages.json` at startup and hourly
+(10 s timeout, 1 MB cap, a `?t=` query so GitHub Pages' CDN can't serve a stale copy) and keeps it
+in memory. Only listed pages take comments, and page titles in notifications and profiles are the
+listed ones — never anything a client sends. A comment on an unlisted page (say, a just-published
+article) refetches the index first, at most once a minute across all requests. A fetch that fails,
+isn't valid JSON or lists no valid pages keeps the previous index. Each successful load rewrites
+the stored title of every page that has comments: to the listed title, or to `""` for a page no
+longer listed (comments stay; the UI shows its path). If no index has loaded since startup (site
+unreachable), posting answers 503 — fail closed — while reading comments, notifications and
+profiles carries on as normal.
 
 CSRF: every non-GET request needs an `Origin` in `FAZOND_ORIGINS` (403 otherwise) and, with a
 body, `Content-Type: application/json` (415); the avatar upload alone takes `image/jpeg`/`image/png`
@@ -104,7 +117,10 @@ ssh root@SERVER 'systemctl daemon-reload && systemctl enable --now fazond &&
 
 Add `deploy/Caddyfile.snippet` to `/etc/caddy/Caddyfile`, then `systemctl reload caddy`.
 Upgrade: copy the new binary to `/usr/local/bin/fazond`, `systemctl restart fazond`
-(migrations run on start).
+(migrations run on start). Deploy the site before a fazond that needs something new from it:
+fazond only takes comments on pages listed in `$FAZOND_SITE/comment-pages.json`, so if the site
+doesn't publish that file yet, posting comments answers 503 until it does (picked up within a
+minute of the next attempt).
 
 Data lives in `/var/lib/fazond/fazon.db`. Every hour fazond purges expired login tokens and
 sessions and, if today's (UTC) is missing, writes `backups/fazon-YYYY-MM-DD.db.zst`

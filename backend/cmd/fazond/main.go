@@ -145,11 +145,14 @@ func serve(args []string) error {
 	return nil
 }
 
-// maintenance purges expired tokens/sessions and rate-limit state, and writes the day's
-// backup if it is missing: at start and then hourly, so a backup lands within an hour of
-// midnight UTC (or of startup).
+// maintenance reloads the site's comment-pages index (titles of commentable pages), purges
+// expired tokens/sessions and rate-limit state, and writes the day's backup if it is missing:
+// at start and then hourly, so a backup lands within an hour of midnight UTC (or of startup).
 func maintenance(ctx context.Context, d *sql.DB, srv *api.Server, backupDir string) {
 	for {
+		if err := srv.RefreshPages(ctx); err != nil {
+			slog.Warn("comment pages", "err", err)
+		}
 		now := time.Now()
 		if tok, sess, err := db.Purge(ctx, d, now); err != nil {
 			slog.Error("purge", "err", err)

@@ -9,6 +9,7 @@
     <p class="tags">{{ range . }}<a href="{{ (printf "/tags/%s" (urlize .)) | relURL }}">#{{ . }}</a> {{ end }}</p>
     {{ end }}
   </article>
+  {{/* keep in step with layouts/home.commentpages.json (the API's list of commentable pages) */}}
   {{ if and (eq .Section "articles") (ne .Params.comments false) }}
   {{ partial "comments.html" . }}
   {{ end }}

@@ -248,7 +248,7 @@ func TestAvatar(t *testing.T) {
 
 func TestProfile(t *testing.T) {
 	e := newEnv(t)
-	first := e.alice.post(map[string]any{"title": "Hello post", "body": strings.Repeat("長", 200)})
+	first := e.alice.post(map[string]any{"body": strings.Repeat("長", 200)})
 	gone := e.alice.post(map[string]any{"body": "deleted later"})
 	for i := 0; i < 21; i++ {
 		e.alice.post(map[string]any{"page": "/articles/other/", "body": fmt.Sprint("c", i)})
@@ -275,7 +275,7 @@ func TestProfile(t *testing.T) {
 	eq(t, "page", recent[0].(map[string]any)["page"], any("/articles/other/"))
 
 	// Bob has one comment: check the whole recent entry.
-	e.bob.post(map[string]any{"title": "Hello post", "body": strings.Repeat("語", 150)})
+	e.bob.post(map[string]any{"body": strings.Repeat("語", 150)})
 	r0 := e.anon().mustStatus(200, "GET", fmt.Sprint("/v1/users/", e.bob.id), nil)["recent"].([]any)[0].(map[string]any)
 	eq(t, "page_title", r0["page_title"], any("Hello post"))
 	eq(t, "snippet", r0["snippet"], any(strings.Repeat("語", 140)))

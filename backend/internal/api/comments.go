@@ -11,8 +11,6 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
-
-	"fazon.nexus/backend/internal/db"
 )
 
 const (
@@ -188,7 +186,6 @@ func visibleComments(all []commentJSON) []commentJSON {
 func (s *Server) postComment(w http.ResponseWriter, r *http.Request, u *user) {
 	var in struct {
 		Page   string `json:"page"`
-		Title  string `json:"title"`
 		Parent *int64 `json:"parent"`
 		Body   string `json:"body"`
 	}
@@ -204,13 +201,17 @@ func (s *Server) postComment(w http.ResponseWriter, r *http.Request, u *user) {
 		writeErr(w, http.StatusBadRequest, "comment must be 1-5000 characters")
 		return
 	}
-	// Titles are shown inline in notifications and profiles: no bidi controls (see db.NormalizeName).
-	title := truncateRunes(strings.TrimSpace(strings.Map(func(r rune) rune {
-		if db.IsBidiControl(r) || r == '\n' || r == '\t' {
-			return ' '
+	// The page must be one the site publishes with a comment thread, and its title is the
+	// published one: a client-sent "title" (older frontends send one) is ignored.
+	title, ok, loaded := s.commentPage(r.Context(), in.Page)
+	if !ok {
+		if !loaded {
+			writeErr(w, http.StatusServiceUnavailable, "comments are temporarily unavailable, try again in a minute")
+		} else {
+			writeErr(w, http.StatusNotFound, "this page doesn't take comments")
 		}
-		return r
-	}, cleanBody(in.Title))), maxTitleRunes)
+		return
+	}
 	now := s.now()
 	if !s.commentLimit.allow(strconv.FormatInt(u.ID, 10), now) {
 		writeErr(w, http.StatusTooManyRequests, "too many comments, slow down")
@@ -218,9 +219,8 @@ func (s *Server) postComment(w http.ResponseWriter, r *http.Request, u *user) {
 	}
 	var id int64
 	err := s.tx(r.Context(), func(tx *sql.Tx) error {
-		// Keep the first non-empty title; later posts only refresh it if they send one.
 		if _, err := tx.Exec(`INSERT INTO pages (path, title) VALUES (?, ?)
-			ON CONFLICT (path) DO UPDATE SET title = excluded.title WHERE excluded.title != ''`, in.Page, title); err != nil {
+			ON CONFLICT (path) DO UPDATE SET title = excluded.title`, in.Page, title); err != nil {
 			return err
 		}
 		var parentAuthor int64

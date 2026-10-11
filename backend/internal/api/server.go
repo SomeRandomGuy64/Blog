@@ -31,6 +31,8 @@ type Config struct {
 	CookieSecure bool
 	Mailer       mail.Mailer
 	MailTimeout  time.Duration // per email; 0 = 1 minute
+	// Pages fetches the site's comment-pages index; nil = HTTPPageFetcher(Site).
+	Pages PageFetcher
 }
 
 type Server struct {
@@ -43,6 +45,8 @@ type Server struct {
 	avatarLimit, nameLimit *limiter // per user
 	weekLimit, trackLimit  *limiter // per user: week saves; subcat/settings changes
 
+	pages pageIndex // commentable pages and their titles, from the site
+
 	mailWG sync.WaitGroup
 }
 
@@ -50,8 +54,12 @@ func New(db *sql.DB, cfg Config) *Server {
 	if cfg.MailTimeout == 0 {
 		cfg.MailTimeout = time.Minute
 	}
+	if cfg.Pages == nil && cfg.Site != "" {
+		cfg.Pages = HTTPPageFetcher(cfg.Site)
+	}
 	return &Server{
 		db: db, cfg: cfg, now: time.Now,
+		pages:        pageIndex{fetch: cfg.Pages},
 		ipLimit:      newLimiter(10, time.Hour),
 		emailLimit:   newLimiter(3, 15*time.Minute),
 		commentLimit: newLimiter(30, 10*time.Minute),

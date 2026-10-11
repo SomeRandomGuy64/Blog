@@ -1,6 +1,8 @@
 {{/* Comment thread for an article (js/fazon-comments.js talks to the API). Turn off per page
-     with `comments = false` in the front matter. */}}
-<section class="comments" id="comments" data-page="{{ .RelPermalink }}" data-title="{{ .Title }}">
+     with `comments = false` in the front matter. The API only takes comments on pages listed in
+     /comment-pages.json (layouts/home.commentpages.json, same condition as page.html) and takes
+     the title from there. */}}
+<section class="comments" id="comments" data-page="{{ .RelPermalink }}">
   <h2 class="comments-h" id="commentsH">Comments</h2>
   <div class="cmt-composer" id="cmtComposer"></div>
   <div class="cmt-list" id="cmtList"><p class="cmt-empty">Loading comments…</p></div>

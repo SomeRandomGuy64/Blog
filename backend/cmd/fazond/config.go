@@ -56,7 +56,7 @@ func configFlags(fs *flag.FlagSet) (c *config, finish func() error) {
 	var origins, passFile, resendKeyFile string
 	fs.StringVar(&c.listen, "listen", env("FAZOND_LISTEN", "127.0.0.1:8091"), "listen address ($FAZOND_LISTEN)")
 	fs.StringVar(&c.dataDir, "data", env("FAZOND_DATA", "/var/lib/fazond"), "data directory: fazon.db, backups/ ($FAZOND_DATA)")
-	fs.StringVar(&c.site, "site", env("FAZOND_SITE", "https://fazon.nexus"), "site base URL for magic links ($FAZOND_SITE)")
+	fs.StringVar(&c.site, "site", env("FAZOND_SITE", "https://fazon.nexus"), "public site base URL: magic links, and where /comment-pages.json is fetched from ($FAZOND_SITE)")
 	fs.StringVar(&origins, "origins", env("FAZOND_ORIGINS", "https://fazon.nexus"),
 		"comma-separated allowed origins; host:* = any port, e.g. http://localhost:1313,http://127.0.0.1:* for dev ($FAZOND_ORIGINS)")
 	fs.BoolVar(&c.cookieSecure, "cookie-secure", envBool("FAZOND_COOKIE_SECURE", true), "Secure session cookie; false only for http dev ($FAZOND_COOKIE_SECURE)")

@@ -1,0 +1,11 @@
+{{- /* /comment-pages.json: every page that renders the comment thread, keyed by the exact
+       path comments.html hands the client (.RelPermalink), with its plain-text title. The API
+       (backend/internal/api/pages.go) fetches this: only these pages take comments, and these
+       titles are what notifications and profiles show. Keep the condition in step with page.html. */ -}}
+{{- $pages := slice -}}
+{{- range site.RegularPages -}}
+  {{- if and (eq .Section "articles") (ne .Params.comments false) -}}
+    {{- $pages = $pages | append (printf "%s:%s" (.RelPermalink | jsonify) (.Title | plainify | htmlUnescape | jsonify)) -}}
+  {{- end -}}
+{{- end -}}
+{"pages":{ {{- delimit $pages "," | safeJS -}} }}
