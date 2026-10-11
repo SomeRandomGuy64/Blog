@@ -476,7 +476,7 @@
       root.textContent = "";
       root.appendChild(el("div", { class: "tk-intro" },
         expired ? el("p", { class: "fz-error", text: "Your login has expired." }) : null,
-        el("p", { text: "Track is a weekly log of your Japanese study: hours of active and passive immersion, phonetic training, output and soroban — split into your own sub-categories — plus your daily Kotu and Kyōtsu accuracy and a short summary of the week." }),
+        el("p", { text: "Track is a weekly log of your Japanese study: hours of active and passive immersion, Anki, phonetic training, output and soroban — split into your own sub-categories — plus your daily Kotu and Kyōtsu accuracy and a short summary of the week." }),
         el("p", { text: "Your weeks add up to charts on your profile, and (if you like) a place on the leaderboard." }),
         el("p", {}, el("a", { href: F.loginHref(), class: "fz-login-pill", text: "Log in" })),
         el("p", {}, el("a", { href: "/track/leaderboard/", text: "See the leaderboard →" }))));
@@ -501,7 +501,7 @@
   var PERIODS = [{ id: "week", label: "This week", n: 1 }, { id: "4w", label: "4 weeks", n: 4 }, { id: "12w", label: "12 weeks", n: 12 },
     { id: "52w", label: "52 weeks", n: 52 }, { id: "all", label: "All time" }];
   var METRICS = [{ id: "immersion", label: "Immersion", long: "Immersion (active + passive)", color: "var(--fz-accent)" }]
-    .concat(CATS.map(function (c) { return { id: c.id, label: c.short, long: c.label, color: T.catColor(c.id) }; }))
+    .concat(CATS.map(function (c) { return { id: c.id, label: c.short, long: c.label, noun: c.proper ? c.label : null, color: T.catColor(c.id) }; }))
     .concat([{ id: "kotu", label: "Kotu", long: "Kotu accuracy (average)", color: "var(--tk-kotu)", pct: true },
       { id: "kyotsu", label: "Kyōtsu", long: "Kyōtsu accuracy (average)", color: "var(--tk-kyotsu)", pct: true }]);
   var MET = {};
@@ -606,7 +606,7 @@
       // table
       tableBox.textContent = "";
       if (!rows.length) {
-        tableBox.appendChild(el("p", { class: "fc-empty", text: (data.users || []).length ? "Nobody has logged " + M.long.toLowerCase().replace(/ \(average\)$/, "") + " in this period." : "Nobody has logged anything in this period yet." }));
+        tableBox.appendChild(el("p", { class: "fc-empty", text: (data.users || []).length ? "Nobody has logged " + (M.noun || M.long.toLowerCase()).replace(/ \(average\)$/, "") + " in this period." : "Nobody has logged anything in this period yet." }));
       } else {
         var tb = el("tbody"), rank = 0, prevV = null;
         rows.forEach(function (r, i) {
@@ -621,7 +621,7 @@
         tableBox.appendChild(el("table", { class: "lb-table" },
           el("thead", {}, el("tr", {}, el("th", { text: "#" }), el("th", { text: "Name" }), el("th", { class: "num", text: M.label + (M.pct ? " %" : " h") }), el("th", { class: "num", text: "Weeks" }))),
           tb));
-        if (missing) tableBox.appendChild(el("p", { class: "fz-muted tk-small", text: missing + " more " + (missing === 1 ? "person" : "people") + " logged this period but no " + (M.pct ? M.label + " scores." : M.long.toLowerCase() + ".") }));
+        if (missing) tableBox.appendChild(el("p", { class: "fz-muted tk-small", text: missing + " more " + (missing === 1 ? "person" : "people") + " logged this period but no " + (M.pct ? M.label + " scores." : (M.noun || M.long.toLowerCase()) + ".") }));
       }
 
       // graph 1: the metric per user

@@ -37,7 +37,7 @@ func TestOpenMigratePragmas(t *testing.T) {
 	d.QueryRow("PRAGMA foreign_keys").Scan(&fk)
 	d.QueryRow("PRAGMA busy_timeout").Scan(&busy)
 	d.QueryRow("PRAGMA journal_mode").Scan(&journal)
-	if version != 3 || fk != 1 || busy != 5000 || journal != "wal" {
+	if version != 4 || fk != 1 || busy != 5000 || journal != "wal" {
 		t.Fatalf("user_version=%d foreign_keys=%d busy_timeout=%d journal=%s", version, fk, busy, journal)
 	}
 	if _, err := d.Exec(`INSERT INTO sessions (hash, user_id, created_at, expires_at, last_seen) VALUES (x'00', 999, 0, 0, 0)`); err == nil {
@@ -76,7 +76,7 @@ func TestMigrateFromV1(t *testing.T) {
 	var version, users int
 	d.QueryRow("PRAGMA user_version").Scan(&version)
 	d.QueryRow("SELECT COUNT(*) FROM users").Scan(&users)
-	if version != 3 || users != 1 {
+	if version != 4 || users != 1 {
 		t.Fatalf("user_version=%d users=%d", version, users)
 	}
 	if _, err := d.Exec(`INSERT INTO avatars (user_id, data, updated_at) VALUES (1, x'ff', 1)`); err != nil {
@@ -103,7 +103,7 @@ func TestMigrateFromV2(t *testing.T) {
 	d.QueryRow("SELECT COUNT(*) FROM comment_likes").Scan(&likes)
 	d.QueryRow("SELECT COUNT(*) FROM avatars").Scan(&avatars)
 	d.QueryRow("SELECT COUNT(*) FROM kyotsu_sessions").Scan(&kyotsu)
-	if version != 3 || public != 2 || comments != 1 || likes != 1 || avatars != 1 || kyotsu != 1 {
+	if version != 4 || public != 2 || comments != 1 || likes != 1 || avatars != 1 || kyotsu != 1 {
 		t.Fatalf("version=%d public=%d comments=%d likes=%d avatars=%d kyotsu=%d", version, public, comments, likes, avatars, kyotsu)
 	}
 	for _, q := range []string{
@@ -136,6 +136,140 @@ func TestMigrateFromV2(t *testing.T) {
 	d.QueryRow("SELECT COUNT(*) FROM track_hours").Scan(&hours)
 	if hours != 0 {
 		t.Fatal("hours survived their week")
+	}
+}
+
+// dumpRows renders every row of q, one line per row, for before/after comparisons.
+func dumpRows(t *testing.T, d *sql.DB, q string) string {
+	t.Helper()
+	rows, err := d.Query(q)
+	if err != nil {
+		t.Fatal(q, err)
+	}
+	defer rows.Close()
+	cols, _ := rows.Columns()
+	var b strings.Builder
+	for rows.Next() {
+		vals := make([]any, len(cols))
+		ptrs := make([]any, len(cols))
+		for i := range vals {
+			ptrs[i] = &vals[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			t.Fatal(err)
+		}
+		fmt.Fprintln(&b, vals...)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return b.String()
+}
+
+// Production is at version 3 with real Track data; 0004 rebuilds track_subcats and track_hours
+// to allow 'anki' and must keep every row, id, index and foreign key.
+func TestMigrateFromV3(t *testing.T) {
+	path := oldDB(t, 3,
+		`INSERT INTO users (email, name, is_admin, created_at) VALUES ('a@example.com', 'A', 1, 0), ('b@example.com', 'B', 0, 0), ('c@example.com', 'C', 0, 0)`,
+		// ids with gaps, an archived duplicate name, several categories
+		`INSERT INTO track_subcats (id, user_id, category, name, archived, position, created_at) VALUES
+			(3, 2, 'active', 'YouTube', 0, 0, 10), (4, 2, 'active', 'youtube', 1, 1, 11), (7, 2, 'passive', 'Podcasts', 0, 0, 12),
+			(9, 2, 'soroban', 'Drills', 0, 2, 13), (12, 1, 'phonetic', 'Pitch', 0, 0, 14), (13, 3, 'output', 'Diary', 0, 0, 15)`,
+		`INSERT INTO track_weeks (user_id, week, kotu, summary, summary_private, updated_at) VALUES
+			(2, '2026-10-03', '[90,null,null,null,null,null,95.5]', 'first', 0, 100), (2, '2026-10-10', '[null,null,null,null,null,null,null]', 'second', 1, 200),
+			(1, '2026-10-10', '[null,null,null,null,null,null,null]', '', 0, 300), (3, '2026-10-10', '[null,null,null,null,null,null,null]', 'c', 0, 400)`,
+		`INSERT INTO track_hours (user_id, week, category, subcat_id, centihours) VALUES
+			(2, '2026-10-03', 'active', 3, 450), (2, '2026-10-03', 'active', 4, 100), (2, '2026-10-03', 'active', NULL, 25),
+			(2, '2026-10-10', 'passive', 7, 1000), (2, '2026-10-10', 'soroban', 9, 16800), (1, '2026-10-10', 'phonetic', 12, 1),
+			(1, '2026-10-10', 'output', NULL, 300), (3, '2026-10-10', 'output', 13, 200)`,
+		`DELETE FROM track_hours WHERE centihours = 100`, // leaves a rowid gap
+	)
+	queries := []string{
+		`SELECT id, user_id, category, name, archived, position, created_at FROM track_subcats ORDER BY id`,
+		`SELECT rowid, user_id, week, category, subcat_id, centihours FROM track_hours ORDER BY rowid`,
+		`SELECT * FROM track_weeks ORDER BY user_id, week`,
+		`SELECT id, email, track_public, bio FROM users ORDER BY id`,
+	}
+	before := make([]string, len(queries))
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, q := range queries {
+		before[i] = dumpRows(t, raw, q)
+	}
+	raw.Close()
+	if !strings.Contains(before[0], "YouTube") || strings.Count(before[1], "\n") != 7 {
+		t.Fatalf("fixture not as expected:\n%s\n%s", before[0], before[1])
+	}
+
+	d := open(t, path)
+	var version int
+	d.QueryRow("PRAGMA user_version").Scan(&version)
+	if version != 4 {
+		t.Fatalf("user_version=%d", version)
+	}
+	for i, q := range queries {
+		if after := dumpRows(t, d, q); after != before[i] {
+			t.Fatalf("%s changed:\nbefore:\n%safter:\n%s", q, before[i], after)
+		}
+	}
+	if got := dumpRows(t, d, `PRAGMA foreign_key_check`); got != "" {
+		t.Fatalf("foreign_key_check: %s", got)
+	}
+	if got := dumpRows(t, d, `PRAGMA integrity_check`); got != "ok\n" {
+		t.Fatalf("integrity_check: %s", got)
+	}
+	if got := dumpRows(t, d, `SELECT name FROM sqlite_master WHERE tbl_name IN ('track_subcats', 'track_hours') AND name NOT LIKE 'sqlite_%' ORDER BY name`); got !=
+		"track_hours\ntrack_hours_key\ntrack_hours_subcat\ntrack_subcats\ntrack_subcats_name\ntrack_subcats_user\n" {
+		t.Fatalf("schema objects:\n%s", got)
+	}
+	if got := dumpRows(t, d, `SELECT name FROM sqlite_master WHERE name LIKE '%_new'`); got != "" {
+		t.Fatalf("leftover tables: %s", got)
+	}
+	if got := dumpRows(t, d, `SELECT "table", "from", "to", on_delete FROM pragma_foreign_key_list('track_hours') ORDER BY id, seq`); !strings.Contains(got, "track_subcats subcat_id id NO ACTION") ||
+		!strings.Contains(got, "track_weeks user_id user_id CASCADE") || !strings.Contains(got, "track_weeks week week CASCADE") {
+		t.Fatalf("track_hours foreign keys:\n%s", got)
+	}
+
+	// 'anki' is now a category, for sub-categories and hours alike; other strings still aren't.
+	for _, q := range []string{
+		`INSERT INTO track_subcats (user_id, category, name, created_at) VALUES (2, 'anki', 'Core 2k', 0)`,
+		`INSERT INTO track_hours (user_id, week, category, subcat_id, centihours) VALUES (2, '2026-10-10', 'anki', last_insert_rowid(), 150)`,
+		`INSERT INTO track_hours (user_id, week, category, centihours) VALUES (2, '2026-10-10', 'anki', 50)`,
+	} {
+		if _, err := d.Exec(q); err != nil {
+			t.Fatal(q, err)
+		}
+	}
+	for _, bad := range []string{
+		`INSERT INTO track_subcats (user_id, category, name, created_at) VALUES (2, 'gaming', 'X', 0)`,
+		`INSERT INTO track_hours (user_id, week, category, centihours) VALUES (2, '2026-10-10', 'gaming', 10)`,
+		`INSERT INTO track_subcats (user_id, category, name, created_at) VALUES (2, 'active', 'YOUTUBE', 0)`,                 // dup, case-insensitive
+		`INSERT INTO track_hours (user_id, week, category, subcat_id, centihours) VALUES (2, '2026-10-10', 'passive', 7, 5)`, // dup key
+		`INSERT INTO track_hours (user_id, week, category, centihours) VALUES (2, '2026-09-26', 'anki', 10)`,                 // no week row
+		`INSERT INTO track_hours (user_id, week, category, subcat_id, centihours) VALUES (2, '2026-10-10', 'anki', 999, 10)`, // no subcat
+		`INSERT INTO track_hours (user_id, week, category, centihours) VALUES (1, '2026-10-10', 'anki', 16801)`,
+		`DELETE FROM track_subcats WHERE id = 3`, // still has hours
+		`INSERT INTO track_subcats (user_id, category, name, created_at) VALUES (99, 'anki', 'X', 0)`,
+	} {
+		if _, err := d.Exec(bad); err == nil {
+			t.Fatalf("accepted: %s", bad)
+		}
+	}
+	// Cascades still work: deleting a week takes its hours, deleting a user takes the rest.
+	d.Exec(`DELETE FROM track_weeks WHERE user_id = 2 AND week = '2026-10-10'`)
+	var hours, subcats int
+	d.QueryRow(`SELECT COUNT(*) FROM track_hours WHERE user_id = 2`).Scan(&hours)
+	if hours != 2 {
+		t.Fatalf("user 2 has %d hour rows after deleting a week", hours)
+	}
+	if _, err := d.Exec(`DELETE FROM users WHERE id = 2`); err != nil {
+		t.Fatal(err)
+	}
+	d.QueryRow(`SELECT (SELECT COUNT(*) FROM track_hours WHERE user_id = 2) + (SELECT COUNT(*) FROM track_subcats WHERE user_id = 2)`).Scan(&subcats)
+	if subcats != 0 {
+		t.Fatal("user 2's track data survived deleting the user")
 	}
 }
 

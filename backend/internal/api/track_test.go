@@ -37,7 +37,8 @@ func TestTrackSubcats(t *testing.T) {
 	for _, c := range cfg["categories"].([]any) {
 		cats = append(cats, c.(map[string]any)["id"].(string))
 	}
-	eqStrings(t, "categories", cats, []string{"active", "passive", "phonetic", "output", "soroban"})
+	eqStrings(t, "categories", cats, []string{"active", "passive", "anki", "phonetic", "output", "soroban"})
+	eq(t, "anki label", cfg["categories"].([]any)[2].(map[string]any)["label"], any("Anki"))
 	eq(t, "label", cfg["categories"].([]any)[0].(map[string]any)["label"], any("Active immersion"))
 	eq(t, "public", cfg["public"], any(true))
 	eq(t, "current_week", cfg["current_week"], any(thisWeek))
@@ -47,7 +48,9 @@ func TestTrackSubcats(t *testing.T) {
 	yt := e.alice.subcat("active", "YouTube")
 	anime := e.alice.subcat("active", " Anime ")
 	podcast := e.alice.subcat("passive", "YouTube") // same name, other category
-	e.bob.subcat("active", "YouTube")               // same name, other user
+	e.alice.subcat("phonetic", "Pitch")
+	deck := e.alice.subcat("anki", "Core 2k") // created after phonetic, listed before it
+	e.bob.subcat("active", "YouTube")         // same name, other user
 	create := func(c *client, cat, name string) int {
 		return c.do("POST", "/v1/track/subcats", map[string]any{"category": cat, "name": name}).Code
 	}
@@ -82,8 +85,10 @@ func TestTrackSubcats(t *testing.T) {
 		m := x.(map[string]any)
 		got = append(got, fmt.Sprintf("%s:%s:%v", m["category"], m["name"], m["archived"]))
 	}
-	eqStrings(t, "config subcats", got, []string{"active:YouTube (old):false", "active:Anime (JP):false", "active:YouTube:false", "passive:YouTube:false"}) // by position: 0, 7, 8
+	eqStrings(t, "config subcats", got, []string{"active:YouTube (old):false", "active:Anime (JP):false", "active:YouTube:false", "passive:YouTube:false",
+		"anki:Core 2k:false", "phonetic:Pitch:false"}) // by category order, then position: 0, 7, 8
 	_ = yt2
+	eq(t, "anki rename", upd(e.alice, deck, map[string]any{"name": "Core 2k/6k"}), 200)
 
 	// Limits: 30 active per category; 100 including archived.
 	for i := 0; i < 30; i++ {
@@ -117,6 +122,7 @@ func TestTrackWeekSave(t *testing.T) {
 	e := newEnv(t)
 	yt := e.alice.subcat("active", "YouTube")
 	podcast := e.alice.subcat("passive", "Podcasts")
+	deck := e.alice.subcat("anki", "Mining")
 	bobs := e.bob.subcat("active", "Games")
 
 	empty := e.alice.mustStatus(200, "GET", "/v1/track/weeks/"+thisWeek, nil)
@@ -136,8 +142,9 @@ func TestTrackWeekSave(t *testing.T) {
 	eq(t, "logged out", e.anon().do("GET", "/v1/track/weeks/"+thisWeek, nil).Code, 401)
 
 	saved := e.alice.saveWeek(thisWeek, map[string]any{
-		"hours": []any{hrs("passive", nil, 10), hrs("active", nil, 1.25), hrs("active", yt, 2.5), hrs("output", nil, 0)},
-		"kotu":  nums(80, nil, 90.5), "kyotsu": nums(nil, 70), "summary": "  Good week\r\nlots of YouTube  ",
+		"hours": []any{hrs("phonetic", nil, 1), hrs("anki", nil, 0.5), hrs("passive", nil, 10), hrs("active", nil, 1.25), hrs("active", yt, 2.5),
+			hrs("anki", deck, 0.75), hrs("output", nil, 0)},
+		"kotu": nums(80, nil, 90.5), "kyotsu": nums(nil, 70), "summary": "  Good week\r\nlots of YouTube  ",
 		"summary_private": true,
 	})
 	var got []string
@@ -145,7 +152,8 @@ func TestTrackWeekSave(t *testing.T) {
 		m := h.(map[string]any)
 		got = append(got, fmt.Sprintf("%s/%v=%v", m["category"], m["subcat"], m["hours"]))
 	}
-	eqStrings(t, "hours (sorted, zero dropped)", got, []string{fmt.Sprintf("active/%d=2.5", yt), "active/<nil>=1.25", "passive/<nil>=10"})
+	eqStrings(t, "hours (sorted, zero dropped)", got, []string{fmt.Sprintf("active/%d=2.5", yt), "active/<nil>=1.25", "passive/<nil>=10",
+		fmt.Sprintf("anki/%d=0.75", deck), "anki/<nil>=0.5", "phonetic/<nil>=1"})
 	eq(t, "kotu", fmt.Sprint(saved["kotu"]), "[80 <nil> 90.5 <nil> <nil> <nil> <nil>]")
 	eq(t, "summary cleaned", saved["summary"], any("Good week\nlots of YouTube"))
 	eq(t, "private", saved["summary_private"], any(true))
@@ -165,6 +173,8 @@ func TestTrackWeekSave(t *testing.T) {
 		"unknown category":  {"hours": []any{hrs("gaming", nil, 1)}},
 		"other's subcat":    {"hours": []any{hrs("active", bobs, 1)}},
 		"wrong category":    {"hours": []any{hrs("active", podcast, 1)}},
+		"anki subcat":       {"hours": []any{hrs("passive", deck, 1)}},
+		"anki > 168":        {"hours": []any{hrs("anki", nil, 100), hrs("anki", deck, 68.5)}},
 		"missing subcat":    {"hours": []any{hrs("active", 9999, 1)}},
 		"6 kotu days":       {"kotu": []any{1, 2, 3, 4, 5, 6}},
 		"kotu > 100":        {"kotu": nums(100.1)},
@@ -262,7 +272,7 @@ func TestKyotsuAuto(t *testing.T) {
 func TestTrackWeeksList(t *testing.T) {
 	e := newEnv(t)
 	yt := e.alice.subcat("active", "YouTube")
-	e.alice.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", yt, 2), hrs("active", nil, 2.5), hrs("soroban", nil, 0.5)}, "summary": "s"})
+	e.alice.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", yt, 2), hrs("active", nil, 2.5), hrs("soroban", nil, 0.5), hrs("anki", nil, 1.5)}, "summary": "s"})
 	e.alice.saveWeek("2026-09-26", map[string]any{"hours": []any{hrs("passive", nil, 1)}})
 	e.alice.saveWeek("2025-10-11", map[string]any{"hours": []any{hrs("passive", nil, 1)}}) // 53 weeks back
 	e.bob.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("passive", nil, 9)}})
@@ -274,8 +284,8 @@ func TestTrackWeeksList(t *testing.T) {
 	eq(t, "has_summary false", w0["has_summary"], any(false))
 	eq(t, "has_summary", w1["has_summary"], any(true))
 	eq(t, "no summary text", w1["summary"], any(nil))
-	eq(t, "totals", fmt.Sprint(w1["totals"]), "map[active:4.5 output:0 passive:0 phonetic:0 soroban:0.5]")
-	eq(t, "subtotals", fmt.Sprint(w1["subtotals"]), fmt.Sprintf("map[active:map[%d:2 none:2.5] soroban:map[none:0.5]]", yt))
+	eq(t, "totals", fmt.Sprint(w1["totals"]), "map[active:4.5 anki:1.5 output:0 passive:0 phonetic:0 soroban:0.5]")
+	eq(t, "subtotals", fmt.Sprint(w1["subtotals"]), fmt.Sprintf("map[active:map[%d:2 none:2.5] anki:map[none:1.5] soroban:map[none:0.5]]", yt))
 
 	all := e.alice.mustStatus(200, "GET", "/v1/track/weeks?from=2000-01-01", nil)["weeks"].([]any)
 	eq(t, "from 2000", len(all), 3)
@@ -346,7 +356,7 @@ func TestTrackVisibility(t *testing.T) {
 
 func TestLeaderboard(t *testing.T) {
 	e := newEnv(t)
-	e.alice.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 5), hrs("passive", nil, 5), hrs("output", nil, 1)}, "kotu": nums(80)})
+	e.alice.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 5), hrs("passive", nil, 5), hrs("output", nil, 1), hrs("anki", nil, 3)}, "kotu": nums(80)})
 	e.alice.saveWeek("2026-10-03", map[string]any{"hours": []any{hrs("active", nil, 12)}, "kotu": nums(60, 70)})
 	e.alice.saveWeek("2026-09-05", map[string]any{"hours": []any{hrs("passive", nil, 1)}})
 	e.bob.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 20.5)}, "kyotsu": nums(50)})
@@ -380,12 +390,14 @@ func TestLeaderboard(t *testing.T) {
 	eq(t, "4w", fmt.Sprint(out["weeks"]), "[2026-09-19 2026-09-26 2026-10-03 2026-10-10]")
 	eq(t, "4w ranking", fmt.Sprint(rows), "[{Alice 22 2} {Bob 20.5 1} {Admin 0 1}]")
 	alice := out["users"].([]any)[0].(map[string]any)
-	eq(t, "totals", fmt.Sprint(alice["totals"]), "map[active:17 immersion:22 output:1 passive:5 phonetic:0 soroban:0]")
+	// Anki has its own metric but isn't immersion (active + passive).
+	eq(t, "totals", fmt.Sprint(alice["totals"]), "map[active:17 anki:3 immersion:22 output:1 passive:5 phonetic:0 soroban:0]")
 	eq(t, "kotu avg of weekly means", alice["kotu"], any(72.5)) // mean(80, 65)
 	eq(t, "no kyotsu", alice["kyotsu"], any(nil))
 	series := alice["series"].(map[string]any)
 	eq(t, "active series", fmt.Sprint(series["active"]), "[<nil> <nil> 12 5]")
 	eq(t, "immersion series", fmt.Sprint(series["immersion"]), "[<nil> <nil> 12 10]")
+	eq(t, "anki series", fmt.Sprint(series["anki"]), "[<nil> <nil> 0 3]")
 	eq(t, "kotu series", fmt.Sprint(series["kotu"]), "[<nil> <nil> 65 80]")
 	eq(t, "bob kyotsu", out["users"].([]any)[1].(map[string]any)["kyotsu"], any(50.0))
 

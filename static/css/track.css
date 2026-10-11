@@ -3,12 +3,15 @@
    Loaded only by those pages (fazon-track-charts.js injects it on the profile page). */
 
 /* ---- colours: dark is the default theme, .light-mode on <body> switches ----
-   Category hues = the validated categorical slots blue / aqua / yellow / magenta / violet
-   (dataviz validator: adjacent CVD ΔE ≥ 8.4, normal-vision ≥ 19, both surfaces). The
-   eight series slots (leaderboard users, sub-categories) follow the same validated order. */
+   Category hues = the validated categorical slots blue / aqua / yellow / magenta / violet,
+   plus a brown for Anki (between aqua and yellow in the stack; off-palette, stepped per mode).
+   dataviz validator on the six in stack order, white / #1a1a1a surfaces: adjacent CVD ΔE ≥ 10.7,
+   normal-vision ≥ 16.3 (brown ↔ Kyōtsu orange is close in dark mode, but they never share a
+   chart). The eight series slots (leaderboard users, sub-categories) follow the same validated order. */
 :root {
     --tk-active: #3987e5;
     --tk-passive: #199e70;
+    --tk-anki: #96562f;
     --tk-phonetic: #c98500;
     --tk-output: #d55181;
     --tk-soroban: #9085e9;
@@ -26,6 +29,7 @@
 .light-mode {
     --tk-active: #2a78d6;
     --tk-passive: #1baf7a;
+    --tk-anki: #8b4513;
     --tk-phonetic: #eda100;
     --tk-output: #e87ba4;
     --tk-soroban: #4a3aa7;

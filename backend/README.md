@@ -10,8 +10,9 @@ One binary, one SQLite file (`modernc.org/sqlite`, pure Go, so it cross-compiles
 ```
 cmd/fazond         main: config (flags / FAZOND_* env), serve, CLI, hourly maintenance (purge, backup)
 internal/api       handlers, session auth, CORS/CSRF, rate limits; api_test.go covers the spec
-internal/db        open + pragmas, embedded migrations (0001 init, 0002 avatars, 0003 track + bio)
-internal/week      Track week calendar (Sun 03:00 UTC weeks, Saturday keys) (PRAGMA user_version), users/tokens, backup, purge
+internal/db        open + pragmas, embedded migrations (PRAGMA user_version; 0001 init, 0002 avatars,
+                   0003 track + bio, 0004 track 'anki' category), users/tokens, backup, purge
+internal/week      Track week calendar (Sun 03:00 UTC weeks, Saturday keys)
 internal/mail      resend (HTTP API), smtp (STARTTLS) and log mailers; RFC 5322 message builder
 deploy/            systemd unit, env example, Caddy snippet
 ```
@@ -41,7 +42,7 @@ All JSON; errors are `{"error":"msg"}` with 400/401/403/404/409/413/415/429/500.
 | `DELETE /v1/me/avatar` | remove the picture → `{"user":…}` |
 | `GET /v1/users/{id}/avatar?v=T` | the JPEG; immutable caching when `v` is current, else `no-cache` + ETag |
 | `GET /v1/users/{id}/card` | hover card: `{user,bio,joined,comments,likes}`, `Cache-Control: private, max-age=60` |
-| `GET /v1/track/config` | categories, your sub-categories, `public`, `current_week` |
+| `GET /v1/track/config` | categories (in display order: `active`, `passive`, `anki`, `phonetic`, `output`, `soroban`), your sub-categories, `public`, `current_week` |
 | `POST /v1/track/subcats` `{category,name}`; `POST`/`DELETE /v1/track/subcats/{id}` | sub-categories: rename/archive/reorder; delete only if unused (else 409) |
 | `POST /v1/track/settings` `{public}` | show/hide yourself on the leaderboard and others' view of your track |
 | `GET`/`POST /v1/track/weeks/{key}` | your week (hours, Kotu/Kyōtsu daily %, auto Kyōtsu from trainer sessions, summary); POST replaces it |

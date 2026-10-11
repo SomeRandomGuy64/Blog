@@ -24,6 +24,7 @@ type trackCategory struct {
 var trackCategories = []trackCategory{
 	{"active", "Active immersion"},
 	{"passive", "Passive immersion"},
+	{"anki", "Anki"},
 	{"phonetic", "Phonetic training"},
 	{"output", "Output"},
 	{"soroban", "Soroban"},
