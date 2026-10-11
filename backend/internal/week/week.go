@@ -77,6 +77,9 @@ func (k Key) DayIndex(t time.Time) int {
 }
 
 // DayLabels are the label dates of the 7 days: the Saturday key, then Sunday … Friday.
+// Deliberate: day i runs from Sunday 03:00 UTC + i days, so each label is the date before most
+// of its window, matching the MvJ dojo's leaderboard calendar this data is kept in step with.
+// Don't shift these to Sunday … Saturday.
 func (k Key) DayLabels() []string {
 	out := make([]string, Days)
 	for i := range out {
