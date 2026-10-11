@@ -158,7 +158,7 @@ Every week endpoint returns weeks in this shape (pretty-printed here):
 | `hours` | every category: its `unassigned` hours and each sub-category with hours (`id`, `name`, `archived`, `hours`), in your display order |
 | `ratings` | rated categories only (`{}` if none) |
 | `goals` | categories with a goal for that week only (`{}` if none) |
-| `summary`, `private` | the week's summary (`""` if none) and whether it's hidden from others |
+| `summary`, `private` | the week's summary as Markdown source (`""` if none; see below) and whether it's hidden from others |
 | `kotu`, `kyotsu` | the week's averages of the daily percentages (1 decimal), `null` without any |
 | `updated` | when the week last changed, `null` if it isn't logged |
 
@@ -291,13 +291,19 @@ curl -s -X PATCH -H "Authorization: Bearer $FAZON_API_KEY" -H "Content-Type: app
 
 *Read & write.* Set the week's summary and, optionally, whether it's private. Nothing else changes.
 
+Summaries are **Markdown** (GitHub-flavoured: headings, bold/italic, strikethrough, lists and task
+lists, quotes, code, tables, links; a single newline is a line break). The site shows them rendered,
+with raw HTML shown as text, only `http`/`https`/`mailto` links, and images shown as links. The API
+stores and returns the source as-is, so if you display summaries yourself, treat them as untrusted
+text and sanitise any HTML you render from them.
+
 ```json
 {"summary": "Finished my first show without subtitles.", "private": false}
 ```
 
 | Field | |
 |---|---|
-| `summary` | required; up to 10,000 characters (trimmed; `""` clears it) |
+| `summary` | required; Markdown (GitHub-flavoured), up to 10,000 characters (trimmed; `""` clears it) |
 | `private` | optional; `true` hides the summary from everyone else. Leave it out to keep the current setting (new weeks start public) |
 
 Public summaries show on your profile, the leaderboard and the summaries feed once the week is

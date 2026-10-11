@@ -358,6 +358,53 @@ a:hover .fc-lbl, a:focus .fc-lbl { fill: var(--fz-accent); }
 .sm-more { margin-top: 4px; font-size: 0.82em; }
 .sm-foot { text-align: center; margin-top: 12px; }
 
+/* ---- weekly summaries as sanitized Markdown (js/fazon-md.js; .fz-md-plain = fallback text) ----
+   Compact: small headings, modest indents; tables and code blocks scroll inside their own box
+   (width 0 + min-width 100%: they add nothing to an enclosing table cell's min-content width). */
+.fz-md { --md-code-bg: rgba(255, 255, 255, 0.07); white-space: normal; overflow-wrap: anywhere; line-height: 1.55; min-width: 0; }
+.light-mode .fz-md { --md-code-bg: rgba(0, 0, 0, 0.055); }
+.fz-md .fz-md-plain { white-space: pre-wrap; }
+.fz-md > :first-child { margin-top: 0; }
+.fz-md > :last-child { margin-bottom: 0; }
+.fz-md p, .fz-md ul, .fz-md ol, .fz-md blockquote, .fz-md pre, .fz-md table { margin: 0 0 0.6em; }
+.fz-md h4, .fz-md h5, .fz-md h6 { margin: 0.8em 0 0.3em; line-height: 1.3; font-weight: 700; }
+.fz-md h4 { font-size: 1.1em; }
+.fz-md h5 { font-size: 1em; }
+.fz-md h6 { font-size: 0.95em; color: var(--fz-muted); }
+.fz-md ul { padding-left: 1.4em; }
+.fz-md ol { padding-left: 1.9em; }
+.fz-md li > ul, .fz-md li > ol, .fz-md li > p { margin: 0.15em 0; }
+.fz-md li:has(> input[type="checkbox"]) { list-style: none; }
+.fz-md li > input[type="checkbox"] { margin: 0 0.4em 0 -1.2em; vertical-align: -0.1em; }
+.fz-md blockquote { margin-left: 0; margin-right: 0; padding: 0 0 0 0.8em; border-left: 3px solid var(--fz-line); color: var(--fz-muted); }
+.fz-md hr { border: 0; border-top: 1px solid var(--fz-line); margin: 0.8em 0; }
+.fz-md a { overflow-wrap: anywhere; }
+.fz-md code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; background: var(--md-code-bg); border-radius: 4px; padding: 0.05em 0.3em; }
+.fz-md pre { box-sizing: border-box; width: 0; min-width: 100%; max-width: 100%; overflow-x: auto; padding: 0.6em 0.8em; background: var(--md-code-bg); border: 1px solid var(--fz-line); border-radius: 6px; }
+.fz-md pre code { display: block; width: max-content; min-width: 100%; padding: 0; background: none; white-space: pre; overflow-wrap: normal; font-size: 0.88em; line-height: 1.45; }
+.fz-md table { display: block; box-sizing: border-box; width: 0; min-width: 100%; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 0.95em; }
+.fz-md th, .fz-md td { border: 1px solid var(--fz-line); padding: 0.25em 0.6em; overflow-wrap: normal; word-break: normal; vertical-align: top; }
+.fz-md th { font-weight: 700; background: var(--md-code-bg); }
+.fz-md th[align="center"], .fz-md td[align="center"] { text-align: center; }
+.fz-md th[align="right"], .fz-md td[align="right"] { text-align: right; }
+
+/* logger: Write | Preview + the "Markdown supported" help */
+.tk-md-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 6px; }
+.tk-mdtabs { display: inline-flex; border: 1px solid var(--fz-line); border-radius: 6px; overflow: hidden; }
+.tk-mdtab { background: none; border: 0; padding: 3px 12px; font: inherit; font-size: 0.82em; color: var(--fz-muted); cursor: pointer; }
+.tk-mdtab + .tk-mdtab { border-left: 1px solid var(--fz-line); }
+.tk-mdtab[aria-selected="true"] { background: var(--fz-accent-soft); color: var(--text-color); font-weight: 700; }
+.tk-mdtab:focus-visible { outline: 2px solid var(--fz-accent); outline-offset: -2px; }
+.tk-md-help { margin-left: auto; font-size: 0.8em; }
+.tk-md-help[open] { flex-basis: 100%; margin-left: 0; }
+.tk-md-help summary { cursor: pointer; color: var(--fz-muted); }
+.tk-md-help ul { margin: 6px 0; padding-left: 1.2em; }
+.tk-md-help li { margin: 2px 0; overflow-wrap: anywhere; }
+.tk-md-help code { font-family: inherit; white-space: pre-wrap; background: var(--fz-accent-soft); border-radius: 4px; padding: 0 0.3em; }
+.tk-md-help p { margin: 4px 0 0; }
+.tk-md-prev { box-sizing: border-box; min-height: 6.5em; margin-top: 0; padding: 0.55em 0.7em; font-size: 0.95em; border: 1px solid var(--fz-line); border-radius: 6px; background: var(--fz-surface); }
+#tkSumPanP:focus-visible { outline: 2px solid var(--fz-accent); outline-offset: 2px; border-radius: 6px; }
+
 /* ---- profile (FazonTrack.renderProfile) ---- */
 .tkp h2 { margin-top: 1.8em; }
 .tkp-totals { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-bottom: 4px; }

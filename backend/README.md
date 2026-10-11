@@ -165,6 +165,15 @@ and `kyotsu_source` (`"manual"`, `"auto"` or null per day). `first_score_week` i
 returned week with any Kotu or Kyōtsu value (null if none). Only logged weeks are listed, so
 trainer sessions in a week with nothing logged don't appear here.
 
+**Summaries are Markdown.** Every `summary` field (week POST, `PUT …/summary`, leaderboard,
+profiles, `/v1/track/summaries`) is the author's raw Markdown source (GitHub-flavoured: headings,
+emphasis, strikethrough, lists and task lists, quotes, code, tables, links; single newlines are
+line breaks), stored and returned as text (cleaned and trimmed as before, ≤ 10,000 characters).
+The API never renders or sanitizes it, so every client must treat it as untrusted text: the site
+renders it with marked + DOMPurify under a strict allowlist (`static/js/fazon-md.js`: raw HTML
+shown as text, links http/https/mailto only, images shown as links). Other user text (comments,
+bios, names) is plain text.
+
 Notifications: `reply` to the parent's author, `like` to the liked comment's author, and `comment`
 to admins for every new comment by someone else — never two for one comment, never to yourself.
 Unliking or deleting withdraws them.

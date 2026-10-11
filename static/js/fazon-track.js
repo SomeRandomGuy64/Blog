@@ -39,6 +39,7 @@
   T.initLogger = function (root) {
     var cfg = null, cur = null, key = null, wk = null, st = null, base = "", saving = false, savedAt = null, saveErr = "";
     var ui = {}, stripData = null, stripRange = null, openMenu = null, showErrs = false, saveP = null, uid = 0;
+    T.loadMD();   // summary preview renders Markdown (fazon-track-charts.js)
 
     function msg() {
       root.textContent = "";
@@ -419,7 +420,48 @@
       ta.addEventListener("input", function () { st.summary = ta.value; refresh(); });
       priv.addEventListener("change", function () { st.priv = priv.checked; refresh(); });
       ui.count = count;
-      sec.append(el("div", { class: "tk-cat-h" }, el("h3", { text: "Weekly summary" })), ui.sumNote, ta,
+      // Write | Preview tabs: the preview uses the same sanitized Markdown renderer as the public pages
+      var tabW = el("button", { type: "button", role: "tab", id: "tkSumTabW", class: "tk-mdtab", "aria-selected": "true", "aria-controls": "tkSumPanW", text: "Write" });
+      var tabP = el("button", { type: "button", role: "tab", id: "tkSumTabP", class: "tk-mdtab", "aria-selected": "false", "aria-controls": "tkSumPanP", tabindex: "-1", text: "Preview" });
+      var prev = el("div", { class: "sm-text tk-md-prev" });
+      var panW = el("div", { role: "tabpanel", id: "tkSumPanW", "aria-labelledby": "tkSumTabW" }, ta);
+      var panP = el("div", { role: "tabpanel", id: "tkSumPanP", "aria-labelledby": "tkSumTabP", tabindex: "0", hidden: true }, prev);
+      function showTab(preview, focus) {
+        [[tabW, !preview], [tabP, preview]].forEach(function (x) { x[0].setAttribute("aria-selected", String(x[1])); x[0].tabIndex = x[1] ? 0 : -1; });
+        panW.hidden = preview; panP.hidden = !preview;
+        if (preview) {
+          if (st.summary.trim()) T.mdFill(prev, st.summary);
+          else { prev.textContent = ""; prev.appendChild(el("p", { class: "fz-muted", text: "Nothing to preview yet." })); }
+        }
+        if (focus) (preview ? tabP : tabW).focus();
+      }
+      tabW.addEventListener("click", function () { showTab(false); });
+      tabP.addEventListener("click", function () { showTab(true); });
+      var tabs = el("div", { role: "tablist", class: "tk-mdtabs", "aria-label": "Weekly summary editor" }, tabW, tabP);
+      tabs.addEventListener("keydown", function (e) {
+        var k = e.key, toP = k === "ArrowRight" || k === "End" ? true : k === "ArrowLeft" || k === "Home" ? false : null;
+        if (toP === null) return;
+        e.preventDefault();
+        showTab(k === "ArrowRight" || k === "ArrowLeft" ? tabP.getAttribute("aria-selected") !== "true" : toP, true);
+      });
+      var ex = function (codes, what) {
+        var li = el("li");
+        codes.forEach(function (c) { li.append(el("code", { text: c }), " "); });
+        if (what) li.append(what);
+        return li;
+      };
+      var help = el("details", { class: "tk-md-help" }, el("summary", { text: "Markdown supported" }),
+        el("ul", null,
+          ex(["**bold**", "*italic*", "~~strike~~"]),
+          ex(["# Heading"], "(shown small)"),
+          ex(["- item", "1. item", "- [x] done"], "lists, task lists"),
+          ex(["> quote"]),
+          ex(["`code`"], "— a line of ``` before and after makes a code block"),
+          ex(["[text](https://example.com)"], "links (http, https, mailto)"),
+          ex(["| a | b |"], "tables, with a |---|---| line under the header")),
+        el("p", { class: "fz-muted", text: "A single line break is kept. Images are shown as links, and HTML is shown as plain text." }));
+      sec.append(el("div", { class: "tk-cat-h" }, el("h3", { text: "Weekly summary" })), ui.sumNote,
+        el("div", { class: "tk-md-bar" }, tabs, help), panW, panP,
         el("div", { class: "tk-sum-foot" }, el("label", { for: "tkPriv" }, priv, "Keep this summary private"), count));
       return sec;
     }
@@ -992,6 +1034,7 @@
   function catOrder(ids) { var o = CATS.map(function (c) { return c.id; }); return ids.slice().sort(function (a, b) { return (o.indexOf(a) + 1 || 99) - (o.indexOf(b) + 1 || 99); }); }
 
   T.initLeaderboard = function (root) {
+    T.loadMD();   // summaries (expanded rows + feed) render as Markdown
     var q = new URLSearchParams(location.search);
     var cur = T.currentWeekKey();
     var qp = q.get("period") === "week" ? "last" : q.get("period");   // old links: "This week" became "Last week"
@@ -1217,8 +1260,8 @@
       });
       var sum;
       if (u.summary && String(u.summary).trim()) {
-        var txt = el("div", { class: "sm-text", text: u.summary });
-        // shown in full here (unlike the feed, which clamps long ones)
+        var txt = el("div", { class: "sm-text" });
+        T.mdFill(txt, String(u.summary));   // Markdown (sanitized); shown in full here (the feed clamps long ones)
         sum = el("div", { class: "lb-sum" }, el("p", { class: "lb-sum-h", text: isLast || !T.isKey(u.summary_week) ? "Summary" : "Summary — week of " + T.fmtDayLabel(u.summary_week) }), txt);
       } else sum = el("p", { class: "fz-muted tk-small lb-sum-none", text: isLast ? "No public summary for this week." : "No public summary in this period." });
       return el("div", { class: "lb-det" }, stats, all > 0 ? bar : null, list, sum);

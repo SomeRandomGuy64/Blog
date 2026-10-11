@@ -82,6 +82,27 @@
     return depsP;
   };
 
+  // ---- weekly summaries are Markdown (js/fazon-md.js + vendored marked/DOMPurify, loaded on demand) ----
+  // T.loadMD() starts loading early; T.mdFill(el, src) shows plain text until it's ready (or if it fails).
+  var mdP = null;
+  T.loadMD = function () {
+    if (mdP) return mdP;
+    mdP = (window.FazonMD ? Promise.resolve() : new Promise(function (res) {
+      var sc = document.createElement("script");
+      sc.src = new URL("fazon-md.js", SRC).href;
+      sc.onload = sc.onerror = function () { res(); };
+      document.head.appendChild(sc);
+    })).then(function () { return window.FazonMD ? window.FazonMD.load() : false; });
+    return mdP;
+  };
+  T.mdFill = function (node, src) {
+    if (window.FazonMD) return window.FazonMD.fill(node, src);
+    node.classList.add("fz-md");
+    var p = el0("div", "fz-md-plain"); p.textContent = src; node.textContent = ""; node.appendChild(p);
+    return T.loadMD().then(function (ok) { return ok && window.FazonMD ? window.FazonMD.fill(node, src) : false; });
+  };
+  function el0(tag, cls) { var n = document.createElement(tag); n.className = cls; return n; }
+
   // ---- avatar + name link (hover card via data-user-card) ----
   T.userLink = function (u, size, cls) {
     var F = window.Fazon, el = F.el, href = F.profileHref ? F.profileHref(u) : "/users/?id=" + ((u && u.id) | 0);
@@ -110,11 +131,12 @@
     });
     if (num(it.kotu)) chips.appendChild(el("span", { class: "sm-chip", text: "Kotu " + T.fmtPct(it.kotu) }));
     if (num(it.kyotsu)) chips.appendChild(el("span", { class: "sm-chip", text: "Kyōtsu " + T.fmtPct(it.kyotsu) }));
-    var text = el("div", { class: "sm-text", text: it.summary || "" });
+    var text = el("div", { class: "sm-text" });
     var card = el("article", { class: "sm-card" }, head, chips.children.length ? chips : null, text);
-    // collapse long ones (measured once it's laid out)
-    requestAnimationFrame(function () {
-      if (text.scrollHeight < 190) return;   // ~ 8 lines
+    // collapse long ones (measured once the Markdown is in and laid out)
+    T.mdFill(text, it.summary || "").then(function () { requestAnimationFrame(clamp); }, function () {});
+    function clamp() {
+      if (text.scrollHeight < 190 || card.querySelector(".sm-more")) return;   // ~ 8 lines
       text.classList.add("clamped");
       var more = el("button", { type: "button", class: "fz-linkbtn sm-more", text: "Read more", "aria-expanded": "false" });
       more.addEventListener("click", function () {
@@ -123,7 +145,7 @@
         more.setAttribute("aria-expanded", String(open));
       });
       card.appendChild(more);
-    });
+    }
     return card;
   };
 
@@ -133,6 +155,7 @@
     var F = window.Fazon;
     if (!container || !F) return Promise.resolve(false);
     container.hidden = true;
+    T.loadMD();   // in parallel: summaries render as Markdown
     return Promise.all([F.api("/v1/users/" + (userId | 0) + "/track"), F.me(), T.loadDeps()]).then(function (r) {
       var d = r[0] || {}, m = r[1] || {}, weeks = (d.weeks || []).slice();
       var own = !!(m.user && m.user.id === (userId | 0));
