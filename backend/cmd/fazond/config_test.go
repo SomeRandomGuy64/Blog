@@ -28,7 +28,8 @@ func parse(t *testing.T, env map[string]string, args ...string) (*config, error)
 
 func TestConfig(t *testing.T) {
 	c, err := parse(t, nil)
-	if err != nil || c.listen != "127.0.0.1:8091" || c.dataDir != "/var/lib/fazond" || !c.cookieSecure || len(c.origins) != 3 {
+	if err != nil || c.listen != "127.0.0.1:8091" || c.dataDir != "/var/lib/fazond" || !c.cookieSecure ||
+		len(c.origins) != 1 || c.origins[0] != "https://fazon.nexus" {
 		t.Fatalf("defaults %+v %v", c, err)
 	}
 	if _, ok := c.mailer().(mail.Log); !ok {

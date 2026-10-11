@@ -82,7 +82,7 @@ Local dev (magic links are printed to the log instead of emailed):
 
 ```sh
 FAZOND_DATA=/tmp/fazond-dev FAZOND_SITE=http://localhost:1313 FAZOND_COOKIE_SECURE=false \
-  FAZOND_MAIL=log go run ./cmd/fazond
+  FAZOND_ORIGINS=http://localhost:1313,http://127.0.0.1:* FAZOND_MAIL=log go run ./cmd/fazond
 go run ./cmd/fazond login-link -data /tmp/fazond-dev -site http://localhost:1313 -email m.faizan.rasul@gmail.com
 ```
 
