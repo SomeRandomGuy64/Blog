@@ -31,14 +31,18 @@ type user struct {
 	Role  string // db.RoleUser, db.RoleModerator or db.RoleAdmin
 	Admin bool   // Role == db.RoleAdmin
 	Muted bool   // can't post comments
+	// Hyojungo: may use the trainer's Tokyo mode (api/hyojungo.go) — admins, and accounts an
+	// admin gave it to (users.hyojungo).
+	Hyojungo bool
 }
 
 // userCols / scan load a user row into a user (keep the two in step).
-const userCols = `u.id, u.email, u.name, u.role, u.muted_at IS NOT NULL`
+const userCols = `u.id, u.email, u.name, u.role, u.muted_at IS NOT NULL, u.hyojungo`
 
 func (u *user) scan(row interface{ Scan(...any) error }, extra ...any) error {
-	err := row.Scan(append([]any{&u.ID, &u.Email, &u.Name, &u.Role, &u.Muted}, extra...)...)
+	err := row.Scan(append([]any{&u.ID, &u.Email, &u.Name, &u.Role, &u.Muted, &u.Hyojungo}, extra...)...)
 	u.Admin = u.Role == db.RoleAdmin
+	u.Hyojungo = u.Hyojungo || u.Admin
 	return err
 }
 

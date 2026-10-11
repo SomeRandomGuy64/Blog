@@ -91,8 +91,10 @@
       var sumLen = runes(st.summary);
       if (sumLen > SUMMARY_MAX) { out.errs.summary = "Too long"; out.ok = false; }
       out.norm = JSON.stringify([normH, out.kotu, out.kyotsu, st.summary.trim(), st.priv, CATS.map(function (c) { return st.ratings[c.id] || 0; })]);
-      out.kotuAvg = T.mean(out.kotu);
-      out.kyotsuAvg = T.mean(out.kyotsu.map(function (v, i) { return num(v) ? v : (wk.kyotsu_auto ? wk.kyotsu_auto[i] : null); }));
+      // blank days fall back to the trainer's automatic values (Kotu ← Kyōtsu's Tokyo mode, Kyōtsu ← Keihan)
+      ["kotu", "kyotsu"].forEach(function (f) {
+        out[f + "Avg"] = T.mean(out[f].map(function (v, i) { return num(v) ? v : (wk[f + "_auto"] ? wk[f + "_auto"][i] : null); }));
+      });
       return out;
     }
     function dirty() { return !!st && compute().norm !== base; }
@@ -397,21 +399,22 @@
       sec.appendChild(el("p", { class: "fz-muted tk-small", style: "margin:0 0 10px" },
         "Total accuracy per day: ", el("a", { href: "https://kotu.io", target: "_blank", rel: "noopener", text: "Kotu" }),
         " (enter it yourself) and ", el("a", { href: "/kyotsu/", text: "Kyōtsu" }),
-        ". Blank Kyōtsu days use your saved Kyōtsu sessions automatically."));
+        ". Blank days use your saved Kyōtsu sessions automatically (Kotu from its Tokyo mode, if you have it)."));
       var grid = el("div", { class: "tk-scores" },
         el("span", { class: "hd", text: "Day" }), el("span", { class: "hd", style: "text-align:right", text: "Kotu %" }), el("span", { class: "hd", style: "text-align:right", text: "Kyōtsu %" }));
       var days = wk.days && wk.days.length === 7 ? wk.days : [0, 1, 2, 3, 4, 5, 6].map(function (i) { return T.addDays(key, i); });
-      var auto = wk.kyotsu_auto || [], ans = wk.kyotsu_auto_answers || [];
+      // automatic values from saved trainer sessions: Kyōtsu ← Keihan mode, Kotu ← Tokyo mode
+      var AUTO = { kotu: wk.kotu_auto || [], kyotsu: wk.kyotsu_auto || [] }, ANS = { kotu: wk.kotu_auto_answers || [], kyotsu: wk.kyotsu_auto_answers || [] };
       days.forEach(function (d, i) {
         grid.appendChild(el("span", { class: "tk-day", text: T.fmtDayLabel(d) }));
         ["kotu", "kyotsu"].forEach(function (f) {
-          var a = f === "kyotsu" && num(auto[i]) ? auto[i] : null;
+          var a = num(AUTO[f][i]) ? AUTO[f][i] : null, ans = ANS[f];
           var inp = el("input", { type: "text", inputmode: "decimal", autocomplete: "off", class: "fz-input tk-sc", "data-f": f + ":" + i, value: st[f][i] || "",
             placeholder: a != null ? T.fmtNum(a, 1) : "–", "aria-label": (f === "kotu" ? "Kotu" : "Kyōtsu") + " % on " + T.fmtDayLabel(d) + (a != null ? " (auto: " + T.fmtNum(a, 1) + "%)" : "") });
           inp.addEventListener("input", function () { st[f][i] = inp.value; refresh(); });
           inp.addEventListener("blur", function () { var p = parseScore(inp.value); if (!p.err && inp.value) { inp.value = p.v == null ? "" : String(p.v); st[f][i] = inp.value; } showErrs = true; refresh(); });
           ui.fields[f + ":" + i] = inp;
-          var ht = f === "kyotsu" && ans[i] ? ans[i] + " answers" + (st.kyotsu[i] ? " · auto " + T.fmtNum(a, 1) + "%" : "") : "";
+          var ht = ans[i] ? ans[i] + " answers" + (st[f][i] ? " · auto " + T.fmtNum(a, 1) + "%" : "") : "";
           var hint = el("span", { class: "tk-hint", text: ht, title: ht || null });
           ui.errs[f + ":" + i] = el("span", { class: "tk-err", role: "alert" });
           grid.appendChild(el("span", { class: "tk-sc-cell" }, inp, hint, ui.errs[f + ":" + i]));
@@ -420,15 +423,21 @@
       ui.kotuAvg = el("span", { class: "tk-avg" }); ui.kyotsuAvg = el("span", { class: "tk-avg" });
       grid.append(el("span", { class: "tk-day", style: "font-weight:700", text: "Average" }), ui.kotuAvg, ui.kyotsuAvg);
       sec.appendChild(grid);
-      var anyAuto = auto.some(num);
-      var use = el("button", { type: "button", class: "fz-btn tk-small", text: "Use my Kyōtsu results", disabled: !anyAuto,
-        title: anyAuto ? "Fill the Kyōtsu column from your saved trainer sessions this week" : "No saved Kyōtsu sessions this week" });
-      use.addEventListener("click", function () {
-        auto.forEach(function (v, i) { if (num(v)) { st.kyotsu[i] = String(Math.round(v * 10) / 10); var f = ui.fields["kyotsu:" + i]; if (f) f.value = st.kyotsu[i]; } });
-        refresh();
-      });
-      sec.appendChild(el("div", { class: "tk-scores-foot" }, use,
-        el("span", { class: "fz-muted", text: anyAuto ? auto.filter(num).length + " day" + (auto.filter(num).length === 1 ? "" : "s") + " with saved sessions (" + ans.reduce(function (a, b) { return a + (b | 0); }, 0) + " answers)" : "No saved Kyōtsu sessions this week" })));
+      // "Use my … results": copy the automatic values into the column. Kyōtsu's is always shown; Kotu's
+      // only in weeks with Tokyo-mode sessions (most accounts don't have that mode)
+      function useAuto(f) {
+        var auto = AUTO[f], ans = ANS[f], anyAuto = auto.some(num), what = f === "kotu" ? "Kyōtsu Tokyo-mode" : "Kyōtsu";
+        var use = el("button", { type: "button", class: "fz-btn tk-small", text: f === "kotu" ? "Use my Tokyo-mode results" : "Use my Kyōtsu results", disabled: !anyAuto,
+          title: anyAuto ? "Fill the " + (f === "kotu" ? "Kotu" : "Kyōtsu") + " column from your saved " + what + " sessions this week" : "No saved Kyōtsu sessions this week" });
+        use.addEventListener("click", function () {
+          auto.forEach(function (v, i) { if (num(v)) { st[f][i] = String(Math.round(v * 10) / 10); var x = ui.fields[f + ":" + i]; if (x) x.value = st[f][i]; } });
+          refresh();
+        });
+        return el("div", { class: "tk-scores-foot" }, use,
+          el("span", { class: "fz-muted", text: anyAuto ? auto.filter(num).length + " day" + (auto.filter(num).length === 1 ? "" : "s") + " with saved " + (f === "kotu" ? "Tokyo-mode " : "") + "sessions (" + ans.reduce(function (a, b) { return a + (b | 0); }, 0) + " answers)" : "No saved Kyōtsu sessions this week" }));
+      }
+      sec.appendChild(useAuto("kyotsu"));
+      if (AUTO.kotu.some(num)) sec.appendChild(useAuto("kotu"));
       return sec;
     }
 

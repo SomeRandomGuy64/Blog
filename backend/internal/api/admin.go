@@ -20,6 +20,7 @@ import (
 //	mute / unmute                        regular users only  anyone but themselves
 //	change roles                         no                  anyone but themselves
 //	delete accounts                      no                  anyone but themselves
+//	Tokyo-mode access (hyojungo.go)      no                  anyone but admins (who always have it)
 //	delete any comment (comments.go)     yes                 yes
 //
 // The last admin can never be demoted, muted or deleted (nor delete their own account, see
@@ -35,6 +36,8 @@ type adminRights struct {
 	Role   bool `json:"role"`
 	Mute   bool `json:"mute"` // mute and unmute
 	Delete bool `json:"delete"`
+	// Hyojungo: give or take Tokyo-mode access. Admins always have it.
+	Hyojungo bool `json:"hyojungo"`
 }
 
 // rightsOver works out what actor may do to the user targetID with role targetRole, given the
@@ -46,7 +49,7 @@ func rightsOver(actor *user, targetID int64, targetRole string, admins int) admi
 	switch actor.Role {
 	case db.RoleAdmin:
 		ok := targetRole != db.RoleAdmin || admins > 1 // never the last admin
-		return adminRights{Role: ok, Mute: ok, Delete: ok}
+		return adminRights{Role: ok, Mute: ok, Delete: ok, Hyojungo: targetRole != db.RoleAdmin}
 	case db.RoleModerator:
 		return adminRights{Mute: targetRole == db.RoleUser}
 	}
@@ -69,6 +72,7 @@ type adminUserJSON struct {
 	MutedAt     *string      `json:"muted_at"`
 	MutedBy     *mutedByJSON `json:"muted_by"` // null if not muted or that account is gone
 	TrackPublic bool         `json:"track_public"`
+	Hyojungo    bool         `json:"hyojungo"` // Tokyo-mode access (always for admins)
 	Can         adminRights  `json:"can"`
 }
 
@@ -93,7 +97,7 @@ func (s *Server) adminUsers(ctx context.Context, viewer *user, where string, arg
 		return nil, 0, err
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT u.id, u.email, u.role, u.created_at, u.muted_at, mb.id, mb.name, u.track_public,
+		SELECT u.id, u.email, u.role, u.created_at, u.muted_at, mb.id, mb.name, u.track_public, u.hyojungo,
 			(SELECT MAX(last_seen) FROM sessions WHERE user_id = u.id),
 			(SELECT COUNT(*) FROM comments WHERE user_id = u.id AND deleted_at IS NULL)
 		FROM users u LEFT JOIN users mb ON mb.id = u.muted_by
@@ -111,10 +115,11 @@ func (s *Server) adminUsers(ctx context.Context, viewer *user, where string, arg
 		var email string
 		var mutedAt, mbID, lastSeen sql.NullInt64
 		var mbName sql.NullString
-		if err := rows.Scan(&id, &email, &a.Role, &joined, &mutedAt, &mbID, &mbName, &a.TrackPublic, &lastSeen, &a.Comments); err != nil {
+		if err := rows.Scan(&id, &email, &a.Role, &joined, &mutedAt, &mbID, &mbName, &a.TrackPublic, &a.Hyojungo, &lastSeen, &a.Comments); err != nil {
 			return nil, 0, err
 		}
 		a.User = &publicUser{ID: id}
+		a.Hyojungo = a.Hyojungo || a.Role == db.RoleAdmin
 		if viewer.Admin {
 			a.Email = &email
 		}

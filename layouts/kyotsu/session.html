@@ -12,7 +12,7 @@
   (function(){
     const F=window.Fazon, el=F.el, esc=F.esc, root=document.getElementById("ks");
 
-    // same buckets/labels as the trainer (layouts/kyotsu/section.html)
+    // same buckets/labels as the trainer (layouts/kyotsu/section.html): Keihan's 式 × 核, Tokyo's (kotu.io's) three
     const CATS=[
       {id:"HM",jp:"高起無核",en:"High · flat",     eg:"HHHH"},
       {id:"HA",jp:"高起頭核",en:"High · head drop",eg:"HLLL"},
@@ -23,10 +23,17 @@
       {id:"LN",jp:"低起中核",en:"Low · mid drop",  eg:"LHLL"},
       {id:"LO",jp:"低起尾核",en:"Low · tail drop", eg:"LLH↘"},
     ];
-    const SPEAKERS={yura:"彩森遊楽 (Kobe)",nagi:"月野ナギ (Kyoto)",otowa:"音羽咲夜 (Nara)",atsuzaki:"厚崎ゆうま (Shiga/Osaka)"};
+    const CATS_T=[
+      {id:"TH",jp:"平板・尾高",en:"Heiban / Odaka",eg:"LHHH"},
+      {id:"TA",jp:"頭高",     en:"Atamadaka",     eg:"HLLL"},
+      {id:"TN",jp:"中高",     en:"Nakadaka",      eg:"LHLL"},
+    ];
+    const SPEAKERS={yura:"彩森遊楽 (Kobe)",nagi:"月野ナギ (Kyoto)",otowa:"音羽咲夜 (Nara)",atsuzaki:"厚崎ゆうま (Shiga/Osaka)",nhk:"NHK (Tokyo)"};
+    const MODES={keihan:"Keihan",tokyo:"Tokyo (標準語)"};
+    const modeOf=s=>s&&s.mode==="tokyo"?"tokyo":"keihan";   // older sessions have no mode: Keihan
     const LAYOUTS={kotu:"Kotu-style",classic:"Pitch Graph"};
 
-    const SMALL=new Set([..."ャュョァィゥェォヮゃゅょぁぃぅぇぉゎ"]);
+    const SMALL=new Set([..."ャュョァィゥェォヮゃゅょぁぃぅぇぉゎ゚"]);   // ゚ (U+309A, nasal カ゚) joins the mora before it too
     function moras(reading){
       const out=[];
       for(const ch of reading){ if(SMALL.has(ch)&&out.length) out[out.length-1]+=ch; else out.push(ch); }
@@ -59,6 +66,7 @@
         el("div",{class:"ks-acc-f mono",text:`${s.correct} / ${s.total} correct`}));
       const active=s.active_seconds>0;   // 0 = saved by an older trainer, which didn't measure it
       const dl=el("dl",{class:"ks-facts"},
+        el("dt",{text:"Mode"}),el("dd",{text:MODES[modeOf(s)]}),
         el("dt",{text:"Date"}),el("dd",{text:fmtDate(s.started)}),
         el("dt",{text:"Duration"}),el("dd",{text:duration(s.started,s.ended)}),
         ...(active?[el("dt",{text:"Practice time"}),el("dd",{class:"mono",text:fmtClock(s.active_seconds)})]:[]),
@@ -88,9 +96,9 @@
       return box;
     }
 
-    function patternStats(answers){
+    function patternStats(answers,cats){
       const by={}; answers.forEach(a=>{ const r=by[a.cat]||(by[a.cat]={c:0,t:0}); r.t++; if(a.ok) r.c++; });
-      const rows=CATS.filter(c=>by[c.id]).map(c=>{ const r=by[c.id];
+      const rows=cats.filter(c=>by[c.id]).map(c=>{ const r=by[c.id];
         return `<div class="pat-row"><div><div class="pat-k">${esc(c.en)} <span class="jp">${esc(c.jp)}</span></div>${overline("◯".repeat(c.eg.replace(/[↘↓]/g,"").length),c.eg)}</div>`+
           `<span class="pat-n">${r.c} of ${r.t} (${pct(r.c,r.t)}%)</span></div>`; }).join("");
       return panel("Pattern Stats",html("div","",rows||`<p class="ks-empty">No answers.</p>`));
@@ -163,7 +171,9 @@
       box.appendChild(s);
     }
 
-    function overTime(sessions,curId){
+    // sessions: only the shown session's mode (Keihan and Tokyo accuracies don't compare); other =
+    // the latest session in the other mode, linked at the foot
+    function overTime(sessions,curId,mode,other){
       const tA=sessions.reduce((a,s)=>a+s.total,0), tC=sessions.reduce((a,s)=>a+s.correct,0);
       const totals=el("div",{class:"ks-totals"},
         ...[[sessions.length,"sessions"],[tA,"answers"],[tA?pct(tC,tA)+"%":"—","overall accuracy"]].map(([v,k])=>
@@ -186,7 +196,8 @@
       }
       const moreBtn=el("button",{type:"button",class:"ks-more",text:"Show older sessions",onclick:more});
       more();
-      const p=panel("Over time",totals,chart,el("div",{class:"panel-sep"}),list,moreBtn);
+      const p=panel("Over time · "+MODES[mode].replace(/ .*/,""),totals,chart,el("div",{class:"panel-sep"}),list,moreBtn,
+        other?el("p",{class:"ks-other"},el("a",{href:`?id=${other.id}`,text:`Your ${MODES[modeOf(other)].replace(/ .*/,"")} sessions →`})):null);
       // draw once it's in the DOM (needs the width), and again on resize / theme switch
       requestAnimationFrame(()=>drawChart(chart,sessions,curId));
       let w=0; new ResizeObserver(()=>{ if(chart.clientWidth!==w){ w=chart.clientWidth; drawChart(chart,sessions,curId); } }).observe(chart);
@@ -204,11 +215,12 @@
         const want=id!=null?id:sessions[sessions.length-1].id;
         return F.api("/v1/kyotsu/sessions/"+want).then(s=>{
           const answers=Array.isArray(s.answers)?s.answers:[];
+          const mode=modeOf(s), same=sessions.filter(x=>modeOf(x)===mode), other=sessions.filter(x=>modeOf(x)!==mode).pop();
           root.textContent="";
           const grid=el("div",{class:"ks-grid"},
             el("div",{class:"ks-col"},summary(s),missed(answers)),
-            el("div",{class:"ks-col"},patternStats(answers),speakerStats(answers)));
-          root.append(grid,overTime(sessions,s.id));
+            el("div",{class:"ks-col"},patternStats(answers,mode==="tokyo"?CATS_T:CATS),speakerStats(answers)));
+          root.append(grid,overTime(same,s.id,mode,other));
         },e=>{
           if(e.status===404) msg("That session wasn't found. ",el("a",{href:"?",text:"Show your latest session"}),".");
           else msg(e.message);

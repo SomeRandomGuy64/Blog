@@ -52,41 +52,49 @@ func round1(p *float64) *float64 {
 	return &v
 }
 
-// weekData is one logged week (a track_weeks row) with its hours and Kyōtsu results.
+// weekData is one logged week (a track_weeks row) with its hours and trainer results.
 type weekData struct {
-	key            week.Key
-	cents          map[string]map[int64]int64 // category → subcat id (0 = unassigned) → hundredths of an hour
-	kotu, kyotsu   scores                     // manual entries
-	auto           scores                     // from kyotsu_sessions
-	autoAnswers    [week.Days]int
-	ratings        map[string]int // category → 1–4 (😞 😐 👌 🔥); unrated categories absent
-	summary        string
-	summaryPrivate bool
-	updated        int64
+	key             week.Key
+	cents           map[string]map[int64]int64 // category → subcat id (0 = unassigned) → hundredths of an hour
+	kotu, kyotsu    scores                     // manual entries
+	auto            scores                     // from kyotsu_sessions (Keihan mode)
+	autoAnswers     [week.Days]int
+	kotuAuto        scores // from kyotsu_sessions in Tokyo mode (Kotu's pairs, hyojungo.go)
+	kotuAutoAnswers [week.Days]int
+	ratings         map[string]int // category → 1–4 (😞 😐 👌 🔥); unrated categories absent
+	summary         string
+	summaryPrivate  bool
+	updated         int64
 }
 
-// kyotsuEffective is the manual value per day, falling back to the trainer's results.
-func (d *weekData) kyotsuEffective() scores {
-	out := d.kyotsu
-	for i, v := range out {
+// kyotsuEffective is the manual value per day, falling back to the trainer's results;
+// kotuEffective the same for Kotu (the trainer's Tokyo mode).
+func (d *weekData) kyotsuEffective() scores { return effective(d.kyotsu, d.auto) }
+func (d *weekData) kotuEffective() scores   { return effective(d.kotu, d.kotuAuto) }
+
+func effective(manual, auto scores) scores {
+	for i, v := range manual {
 		if v == nil {
-			out[i] = d.auto[i]
+			manual[i] = auto[i]
 		}
 	}
-	return out
+	return manual
 }
 
-// kyotsuSource says where each effective Kyōtsu day value comes from: "manual", "auto" (the
-// trainer) or nil (no value).
-func (d *weekData) kyotsuSource() [week.Days]*string {
+// kyotsuSource / kotuSource say where each effective day value comes from: "manual", "auto"
+// (the trainer) or nil (no value).
+func (d *weekData) kyotsuSource() [week.Days]*string { return source(d.kyotsu, d.auto) }
+func (d *weekData) kotuSource() [week.Days]*string   { return source(d.kotu, d.kotuAuto) }
+
+func source(manual, auto scores) [week.Days]*string {
 	var out [week.Days]*string
-	manual, auto := "manual", "auto"
+	m, a := "manual", "auto"
 	for i := range out {
 		switch {
-		case d.kyotsu[i] != nil:
-			out[i] = &manual
-		case d.auto[i] != nil:
-			out[i] = &auto
+		case manual[i] != nil:
+			out[i] = &m
+		case auto[i] != nil:
+			out[i] = &a
 		}
 	}
 	return out
@@ -158,21 +166,22 @@ type weekSummary struct {
 	*weekDays
 }
 
-// weekDays is a week's day-by-day Kotu and (effective) Kyōtsu scores, for profile charts.
+// weekDays is a week's day-by-day (effective) Kotu and Kyōtsu scores, for profile charts.
 type weekDays struct {
 	Days         []string           `json:"days"` // label dates, as in week.DayLabels
 	KotuDays     scores             `json:"kotu_days"`
+	KotuSource   [week.Days]*string `json:"kotu_source"`
 	KyotsuDays   scores             `json:"kyotsu_days"`
 	KyotsuSource [week.Days]*string `json:"kyotsu_source"`
 }
 
 func (d *weekData) listItem() weekSummary {
 	return weekSummary{Week: d.key.String(), Totals: d.totals(), Subtotals: d.subtotals(),
-		Kotu: round1(d.kotu.mean()), Kyotsu: round1(d.kyotsuEffective().mean()), Ratings: d.ratingsOut()}
+		Kotu: round1(d.kotuEffective().mean()), Kyotsu: round1(d.kyotsuEffective().mean()), Ratings: d.ratingsOut()}
 }
 
 func (d *weekData) days() *weekDays {
-	return &weekDays{Days: d.key.DayLabels(), KotuDays: d.kotu, KyotsuDays: d.kyotsuEffective(), KyotsuSource: d.kyotsuSource()}
+	return &weekDays{Days: d.key.DayLabels(), KotuDays: d.kotuEffective(), KotuSource: d.kotuSource(), KyotsuDays: d.kyotsuEffective(), KyotsuSource: d.kyotsuSource()}
 }
 
 func idsJSON(ids []int64) string {
@@ -285,9 +294,9 @@ func (s *Server) loadWeeks(ctx context.Context, userIDs []int64, from, to week.K
 
 // kyotsuAuto adds each trainer session ending in from..to to its day in the week that target
 // returns (sessions in weeks it returns nil for are skipped), then turns the sums into
-// percentages.
+// percentages: Keihan-mode sessions into the Kyōtsu scores, Tokyo-mode ones into Kotu's.
 func (s *Server) kyotsuAuto(ctx context.Context, ids string, from, to week.Key, target func(int64, week.Key) *weekData) error {
-	rows, err := s.db.QueryContext(ctx, `SELECT user_id, ended_at, total, correct FROM kyotsu_sessions
+	rows, err := s.db.QueryContext(ctx, `SELECT user_id, ended_at, total, correct, mode = 'tokyo' FROM kyotsu_sessions
 		WHERE user_id IN (SELECT value FROM json_each(?)) AND ended_at >= ? AND ended_at < ?`,
 		ids, from.Start().Unix(), to.End().Unix())
 	if err != nil {
@@ -295,11 +304,16 @@ func (s *Server) kyotsuAuto(ctx context.Context, ids string, from, to week.Key, 
 	}
 	defer rows.Close()
 	type acc struct{ total, correct [week.Days]int }
-	sums := map[*weekData]*acc{}
+	type slot struct {
+		d     *weekData
+		tokyo bool
+	}
+	sums := map[slot]*acc{}
 	for rows.Next() {
 		var user, ended int64
 		var total, correct int
-		if err := rows.Scan(&user, &ended, &total, &correct); err != nil {
+		var tokyo bool
+		if err := rows.Scan(&user, &ended, &total, &correct, &tokyo); err != nil {
 			return err
 		}
 		t := time.Unix(ended, 0)
@@ -308,20 +322,24 @@ func (s *Server) kyotsuAuto(ctx context.Context, ids string, from, to week.Key, 
 		if d == nil {
 			continue
 		}
-		a := sums[d]
+		a := sums[slot{d, tokyo}]
 		if a == nil {
 			a = &acc{}
-			sums[d] = a
+			sums[slot{d, tokyo}] = a
 		}
 		i := k.DayIndex(t)
 		a.total[i] += total
 		a.correct[i] += correct
 	}
-	for d, a := range sums {
+	for sl, a := range sums {
+		pcts, answers := &sl.d.auto, &sl.d.autoAnswers
+		if sl.tokyo {
+			pcts, answers = &sl.d.kotuAuto, &sl.d.kotuAutoAnswers
+		}
 		for i := range a.total {
-			d.autoAnswers[i] = a.total[i]
+			answers[i] = a.total[i]
 			if a.total[i] > 0 {
-				d.auto[i] = round1(new(float64(a.correct[i]) / float64(a.total[i]) * 100))
+				pcts[i] = round1(new(float64(a.correct[i]) / float64(a.total[i]) * 100))
 			}
 		}
 	}
@@ -346,6 +364,8 @@ type weekDoc struct {
 	Kyotsu            scores             `json:"kyotsu"`
 	KyotsuAuto        scores             `json:"kyotsu_auto"`
 	KyotsuAutoAnswers [week.Days]int     `json:"kyotsu_auto_answers"`
+	KotuAuto          scores             `json:"kotu_auto"` // from the trainer's Tokyo mode
+	KotuAutoAnswers   [week.Days]int     `json:"kotu_auto_answers"`
 	Ratings           map[string]int     `json:"ratings"`
 	Goals             map[string]float64 `json:"goals"`      // owner only; write-once, see setGoals
 	GoalsOpen         bool               `json:"goals_open"` // goals can be set: this is the current week
@@ -354,7 +374,7 @@ type weekDoc struct {
 	Updated           *string            `json:"updated"`
 }
 
-// weekDoc is the full week for its owner; an unlogged week still gets its Kyōtsu auto scores.
+// weekDoc is the full week for its owner; an unlogged week still gets its trainer auto scores.
 func (s *Server) weekDoc(ctx context.Context, userID int64, k week.Key) (weekDoc, error) {
 	m, err := s.loadWeeks(ctx, []int64{userID}, k, k)
 	if err != nil {
@@ -394,6 +414,7 @@ func (s *Server) weekDoc(ctx context.Context, userID int64, k week.Key) (weekDoc
 		return cmp.Compare(ai, bi)
 	})
 	doc.Kotu, doc.Kyotsu, doc.KyotsuAuto, doc.KyotsuAutoAnswers = d.kotu, d.kyotsu, d.auto, d.autoAnswers
+	doc.KotuAuto, doc.KotuAutoAnswers = d.kotuAuto, d.kotuAutoAnswers
 	doc.Ratings = d.ratingsOut()
 	doc.GoalsOpen = k == week.Of(s.now())
 	if doc.Goals, err = s.goals(ctx, s.db, userID, k); err != nil {

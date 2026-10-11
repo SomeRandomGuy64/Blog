@@ -168,13 +168,15 @@ Add `?days=1` to any week endpoint (reads and writes) for the day-by-day scores 
 {
   "days": ["2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09"],
   "kotu_days": [80, null, 90, null, null, null, null],
+  "kotu_source": ["manual", null, "manual", null, null, null, null],
   "kyotsu_days": [null, 70, 90, null, null, null, null],
   "kyotsu_source": [null, "manual", "auto", null, null, null, null]
 }
 ```
 
-`kyotsu_source` says where each day's Kyōtsu value comes from: `"manual"` (entered on the site),
-`"auto"` (the trainer) or `null` (no value).
+`kotu_source` and `kyotsu_source` say where each day's value comes from: `"manual"` (entered on
+the site), `"auto"` (the Kyōtsu trainer: its Tokyo mode for Kotu, its Keihan mode for Kyōtsu) or
+`null` (no value).
 
 ## Endpoints
 

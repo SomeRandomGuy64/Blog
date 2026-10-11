@@ -1,9 +1,10 @@
 // /admin/ (layouts/admin/section.html): the users list for moderators and admins, with role
-// changes (admins), mute / unmute (moderators: regular users only) and account deletion
-// (admins; confirmed in the page by typing the user's name). Every control is only shown when
-// the row's "can" flags from the API allow it, and the API checks every rule again anyway.
+// changes (admins), mute / unmute (moderators: regular users only), Kyōtsu Tokyo-mode access
+// (admins; admins always have it) and account deletion (admins; confirmed in the page by typing
+// the user's name). Every control is only shown when the row's "can" flags from the API allow it,
+// and the API checks every rule again anyway.
 // Needs js/fazon-api.js. API: GET /v1/admin/users?q=&limit=&offset=, POST …/{id}/role,
-// POST …/{id}/mute|unmute, DELETE /v1/admin/users/{id}.
+// POST …/{id}/mute|unmute, POST …/{id}/hyojungo {on}, DELETE /v1/admin/users/{id}.
 (function () {
   "use strict";
   var F = window.Fazon, el = F && F.el, root = document.getElementById("adm");
@@ -43,6 +44,8 @@
         isAdmin ? "Admins can change roles, mute people and delete accounts. Moderators can delete any comment and mute or unmute regular users."
           : "Moderators can delete any comment and mute or unmute regular users."),
       el("p", { class: "adm-intro fz-muted", text: "Muted people can still read, like comments and use Track, but can't post comments or replies." }),
+      isAdmin ? el("p", { class: "adm-intro fz-muted", text: "Tokyo mode is the Kyōtsu trainer's Tokyo pitch mode, which uses Kotu's NHK accent-dictionary recordings. " +
+        "They aren't ours to share, so only admins and the accounts you turn it on for get it." }) : null,
       el("div", { class: "adm-bar" }, search, count),
       list, listErr, el("div", { class: "adm-foot" }, more));
 
@@ -90,6 +93,7 @@
         el("a", { href: F.profileHref(u), "data-user-card": String(u.id | 0), text: u.name || "User" }),
         a.role !== "user" ? el("span", { class: "adm-badge adm-role-" + a.role, text: ROLES[a.role] || a.role }) : null,
         a.muted ? el("span", { class: "adm-badge adm-muted", text: "Muted" }) : null,
+        isAdmin && a.hyojungo && !a.can.hyojungo ? el("span", { class: "adm-badge", text: "Tokyo mode", title: "Can use the Kyōtsu trainer's Tokyo mode (admins always can)" }) : null,
         self ? el("span", { class: "fz-muted adm-self", text: "(you)" }) : null);
       var meta = el("div", { class: "adm-meta" },
         el("span", { text: "Joined " + fmtDate(a.joined) }),
@@ -126,6 +130,17 @@
           }, function (e) { mute.disabled = false; fail(e); });
         });
         ctl.appendChild(mute);
+      }
+      if (a.can.hyojungo) {
+        var tok = el("button", { type: "button", class: "fz-btn adm-tokyo", text: "Tokyo mode: " + (a.hyojungo ? "On" : "Off"), "aria-pressed": a.hyojungo ? "true" : "false",
+          title: (a.hyojungo ? "Turn off" : "Turn on") + " the Kyōtsu trainer's Tokyo mode for " + (u.name || "this user") });
+        tok.addEventListener("click", function () {
+          tok.disabled = true; err.textContent = "";
+          F.api("/v1/admin/users/" + u.id + "/hyojungo", { method: "POST", body: { on: !a.hyojungo } }).then(function (d) {
+            var b = replace(d.user).querySelector(".adm-tokyo"); if (b) b.focus();
+          }, function (e) { tok.disabled = false; fail(e); });
+        });
+        ctl.appendChild(tok);
       }
       if (a.can.delete) {
         var del = el("button", { type: "button", class: "fz-btn adm-danger", text: "Delete account…",

@@ -356,7 +356,7 @@ func TestAdminPermissionMatrix(t *testing.T) {
 	// depth: with one admin the actor is that admin, so the self rule already applies).
 	admin := &user{ID: 1, Role: db.RoleAdmin, Admin: true}
 	eq(t, "last admin", rightsOver(admin, 2, db.RoleAdmin, 1), adminRights{})
-	eq(t, "two admins", rightsOver(admin, 2, db.RoleAdmin, 2), adminRights{true, true, true})
+	eq(t, "two admins", rightsOver(admin, 2, db.RoleAdmin, 2), adminRights{Role: true, Mute: true, Delete: true})
 	eq(t, "mod over user", rightsOver(&user{ID: 1, Role: db.RoleModerator}, 2, db.RoleUser, 1), adminRights{Mute: true})
 	eq(t, "user", rightsOver(&user{ID: 1, Role: db.RoleUser}, 2, db.RoleUser, 1), adminRights{})
 }
@@ -396,13 +396,13 @@ func TestAdminList(t *testing.T) {
 	}
 	eq(t, "last active", a["last_active"], any("2026-10-11T12:00:00Z"))
 	eq(t, "track public", a["track_public"], any(true))
-	eq(t, "can", fmt.Sprint(a["can"]), "map[delete:true mute:true role:true]")
+	eq(t, "can", fmt.Sprint(a["can"]), "map[delete:true hyojungo:true mute:true role:true]")
 	eq(t, "bob track hidden", find(out, e.bob.id)["track_public"], any(false))
 	um := find(out, uma.id)
 	eq(t, "muted", um["muted"], any(true))
 	eq(t, "muted at", um["muted_at"], any("2026-10-11T12:00:00Z"))
 	eq(t, "muted by", fmt.Sprint(um["muted_by"]), fmt.Sprintf("map[id:%d name:Mo]", mod.id))
-	eq(t, "self", fmt.Sprint(find(out, e.admin.id)["can"]), "map[delete:false mute:false role:false]")
+	eq(t, "self", fmt.Sprint(find(out, e.admin.id)["can"]), "map[delete:false hyojungo:false mute:false role:false]")
 	if _, ok := find(out, e.alice.id)["user"].(map[string]any)["level"]; !ok {
 		t.Fatal("rows carry the public user (avatar, level)")
 	}
@@ -415,8 +415,8 @@ func TestAdminList(t *testing.T) {
 	}
 	var mo map[string]any
 	json.Unmarshal(rec.Body.Bytes(), &mo)
-	eq(t, "mod can on user", fmt.Sprint(find(mo, e.alice.id)["can"]), "map[delete:false mute:true role:false]")
-	eq(t, "mod can on admin", fmt.Sprint(find(mo, e.admin.id)["can"]), "map[delete:false mute:false role:false]")
+	eq(t, "mod can on user", fmt.Sprint(find(mo, e.alice.id)["can"]), "map[delete:false hyojungo:false mute:true role:false]")
+	eq(t, "mod can on admin", fmt.Sprint(find(mo, e.admin.id)["can"]), "map[delete:false hyojungo:false mute:false role:false]")
 	eq(t, "mod search by email", mod.mustStatus(200, "GET", "/v1/admin/users?q=alice%40", nil)["total"], any(0.0))
 	eq(t, "mod search by name", mod.mustStatus(200, "GET", "/v1/admin/users?q=ALI", nil)["total"], any(1.0))
 	eq(t, "admin search by email", e.admin.mustStatus(200, "GET", "/v1/admin/users?q=alice%40example", nil)["total"], any(1.0))
