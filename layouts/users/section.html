@@ -83,7 +83,7 @@
           bioBox.replaceWith(form); tools.hidden=true; upd(); ta.focus();
           const close=()=>{ form.replaceWith(bioBox); paintBio(); tools.hidden=false; bioBtn.focus(); };
           const submit=()=>{
-            const v=ta.value.replace(/\s+$/,"").replace(/^\s*\n/,"");
+            const v=ta.value.replace(/\r\n/g,"\n").trim();   // same as the server's normalizeBio, so what's shown matches what's stored
             if(runes(v)>BIO_MAX||v.split("\n").length>BIO_LINES) return;
             save.disabled=true; save.textContent="Saving…"; err.textContent="";
             F.api("/v1/me/profile",{method:"POST",body:{bio:v}}).then(d=>{

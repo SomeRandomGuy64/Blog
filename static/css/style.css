@@ -601,12 +601,13 @@ a.notif { display: flex; gap: 12px; align-items: flex-start; }
 .fz-uc-left { flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 120px; }
 .fz-uc-left .fz-av { margin-bottom: 8px; }
 .fz-uc-level { color: var(--fz-accent); font-weight: 700; }
-.fz-uc-next { color: var(--fz-muted); font-size: 0.85em; text-align: center; }
+.fz-uc-next { color: var(--fz-muted); font-size: 0.85em; text-align: center; text-wrap: balance; }
 .fz-uc-right { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .fz-uc-name, .fz-uc-name:visited, .light-mode .fz-uc-name, .light-mode .fz-uc-name:visited {
     color: var(--text-color); font-size: 1.15em; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 .fz-uc-name:hover span:first-child { color: var(--fz-accent); }
+.fz-uc-name span:first-child { min-width: 0; overflow-wrap: anywhere; }   /* long unbroken names wrap inside the card */
 .fz-uc-name .cmt-tag { font-size: 0.65em; font-weight: 400; }
 .fz-uc-bio { white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
 .fz-uc-meta { color: var(--fz-muted); font-size: 0.88em; }

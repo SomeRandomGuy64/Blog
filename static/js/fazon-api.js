@@ -38,6 +38,7 @@
       init.body = JSON.stringify(opts.body);
     }
     if (opts.keepalive) init.keepalive = true;
+    if (opts.cache) init.cache = opts.cache;   // e.g. "reload": skip the HTTP cache but refresh it
     return fetch(BASE + path, init).then(function (res) {
       return res.text().then(function (txt) {
         var data = null;
@@ -190,11 +191,14 @@
   // stays open while the pointer is over the card, closes ~200ms after leaving; Escape closes;
   // also opens on keyboard focus. Touch: nothing — taps just follow the profile link. ----
   var cardCache = {};   // id → Promise of the /card response, for the page lifetime
-  function fetchCard(id) {
-    if (!cardCache[id]) cardCache[id] = api("/v1/users/" + id + "/card").catch(function (e) { delete cardCache[id]; throw e; });
+  function fetchCard(id, fresh) {
+    if (!cardCache[id] || fresh) cardCache[id] = api("/v1/users/" + id + "/card", fresh ? { cache: "reload" } : undefined)
+      .catch(function (e) { delete cardCache[id]; throw e; });
     return cardCache[id];
   }
-  function invalidateCard(id) { if (id != null) delete cardCache[id | 0]; }
+  // after the user edits their own profile: refetch past the browser's HTTP cache (the API lets
+  // it keep cards for 60s), which also refreshes that cache, so other pages don't show the old card
+  function invalidateCard(id) { if (id != null) fetchCard(id | 0, true).catch(function () {}); }
   var hoverOK = window.matchMedia ? window.matchMedia("(hover: hover)") : { matches: false };
   var uc = { el: null, trigger: null, id: 0, openT: 0, closeT: 0, seq: 0 };
   function ucEl() {
@@ -209,6 +213,7 @@
   function ucPlace() {
     if (!uc.el || uc.el.hidden || !uc.trigger || !uc.trigger.isConnected) return;
     var r = uc.trigger.getBoundingClientRect(), vw = document.documentElement.clientWidth, vh = window.innerHeight;
+    if (r.bottom < 0 || r.top > vh) { ucClose(); return; }   // trigger scrolled out of view: don't leave the card stranded
     var w = uc.el.offsetWidth, h = uc.el.offsetHeight, m = 8;
     var top = r.bottom + m;                                   // below; flip above if it doesn't fit
     if (top + h > vh - m && r.top - m - h >= m) top = r.top - m - h;
