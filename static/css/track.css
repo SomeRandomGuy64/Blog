@@ -20,6 +20,7 @@
     --tk-s1: #3987e5; --tk-s2: #d95926; --tk-s3: #199e70; --tk-s4: #c98500;
     --tk-s5: #d55181; --tk-s6: #008300; --tk-s7: #9085e9; --tk-s8: #e66767;
     --tk-other: #7a7a76;
+    --fc-est: #ff5370;
     --fc-grid: #262626;
     --fc-axis: #444;
     --fc-ink: #eee;
@@ -38,6 +39,7 @@
     --tk-s1: #2a78d6; --tk-s2: #eb6834; --tk-s3: #1baf7a; --tk-s4: #eda100;
     --tk-s5: #e87ba4; --tk-s6: #008300; --tk-s7: #4a3aa7; --tk-s8: #e34948;
     --tk-other: #9a9993;
+    --fc-est: #be123c;
     --fc-grid: #d8d8d8;
     --fc-axis: #b8b8b8;
     --fc-ink: #111;
@@ -71,6 +73,16 @@ a:hover .fc-lbl, a:focus .fc-lbl { fill: var(--fz-accent); }
 .fc-dot { stroke: var(--fc-surface); stroke-width: 2; }
 .fc-cross { stroke: var(--fc-axis); stroke-width: 1; shape-rendering: crispEdges; pointer-events: none; }
 .fc-hover-dot { stroke: var(--fc-surface); stroke-width: 2; pointer-events: none; }
+/* estimates across missing data (lines estimateGaps): dashed red, hollow hover dot, italic tooltip row.
+   --fc-est: a rose-red kept apart from the Kyōtsu orange — light #be123c clears the validator against
+   blue + orange (normal-vision ΔE 17.6, CVD 16.4); in dark no red is ≥ 3:1 on the surface and ≥ 15 from
+   the orange, so #ff5370 trades lightness for it (ΔE 11.0, CVD 8.1) and the dash + legend + "estimate"
+   label carry the distinction (never hue alone). */
+.fc-est { stroke-width: 2; stroke-dasharray: 5 4; stroke-linecap: butt; }
+.fc-est-dot { fill: var(--fc-surface); }
+.fc-sw.line.est { width: 18px; border-radius: 0; }
+.fc-tip-r.est { font-style: italic; }
+.fc-tip-r.est .fc-tip-k { border-radius: 0; }
 .fc-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.8em; margin: 0 0 8px; }
 .fc-legend:empty { display: none; }
 .fc-li { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
@@ -208,6 +220,107 @@ a:hover .fc-lbl, a:focus .fc-lbl { fill: var(--fz-accent); }
 .tk-settings { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; justify-content: space-between; font-size: 0.88em; }
 .tk-settings label { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; }
 
+/* ==== logger: ratings, goals, stopwatch, admin end-week (fazon-track.js initLogger) ==== */
+.tk [hidden] { display: none !important; }   /* the flex rules below must not beat the hidden attribute */
+.tk-ico { display: block; flex: none; }
+.fz-btn.tk-danger { background: var(--fz-bad); border-color: var(--fz-bad); color: #fff; }
+.fz-btn.tk-danger:hover:not(:disabled) { filter: brightness(1.08); }
+/* in-page confirmation (goals, end week) */
+.tk-confirm { padding: 10px 12px; border: 1px solid var(--fz-accent); border-radius: 8px; background: var(--fz-accent-soft); }
+.tk-confirm p { margin: 0 0 8px; font-size: 0.88em; }
+.tk-confirm-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* rating row at the foot of each category card: 😞 😐 👌 🔥, unpicked ones greyed out */
+.tk-rate { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--fz-line); }
+.tk-rate-l { flex: 1; min-width: 0; font-size: 0.92em; color: var(--fz-muted); }
+.tk-rate-btns { display: flex; gap: 4px; }
+.tk-rate-btn {
+    width: 38px; height: 32px; padding: 0; border-radius: 8px; font: inherit; font-size: 1.05em; line-height: 1; cursor: pointer;
+    background: transparent; border: 1px solid var(--fz-line); filter: grayscale(1); opacity: 0.5;
+    transition: opacity 0.1s ease, filter 0.1s ease;
+}
+.tk-rate-btn:hover { opacity: 0.9; filter: none; border-color: var(--fz-accent); }
+.tk-rate-btn[aria-pressed="true"] { opacity: 1; filter: none; background: var(--fz-accent-soft); border-color: var(--fz-accent); }
+.tk-rate-btn:focus-visible { outline: 2px solid var(--fz-accent); outline-offset: 2px; }
+
+/* goal progress under a category's heading */
+.tk-goal { margin: 2px 0 10px; }
+.tk-goal-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 0.85em; }
+.tk-goal-l { color: var(--fz-muted); min-width: 0; }
+.tk-goal-l b { color: var(--text-color); font-variant-numeric: tabular-nums; }
+.tk-goal-ic { margin-right: 5px; }
+.tk-goal-pct { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tk-goal.met .tk-goal-pct { color: var(--fz-accent); }
+.tk-goal.met .tk-goal-pct::before { content: "✓ "; }
+.tk-goal-bar { height: 6px; margin-top: 4px; border-radius: 3px; background: var(--fz-line); overflow: hidden; }
+.tk-goal-fill { display: block; height: 100%; width: 0; border-radius: 3px; transition: width 0.2s ease; }
+
+/* "Set goals" card + its inline panel */
+.tk-goals-h { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; }
+.tk-goals-t { display: flex; flex-direction: column; min-width: 0; }
+.tk-goals-t span { font-size: 0.8em; }
+.tk-goals-note { margin: 8px 0 0; font-size: 0.85em; color: var(--fz-accent); }
+.tk-goals-note.bad { color: var(--fz-bad); }
+.tk-goals-note:empty { display: none; }
+.tk-goals-panel { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--fz-line); }
+.tk-goal-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.tk-goal-name { flex: 1; min-width: 0; font-size: 0.92em; overflow-wrap: anywhere; }
+.tk-goal-row.locked .tk-goal-name { color: var(--fz-muted); }
+.tk-goal-lock { font-size: 0.9em; font-variant-numeric: tabular-nums; color: var(--fz-muted); white-space: nowrap; padding: 0.3em 0; }
+.tk-goal-warn { margin: 10px 0; padding: 8px 10px; font-size: 0.82em; border-left: 3px solid var(--tk-phonetic); border-radius: 4px; background: rgba(201, 133, 0, 0.13); }
+.tk-goal-warn b { margin-right: 4px; }
+.tk-goal-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.tk-goal-acts .tk-confirm { flex: 1; }
+
+/* stopwatch: ▶ in each hours row; the running row gets a line under it */
+.tk-sw-start {
+    flex: none; box-sizing: border-box; width: 30px; height: 30px; padding: 0 0 0 2px; border-radius: 50%; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--fz-muted); background: transparent; border: 1px solid var(--fz-line);
+}
+.tk-sw-start:hover { color: var(--fz-accent); border-color: var(--fz-accent); }
+.tk-sw-start:focus-visible, .tk-sw-btn:focus-visible { outline: 2px solid var(--fz-accent); outline-offset: 2px; }
+.tk-sw-btn { display: inline-flex; align-items: center; gap: 6px; padding: 0.3em 0.8em; white-space: nowrap; }
+.tk-sw-live {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin: 0 0 6px; padding: 6px 8px 6px 10px;
+    border-radius: 8px; background: var(--fz-accent-soft);
+}
+.tk-sw-time { font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.tk-sw-state { font-size: 0.8em; color: var(--fz-muted); }
+.tk-sw-live .tk-sw-state { margin-right: auto; }
+.tk-sw-btns { display: flex; gap: 6px; margin-left: auto; }   /* the two buttons wrap together */
+.tk-sw-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--fz-bad); animation: tk-sw-pulse 1.4s ease-in-out infinite; }
+.paused .tk-sw-dot { background: var(--fz-muted); animation: none; }
+@keyframes tk-sw-pulse { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .tk-sw-dot { animation: none; } }
+/* banner at the top of the logger when the stopwatch's row isn't on screen (another week) or a message is due */
+.tk-swbar { padding: 10px 14px; border: 1px solid var(--fz-accent); border-radius: 10px; background: var(--fz-surface); box-shadow: inset 0 0 0 100vmax var(--fz-accent-soft); }
+.tk-swbar-main { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.tk-swbar-l { flex: 1 1 12em; min-width: 0; font-size: 0.88em; overflow-wrap: anywhere; }
+.tk-swbar-btns { display: flex; gap: 6px; margin-left: auto; }
+.tk-swbar-msg { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 0.85em; color: var(--fz-accent); }
+.tk-swbar-msg.bad { color: var(--fz-bad); }
+.tk-swbar-msg .fz-linkbtn { text-decoration: underline; }
+.tk-swbar-main:not([hidden]) + .tk-swbar-msg { margin-top: 6px; }
+
+/* admin: end the week early */
+.tk-admin-h { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.tk-admin-tag { font-size: 0.68em; text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--fz-accent); color: var(--fz-accent); }
+.tk-admin-line { margin: 0 0 8px; font-size: 0.88em; }
+.tk-admin-ended { color: var(--fz-accent); }
+.tk-admin-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.tk-admin .tk-confirm { margin-top: 10px; }
+.tk-admin .tk-err { margin: 6px 0 0; }
+.tk-admin-note { margin: 6px 0 0; font-size: 0.85em; color: var(--fz-accent); }
+.tk-admin-note:empty { display: none; }
+@media (max-width: 480px) {
+    .tk-row { gap: 6px; }
+    .tk-rate-btn { width: 36px; }
+    .tk-sw-live { gap: 6px; padding: 6px 6px 6px 8px; }
+    .tk-sw-btn { padding: 0.3em 0.6em; gap: 5px; }
+}
+/* ==== end logger: ratings, goals, stopwatch, admin ==== */
+
 /* ---- leaderboard ---- */
 .lb-controls { display: flex; flex-direction: column; gap: 10px; }
 .lb-ctl { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; }
@@ -262,4 +375,91 @@ a:hover .fc-lbl, a:focus .fc-lbl { fill: var(--fz-accent); }
     .tk-scores { gap: 6px; }
     .lb-table td, .lb-table th { padding: 5px 4px; }
     .lb-user { gap: 6px; }
+}
+
+/* =====================================================================================
+   Leaderboard: totals metrics, expandable rows, goal achievers (js/fazon-track.js, initLeaderboard)
+   All / Exclude Passive are sums, not categories, so they take no category hue: All is a neutral
+   ink, Exclude Passive a cyan that sits outside the six category hues. They only ever colour a
+   single-series chart (never side by side with the categories); both ≥ 3:1 on the card surface
+   (dataviz validator, #1a1a1a / #fff).
+   ===================================================================================== */
+:root { --tk-all: #a9a8a1; --tk-nopassive: #00a3bf; }
+.light-mode { --tk-all: #6b6a65; --tk-nopassive: #0089a3; }
+
+.lb-note { font-size: 0.78em; color: var(--fz-muted); margin: 4px auto 0; text-align: center; max-width: 40em; }
+.lb-table th[aria-sort] { color: var(--text-color); }
+.lb-table td.lb-sel { font-weight: 700; }
+.lb-unit { font-size: 0.85em; color: var(--fz-muted); }
+.lb-table .lb-tg { width: 34px; padding-left: 0; padding-right: 0; text-align: right; }
+.lb-toggle {
+    width: 30px; height: 30px; padding: 0; border-radius: 6px; font: inherit; line-height: 1; cursor: pointer;
+    color: var(--fz-muted); background: transparent; border: 1px solid var(--fz-line);
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.lb-toggle::before { content: ""; width: 7px; height: 7px; border: solid currentColor; border-width: 0 2px 2px 0; transform: translateY(-2px) rotate(45deg); transition: transform 0.15s ease; }
+.lb-toggle[aria-expanded="true"]::before { transform: translateY(2px) rotate(-135deg); }
+.lb-toggle:hover, .lb-toggle[aria-expanded="true"] { border-color: var(--fz-accent); color: var(--text-color); }
+.lb-toggle:focus-visible { outline: 2px solid var(--fz-accent); outline-offset: 2px; }
+.lb-table tr.lb-row.open td { border-bottom-color: transparent; }
+.lb-table tr.lb-det-row > td { padding: 0 8px 12px; }
+.lb-table tr.lb-det-row.me > td { background: var(--fz-accent-soft); }
+.lb-det { border: 1px solid var(--fz-line); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.lb-stats { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0; }
+.lb-stat { display: flex; flex-direction: column; min-width: 0; }
+.lb-stat dt { font-size: 0.75em; color: var(--fz-muted); }
+.lb-stat dd { margin: 0; font-weight: 700; font-size: 1.1em; font-variant-numeric: tabular-nums; }
+.lb-stat.lb-all dt::before, .lb-stat.lb-nop dt::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; background: var(--tk-all); }
+.lb-stat.lb-nop dt::before { background: var(--tk-nopassive); }
+.lb-stack { display: flex; gap: 2px; height: 10px; border-radius: 4px; overflow: hidden; }
+.lb-stack span { flex: 1 1 0; min-width: 3px; }
+.lb-cats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(11.5em, 1fr)); gap: 4px 20px; font-size: 0.88em; }
+.lb-cats li { display: flex; align-items: center; gap: 0; min-width: 0; }
+.lb-cats li.zero { color: var(--fz-muted); }
+.lb-cat-n { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.lb-cat-v { font-variant-numeric: tabular-nums; }
+.lb-cats li:not(.zero) .lb-cat-v { font-weight: 700; }
+.lb-rate { flex: none; width: 1.6em; text-align: right; }
+.lb-sum-h { margin: 0 0 4px; font-size: 0.78em; color: var(--fz-muted); }
+.lb-sum .sm-text { margin-top: 0; }
+.lb-sum-none { margin: 0; }
+
+.lb-goals h2 { margin-bottom: 4px; }
+.lb-goals-intro { margin: 0 0 10px; }
+.lb-tier h3 { font-size: 0.82em; font-weight: 400; color: var(--fz-muted); margin: 0 0 4px; }
+.lb-tier.t2 { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--fz-line); }
+.lb-gl { list-style: none; margin: 0; padding: 0; }
+.lb-gi { border-bottom: 1px solid var(--fz-line); }
+.lb-gi:last-child { border-bottom: 0; }
+.lb-gi.me { background: var(--fz-accent-soft); }
+.lb-gi-row { display: flex; align-items: center; gap: 8px 10px; padding: 6px 0; min-width: 0; }
+.lb-gi .lb-rank { flex: none; width: 1.6em; text-align: right; color: var(--fz-muted); font-variant-numeric: tabular-nums; font-size: 0.9em; }
+.lb-gi-name { flex: 1; min-width: 0; font-size: 0.9em; }
+.lb-gi-stats { display: flex; flex-direction: column; align-items: flex-end; flex: none; line-height: 1.25; }
+.lb-gpct { font-variant-numeric: tabular-nums; }
+.lb-gpct.neg { color: var(--fz-muted); }
+.lb-gcnt { font-size: 0.75em; color: var(--fz-muted); white-space: nowrap; }
+.lb-gd { list-style: none; margin: 0 0 8px calc(1.6em + 10px); padding: 8px 12px; border: 1px solid var(--fz-line); border-radius: 8px; font-size: 0.85em; display: flex; flex-direction: column; gap: 4px; }
+.lb-gd[hidden] { display: none; }
+.lb-gd li { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 8px; }
+.lb-gd-n { min-width: 5.5em; }
+.lb-gd-v { flex: 1; color: var(--fz-muted); font-variant-numeric: tabular-nums; }
+.lb-gd-v b { color: var(--text-color); }
+.lb-gd-m { flex: none; font-weight: 700; }
+.lb-gd li.met .lb-gd-m { color: #4caf50; }
+.light-mode .lb-gd li.met .lb-gd-m { color: #2e7d32; }
+.lb-gd li.miss .lb-gd-m { color: var(--fz-bad); }
+
+@media (max-width: 480px) {
+    .lb-table .lb-wk { display: none; }
+    .lb-table .lb-name .fz-av { display: none; }   /* room for the name next to four number columns */
+    .lb-table { font-size: 0.85em; }
+    .lb-stats { gap: 8px 16px; }
+    .lb-table tr.lb-det-row > td { padding: 0 0 10px; }
+    .lb-det { padding: 10px; }
+    .lb-unit { display: block; }
+    .lb-gd { margin-left: 0; padding: 8px 10px; }
+    .lb-gd-n { min-width: 4.6em; }
+    .lb-gd li { flex-wrap: nowrap; }
+    .lb-gd-v { min-width: 0; }
 }

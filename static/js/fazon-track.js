@@ -38,7 +38,7 @@
   // =====================================================================================
   T.initLogger = function (root) {
     var cfg = null, cur = null, key = null, wk = null, st = null, base = "", saving = false, savedAt = null, saveErr = "";
-    var ui = {}, stripData = null, stripRange = null, openMenu = null, showErrs = false;
+    var ui = {}, stripData = null, stripRange = null, openMenu = null, showErrs = false, saveP = null, uid = 0;
 
     function msg() {
       root.textContent = "";
@@ -51,7 +51,8 @@
     function subById(id) { return (cfg.subcats || []).filter(function (s) { return s.id === id; })[0] || null; }
 
     function fromServer(w) {
-      var s = { hours: {}, kotu: [], kyotsu: [], summary: w.summary || "", priv: !!w.summary_private };
+      var s = { hours: {}, kotu: [], kyotsu: [], summary: w.summary || "", priv: !!w.summary_private, ratings: {} };
+      CATS.forEach(function (c) { var v = w.ratings && w.ratings[c.id]; if (v >= 1 && v <= 4) s.ratings[c.id] = v | 0; });
       (w.hours || []).forEach(function (h) { if (num(h.hours) && h.hours > 0) s.hours[hk(h.category, h.subcat)] = inputH(h.hours); });
       for (var i = 0; i < 7; i++) {
         s.kotu.push(num(w.kotu && w.kotu[i]) ? String(w.kotu[i]) : "");
@@ -84,7 +85,7 @@
       });
       var sumLen = runes(st.summary);
       if (sumLen > SUMMARY_MAX) { out.errs.summary = "Too long"; out.ok = false; }
-      out.norm = JSON.stringify([normH, out.kotu, out.kyotsu, st.summary.trim(), st.priv]);
+      out.norm = JSON.stringify([normH, out.kotu, out.kyotsu, st.summary.trim(), st.priv, CATS.map(function (c) { return st.ratings[c.id] || 0; })]);
       out.kotuAvg = T.mean(out.kotu);
       out.kyotsuAvg = T.mean(out.kyotsu.map(function (v, i) { return num(v) ? v : (wk.kyotsu_auto ? wk.kyotsu_auto[i] : null); }));
       return out;
@@ -104,7 +105,7 @@
       if (ui.form) ui.form.style.opacity = "0.5";
       return F.api("/v1/track/weeks/" + k).then(function (w) {
         wk = w; key = w.week || k; st = fromServer(w); base = compute().norm;
-        savedAt = null; saveErr = ""; showErrs = false;
+        savedAt = null; saveErr = ""; showErrs = false; goalUI = { open: false, vals: {} };
         var u = new URL(location.href);
         if (key === cur) u.searchParams.delete("week"); else u.searchParams.set("week", key);
         history.replaceState(null, "", u.pathname + u.search + u.hash);
@@ -160,7 +161,7 @@
       var focusF = document.activeElement && document.activeElement.getAttribute && document.activeElement.getAttribute("data-f");
       closeMenu();
       root.textContent = "";
-      ui = { cats: {}, fields: {}, errs: {}, tot: {}, catErr: {} };
+      ui = { cats: {}, fields: {}, errs: {}, tot: {}, catErr: {}, goal: {}, sw: {} };
 
       // navigator
       var prev = el("button", { type: "button", class: "tk-nav-btn", "aria-label": "Previous week", text: "‹", disabled: key <= "2000-01-01" });
@@ -211,9 +212,13 @@
         pubErr,
         el("a", { href: "/track/leaderboard/", text: "See the leaderboard →" }));
 
-      root.append(nav, ui.form, bar, settings);
+      root.append(swBar(), nav);
+      var gc = goalsCard(); if (gc) root.appendChild(gc);
+      root.append(ui.form, bar, settings);
+      var ac = adminCard(); if (ac) root.appendChild(ac);
       paintStrip();
       refresh();
+      paintSw();
       if (focusF) { var f = root.querySelector('[data-f="' + focusF + '"]'); if (f) f.focus({ preventScroll: true }); }
     }
 
@@ -221,6 +226,7 @@
       var sec = el("section", { class: "tk-card tk-cat", "aria-label": c.label });
       var tot = ui.tot[c.id] = el("span", { class: "tk-cat-tot" });
       sec.appendChild(el("div", { class: "tk-cat-h" }, el("h3", {}, (function () { var d = el("span", { class: "tk-dotc" }); d.style.background = T.catColor(c.id); return d; })(), c.label), tot));
+      var gl = goalLine(c); if (gl) sec.appendChild(gl);
       var all = subs(c.id), live = all.filter(function (s) { return !s.archived; });
       var archived = all.filter(function (s) { return s.archived; });
       // archived ones still show when this week has hours for them; unknown ids too
@@ -233,6 +239,7 @@
       shown.forEach(function (s) { sec.appendChild(row(c, s)); });
       sec.appendChild(row(c, null, live.length || shown.length ? "Other / unassigned" : "Hours"));
       sec.appendChild(ui.catErr[c.id] = el("div", { class: "tk-err", role: "alert" }));
+      sec.appendChild(rateRow(c));
 
       // footer: + add, archived list
       var foot = el("div", { class: "tk-cat-foot" });
@@ -278,7 +285,7 @@
     }
     function rerenderCat(c) {
       var old = ui.cats[c.id], fresh = catSection(c);
-      old.replaceWith(fresh); ui.cats[c.id] = fresh; refresh();
+      old.replaceWith(fresh); ui.cats[c.id] = fresh; refresh(); paintSw();
     }
 
     function row(c, s, noneLabel) {
@@ -294,7 +301,10 @@
       ui.fields[f] = inp;
       var name = el("span", { class: "tk-row-name" + (s ? "" : " none") }, s ? s.name : noneLabel,
         s && s.archived ? el("span", { class: "tk-tag", text: "archived" }) : null);
-      var r = el("div", { class: "tk-row" }, name, inp, el("span", { class: "tk-unit", text: "h" }));
+      var r = el("div", { class: "tk-row" }, name);
+      var swRow = key === cur ? swRowControls(c, s, noneLabel, k) : null;   // stopwatch: the current week only
+      if (swRow) r.appendChild(swRow.start);
+      r.append(inp, el("span", { class: "tk-unit", text: "h" }));
       if (s && !s.unknown) {
         var btn = el("button", { type: "button", class: "tk-menu-btn", "aria-haspopup": "true", "aria-expanded": "false", "aria-label": "Manage " + s.name, text: "⋯" });
         var menu = el("div", { class: "tk-menu", hidden: true, role: "menu" });
@@ -310,7 +320,7 @@
         r.append(btn, menu);
       } else r.appendChild(el("span", { class: "tk-menu-btn ph", "aria-hidden": "true" }));
       ui.errs[f] = el("div", { class: "tk-err", role: "alert" });
-      var wrap = el("div", {}, r, ui.errs[f]);
+      var wrap = el("div", {}, r, swRow ? swRow.live : null, ui.errs[f]);
       return wrap;
     }
 
@@ -428,6 +438,14 @@
         t.textContent = T.fmtH(r.catTotal[c.id] || 0);
         t.classList.toggle("bad", !!r.catErr[c.id]);
         ui.catErr[c.id].textContent = r.catErr[c.id] || "";
+        var g = ui.goal[c.id]; if (!g) return;   // goal progress follows the form, saved or not
+        // rounded down (on exact hundredths), so 99.6% never reads as a met 100%
+        var have = r.catTotal[c.id] || 0, pc = Math.floor(Math.round(have * 100) / g.g + 1e-9), w = Math.min(100, pc);
+        g.pct.textContent = pc + "%";
+        g.fill.style.width = w + "%";
+        g.box.classList.toggle("met", have >= g.g);
+        g.bar.setAttribute("aria-valuenow", String(w));
+        g.bar.setAttribute("aria-valuetext", T.fmtHM(have) + " of " + T.fmtHM(g.g) + " (" + pc + "%)");
       });
       Object.keys(ui.fields).forEach(function (f) {
         var bad = r.errs[f], inp = ui.fields[f], show = bad && (showErrs || document.activeElement !== inp);
@@ -452,25 +470,478 @@
       ui.save.disabled = saving || !r.ok || !d;
     }
 
+    // → Promise<boolean> (true = saved); while a save runs, saveP is it
     function save() {
-      if (saving || !st) return;
+      if (saving) return saveP;
+      if (!st) return Promise.resolve(false);
       var r = compute();
       showErrs = true;
-      if (!r.ok) { refresh(); var bad = root.querySelector(".bad"); if (bad && bad.focus) bad.focus(); return; }
-      if (r.norm === base) return;
+      if (!r.ok) { refresh(); var bad = root.querySelector(".tk-form .bad"); if (bad && bad.focus) bad.focus(); return Promise.resolve(false); }
+      if (r.norm === base) return Promise.resolve(true);
       saving = true; saveErr = ""; refresh();
-      var body = { hours: r.hours, kotu: r.kotu, kyotsu: r.kyotsu, summary: st.summary.trim(), summary_private: !!st.priv };
-      F.api("/v1/track/weeks/" + key, { method: "POST", body: body }).then(function (w) {
-        saving = false; wk = w; st = fromServer(w); base = compute().norm;
+      var ratings = {}, sk = key;
+      CATS.forEach(function (c) { if (st.ratings[c.id]) ratings[c.id] = st.ratings[c.id]; });
+      var body = { hours: r.hours, kotu: r.kotu, kyotsu: r.kyotsu, ratings: ratings, summary: st.summary.trim(), summary_private: !!st.priv };
+      return (saveP = F.api("/v1/track/weeks/" + sk, { method: "POST", body: body }).then(function (w) {
+        saving = false;
+        if (key !== sk) return true;   // navigated away meanwhile
+        wk = w; st = fromServer(w); base = compute().norm;
         savedAt = new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
         render(); loadStrip(true);
+        return true;
       }, function (e) {
         saving = false;
+        if (key !== sk) return false;
         if (e.status === 401) saveErr = "Your login has expired — log in again in another tab, then save.";
         else saveErr = "Couldn't save: " + e.message;
         refresh();
+        return false;
+      }));
+    }
+
+    // ---- small shared bits for ratings / goals / stopwatch / admin ----
+    var SVGNS = "http://www.w3.org/2000/svg";
+    var ICON = { play: "M4 2.5v11l9-5.5z", pause: "M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z", stop: "M3 3h10v10H3z" };
+    function icon(name) {
+      var s = document.createElementNS(SVGNS, "svg"), p = document.createElementNS(SVGNS, "path");
+      s.setAttribute("viewBox", "0 0 16 16"); s.setAttribute("width", "12"); s.setAttribute("height", "12");
+      s.setAttribute("aria-hidden", "true"); s.setAttribute("focusable", "false"); s.setAttribute("class", "tk-ico");
+      p.setAttribute("d", ICON[name]); p.setAttribute("fill", "currentColor"); s.appendChild(p);
+      return s;
+    }
+    function setBtn(b, ico, text, label) {   // icon + visible text, same element (keeps focus)
+      b.textContent = ""; b.appendChild(icon(ico)); if (text) b.appendChild(el("span", { text: text }));
+      b.setAttribute("aria-label", label);
+    }
+    function fmtWhen(ms) {
+      var d = new Date(ms);
+      return isNaN(d) ? "—" : d.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
+    }
+    // "Confirm? [Yes] [Cancel]" inside the page (no window.confirm)
+    function confirmBox(text, yesLabel, onYes, onNo, danger) {
+      var yes = el("button", { type: "button", class: "fz-btn tk-small" + (danger ? " tk-danger" : " primary"), text: yesLabel });
+      var no = el("button", { type: "button", class: "fz-btn tk-small", text: "Cancel" });
+      yes.addEventListener("click", onYes); no.addEventListener("click", onNo);
+      var box = el("div", { class: "tk-confirm", role: "group", "aria-label": "Confirm" }, el("p", { text: text }), el("div", { class: "tk-confirm-btns" }, yes, no));
+      box.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.preventDefault(); onNo(); } });
+      return { box: box, yes: yes, no: no };
+    }
+
+    // ---- weekly self-rating per category (saved with the week) ----
+    function rateRow(c) {
+      var grp = el("div", { class: "tk-rate-btns", role: "group", "aria-label": "How did " + (c.proper ? c.label : c.label.toLowerCase()) + " go this week?" });
+      T.RATINGS.forEach(function (r) {
+        var b = el("button", { type: "button", class: "tk-rate-btn", "data-v": String(r.v), "aria-pressed": String(st.ratings[c.id] === r.v),
+          "aria-label": c.short + " rating: " + r.t, title: r.t, text: r.e });
+        b.addEventListener("click", function () {
+          if (st.ratings[c.id] === r.v) delete st.ratings[c.id]; else st.ratings[c.id] = r.v;
+          grp.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(+x.getAttribute("data-v") === st.ratings[c.id])); });
+          refresh();
+        });
+        grp.appendChild(b);
+      });
+      return el("div", { class: "tk-rate" }, el("span", { class: "tk-rate-l", "aria-hidden": "true", text: "Rating" }), grp);
+    }
+
+    // ---- goals: progress in each category card + the write-once "Set goals" panel ----
+    var goalUI = { open: false, vals: {} };   // survives re-renders (a stopwatch save re-renders the page); reset per week
+    function goalOf(id) { var g = wk.goals && wk.goals[id]; return num(g) && g > 0 ? g : null; }
+    function goalLine(c) {
+      var g = goalOf(c.id); if (g == null) return null;
+      var pct = el("span", { class: "tk-goal-pct" }), fill = el("span", { class: "tk-goal-fill" });
+      fill.style.background = T.catColor(c.id);
+      var bar = el("div", { class: "tk-goal-bar", role: "progressbar", "aria-label": c.label + " goal progress", "aria-valuemin": "0", "aria-valuemax": "100" }, fill);
+      var box = el("div", { class: "tk-goal" },
+        el("div", { class: "tk-goal-h" }, el("span", { class: "tk-goal-l", title: "This week's goal (goals can't be changed once set)" }, el("span", { class: "tk-goal-ic", "aria-hidden": "true", text: "◎" }), "Goal: ", el("b", { text: T.fmtHM(g) })), pct),
+        bar);
+      ui.goal[c.id] = { g: g, pct: pct, fill: fill, bar: bar, box: box };
+      return box;
+    }
+    function goalsCard() {
+      var missing = CATS.filter(function (c) { return goalOf(c.id) == null; });
+      if (!wk.goals_open || key !== cur || (!missing.length && !goalUI.err && !goalUI.note)) return null;
+      var nset = CATS.length - missing.length;
+      var btn = el("button", { type: "button", class: "fz-btn tk-small", "aria-expanded": String(!!goalUI.open), "aria-controls": "tkGoalsPanel", text: "Set goals", hidden: !missing.length });
+      var panel = el("div", { class: "tk-goals-panel", id: "tkGoalsPanel", hidden: !goalUI.open || !missing.length });
+      var note = el("p", { class: "tk-goals-note" + (goalUI.err ? " bad" : ""), role: "status", text: goalUI.open ? "" : (goalUI.err || goalUI.note || "") });
+      var card = el("section", { class: "tk-card tk-goals", "aria-label": "Weekly goals" },
+        el("div", { class: "tk-goals-h" },
+          el("div", { class: "tk-goals-t" }, el("b", {}, el("span", { class: "tk-goal-ic", "aria-hidden": "true", text: "◎" }), "Weekly goals"),
+            el("span", { class: "fz-muted", text: nset ? nset + " of " + CATS.length + " set for this week" : "Aim for a number of hours in any category this week" })),
+          btn),
+        note, panel);
+      btn.addEventListener("click", function () {
+        goalUI.open = !goalUI.open; goalUI.confirm = false; goalUI.err = ""; goalUI.note = "";
+        btn.setAttribute("aria-expanded", String(goalUI.open)); panel.hidden = !goalUI.open; note.textContent = "";
+        if (goalUI.open) { paintGoalsPanel(panel, btn); var f = panel.querySelector("input"); if (f) f.focus(); }
+      });
+      if (goalUI.open && missing.length) paintGoalsPanel(panel, btn);
+      return card;
+    }
+    function paintGoalsPanel(panel, btn) {
+      panel.textContent = "";
+      var list = el("div", { class: "tk-goal-list" }), inputs = {}, errs = {};
+      CATS.forEach(function (c) {
+        var g = goalOf(c.id), dot = el("span", { class: "tk-dotc" }); dot.style.background = T.catColor(c.id);
+        var lab = el("label", { class: "tk-goal-name", for: "tkGoal-" + c.id }, dot, c.label);
+        if (g != null) {
+          lab = el("span", { class: "tk-goal-name" }, dot, c.label);
+          list.appendChild(el("div", { class: "tk-goal-row locked" }, lab,
+            el("span", { class: "tk-goal-lock", title: "Goals can't be changed once set" }, el("span", { "aria-hidden": "true", text: "🔒 " }), T.fmtHM(g) + " h",
+              el("span", { class: "fz-sr", text: " (set, locked)" }))));
+          return;
+        }
+        var inp = inputs[c.id] = el("input", { type: "text", inputmode: "decimal", autocomplete: "off", class: "fz-input tk-h", id: "tkGoal-" + c.id,
+          value: goalUI.vals[c.id] || "", placeholder: "h:mm", "aria-label": "Goal for " + c.label + " (hours)", readonly: !!goalUI.confirm });
+        inp.addEventListener("input", function () { goalUI.vals[c.id] = inp.value; inp.classList.remove("bad"); errs[c.id].textContent = ""; });
+        inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); if (!goalUI.confirm) review(); } });
+        errs[c.id] = el("div", { class: "tk-err", role: "alert" });
+        list.appendChild(el("div", {}, el("div", { class: "tk-goal-row" }, lab, inp, el("span", { class: "tk-unit", text: "h" })), errs[c.id]));
+      });
+      var err = el("div", { class: "tk-err", role: "alert", text: goalUI.err || "" });
+      var warn = el("p", { class: "tk-goal-warn" }, el("b", { text: "Goals are final." }),
+        " Once set, a goal can't be changed or removed this week. Leave a category blank to set it later this week.");
+      var acts = el("div", { class: "tk-goal-acts" });
+      panel.append(list, warn, err, acts);
+      function parsed() {   // → {goals, labels} or null (errors shown)
+        var goals = {}, labels = [], ok = true;
+        Object.keys(inputs).forEach(function (id) {
+          var p = parseHours(inputs[id].value), e = p.err || (p.v === 0 ? "Must be more than 0" : "");
+          if (!e && p.v != null && Math.round(p.v * 60) < 1) e = "At least a minute";
+          errs[id].textContent = e; inputs[id].classList.toggle("bad", !!e); inputs[id].setAttribute("aria-invalid", e ? "true" : "false");
+          if (e) { ok = false; return; }
+          if (p.v != null) { goals[id] = p.v; labels.push(CAT[id].short + " " + T.fmtHM(p.v)); }
+        });
+        if (!ok) { var b = panel.querySelector("input.bad"); if (b) b.focus(); return null; }
+        if (!labels.length) { err.textContent = "Enter a goal for at least one category."; var f = panel.querySelector("input"); if (f) f.focus(); return null; }
+        return { goals: goals, labels: labels };
+      }
+      function review() {
+        err.textContent = "";
+        var g = parsed(); if (!g) return;
+        goalUI.confirm = g; paintGoalsPanel(panel, btn);
+        var y = panel.querySelector(".tk-confirm .primary"); if (y) y.focus();
+      }
+      if (!goalUI.confirm) {
+        var go = el("button", { type: "button", class: "fz-btn primary tk-small", text: "Review goals" });
+        var cancel = el("button", { type: "button", class: "fz-btn tk-small", text: "Cancel" });
+        go.addEventListener("click", review);
+        cancel.addEventListener("click", function () { goalUI.open = false; goalUI.err = ""; panel.hidden = true; btn.setAttribute("aria-expanded", "false"); btn.focus(); });
+        acts.append(go, cancel);
+        return;
+      }
+      var G = goalUI.confirm;
+      var cb = confirmBox("Set " + G.labels.join(", ") + " as this week's goal" + (G.labels.length > 1 ? "s" : "") + "? You won't be able to change " + (G.labels.length > 1 ? "them" : "it") + ".",
+        "Yes, set " + (G.labels.length > 1 ? "goals" : "goal"), submit, function () {
+          goalUI.confirm = false; paintGoalsPanel(panel, btn); var f = panel.querySelector("input"); if (f) f.focus();
+        });
+      cb.no.textContent = "Back";
+      acts.appendChild(cb.box);
+      function submit() {
+        cb.yes.disabled = cb.no.disabled = true; cb.yes.textContent = "Saving…";
+        var gk = key;
+        F.api("/v1/track/weeks/" + gk + "/goals", { method: "POST", body: { goals: G.goals } }).then(function (w) {
+          if (key !== gk) return;
+          wk.goals = (w && w.goals) || {}; wk.goals_open = !!(w && w.goals_open);
+          goalUI = { open: false, vals: {}, note: "Goals set ✓ — your progress shows in each category below." };
+          render();
+          var b = root.querySelector(".tk-goals button"); if (b && !b.hidden) b.focus();
+        }, function (e) {
+          if (key !== gk) return;
+          goalUI.confirm = false;
+          goalUI.err = e.status === 401 ? "Your login has expired — log in again in another tab." : e.message;
+          if (e.status === 409 || e.status === 400) {
+            // someone (another tab?) may have set goals meanwhile, or the week just ended: refresh what's locked
+            F.api("/v1/track/weeks/" + gk).then(function (w2) {
+              if (key !== gk) return;
+              wk.goals = w2.goals || {}; wk.goals_open = !!w2.goals_open;
+              CATS.forEach(function (c) { if (goalOf(c.id) != null) delete goalUI.vals[c.id]; });
+              render();
+            }, function () { paintGoalsPanel(panel, btn); });
+          } else paintGoalsPanel(panel, btn);
+        });
+      }
+    }
+
+    // ---- admin: end the current week early (POST/DELETE /v1/track/admin/end-week) ----
+    var adminUI = { confirm: false, busy: false, err: "", note: "" }, adminTimer = null;
+    function adminCard() {
+      if (!cfg.end_week) return null;
+      ui.admin = el("section", { class: "tk-card tk-admin", "aria-label": "Admin: end of week" });
+      paintAdmin();
+      return ui.admin;
+    }
+    function paintAdmin() {
+      var box = ui.admin; if (!box || !cfg.end_week) return;
+      var focusOn = box.contains(document.activeElement);
+      box.textContent = "";
+      clearTimeout(adminTimer);
+      var endMs = Date.parse(cfg.current_week_end), fromMs = Date.parse(cfg.end_week.allowed_from), now = Date.now();
+      var open = now >= fromMs && now < endMs;   // the server decides; this only keeps the button honest while the page sits open
+      if (!open && fromMs > now && fromMs - now < 2147483647) adminTimer = setTimeout(paintAdmin, fromMs - now + 1000);
+      box.appendChild(el("div", { class: "tk-admin-h" }, el("span", { class: "tk-admin-tag", text: "Admin" }), el("b", { text: "End of week" })));
+      var line = el("p", { class: "tk-admin-line" }), acts = el("div", { class: "tk-admin-acts" });
+      var btn;
+      if (cfg.ended_early) {
+        line.append(el("b", { class: "tk-admin-ended", text: "Ended early — results are public." }),
+          " The week still takes edits until " + fmtWhen(endMs) + ".");
+        btn = el("button", { type: "button", class: "fz-btn tk-small", text: "Undo" });
+      } else {
+        line.append("This week's results go public at ", el("b", { text: fmtWhen(endMs) }), ".");
+        btn = el("button", { type: "button", class: "fz-btn tk-small", text: "End week now", disabled: !open || adminUI.busy,
+          "aria-describedby": open ? null : "tkAdminWhen" });
+      }
+      if (adminUI.busy) btn.disabled = true;
+      acts.appendChild(btn);
+      if (!cfg.ended_early && !open) acts.appendChild(el("span", { class: "fz-muted tk-small", id: "tkAdminWhen",
+        text: now < fromMs ? "available from " + fmtWhen(fromMs) : "the week is over" }));
+      box.append(line, acts);
+      if (adminUI.confirm) {
+        var undo = !!cfg.ended_early;
+        var cb = confirmBox(undo ? "Undo the early end? This week's results go private again until " + fmtWhen(endMs) + "."
+            : "End this week now? Everyone's results for this week become public on the leaderboard straight away. You can undo it until the week ends.",
+          undo ? "Yes, undo" : "Yes, end the week", function () { adminSend(undo ? "DELETE" : "POST"); },
+          function () { adminUI.confirm = false; paintAdmin(); var b = ui.admin && ui.admin.querySelector("button"); if (b) b.focus(); }, !undo);
+        if (adminUI.busy) { cb.yes.disabled = cb.no.disabled = true; cb.yes.textContent = "Working…"; }
+        btn.hidden = true;
+        box.appendChild(cb.box);
+        if (focusOn && !adminUI.busy) cb.yes.focus();
+      } else if (focusOn && !btn.disabled) btn.focus();
+      btn.addEventListener("click", function () { adminUI.confirm = true; adminUI.err = ""; adminUI.note = ""; paintAdmin(); var y = ui.admin.querySelector(".tk-confirm button"); if (y) y.focus(); });
+      box.appendChild(el("p", { class: "tk-err", role: "alert", text: adminUI.err }));
+      box.appendChild(el("p", { class: "tk-admin-note", role: "status", text: adminUI.note }));
+    }
+    function adminSend(method) {
+      adminUI.busy = true; adminUI.err = ""; paintAdmin();
+      F.api("/v1/track/admin/end-week", { method: method }).then(function (d) {
+        d = d || {};
+        ["published_through", "current_week", "current_week_end", "ended_early", "end_week"].forEach(function (f) { if (f in d) cfg[f] = d[f]; });
+        adminUI = { confirm: false, busy: false, err: "", note: method === "POST" ? "Done — this week's results are on the leaderboard now." : "Undone — this week's results are private again." };
+        paintAdmin();
+        var b = ui.admin && ui.admin.querySelector("button"); if (b) b.focus();
+      }, function (e) {
+        adminUI = { confirm: false, busy: false, err: (e.status === 401 ? "Your login has expired." : e.message), note: "" };
+        paintAdmin();
       });
     }
+
+    // ---- stopwatch: one at a time, per user, kept in localStorage so it survives reloads ----
+    // sw  = {week, cat, sub (id|null), acc: ms banked, since: ms epoch while running | null while paused}
+    // swq = [{week, cat, sub, ms}]: time on its way into a week (a stop, or the part before a week rolled over)
+    var sw = null, swq = [], swTimer = null, swMsg = null, swBusy = false, swStoreOK = true, swRefetched = 0;
+    var MIN = 6e4;
+    function swKey(q) { return "fz-track-" + (q ? "swq" : "sw") + ":" + uid; }
+    function swOK(v) {
+      return v && typeof v === "object" && T.isKey(v.week) && CAT[v.cat] && (v.sub === null || (typeof v.sub === "number" && v.sub > 0 && v.sub % 1 === 0));
+    }
+    function swLoad() {   // storage is the truth (another tab may have changed it); memory if storage is unusable
+      if (!swStoreOK || !uid) return;
+      try {
+        var v = JSON.parse(localStorage.getItem(swKey()) || "null");
+        sw = swOK(v) && num(v.acc) && v.acc >= 0 && (v.since === null || num(v.since)) ? { week: v.week, cat: v.cat, sub: v.sub, acc: v.acc, since: v.since } : null;
+        var q = JSON.parse(localStorage.getItem(swKey(true)) || "[]");
+        swq = Array.isArray(q) ? q.filter(function (x) { return swOK(x) && num(x.ms) && x.ms > 0; }) : [];
+      } catch (e) { /* keep what's in memory */ }
+    }
+    function swStore() {
+      if (!uid) return;
+      try {
+        if (sw) localStorage.setItem(swKey(), JSON.stringify(sw)); else localStorage.removeItem(swKey());
+        if (swq.length) localStorage.setItem(swKey(true), JSON.stringify(swq)); else localStorage.removeItem(swKey(true));
+        swStoreOK = true;
+      } catch (e) { swStoreOK = false; }
+    }
+    function swElapsed(s, now) { return s ? s.acc + (s.since != null ? Math.max(0, (now || Date.now()) - s.since) : 0) : 0; }
+    function weekEnd(k) {
+      if (k === cfg.current_week && cfg.current_week_end) { var e = Date.parse(cfg.current_week_end); if (!isNaN(e)) return e; }
+      return T.weekStartMs(k) + 7 * 864e5;
+    }
+    function liveSubs(cat) { return subs(cat).filter(function (s) { return !s.archived; }); }
+    function swName(it) {
+      var c = CAT[it.cat], s = it.sub != null ? subById(it.sub) : null;
+      return c.short + (it.sub != null ? " › " + (s ? s.name : "Sub-category") : liveSubs(it.cat).length ? " › Other" : "");
+    }
+    function swWeekNote(it) { return it.week === key ? "" : " (week of " + T.fmtKeyShort(it.week) + ")"; }
+    function note(text, bad, item) {
+      swMsg = { text: text, bad: !!bad, item: item || null, at: Date.now() };
+      if (!bad) setTimeout(function () { if (swMsg && swMsg.text === text && !swMsg.bad) { swMsg = null; paintSw(); } }, 8000);
+    }
+    // a running stopwatch that crossed its week's end: the time before goes to that week, the rest to the next
+    // week's same row (its unassigned row if the sub-category is archived or gone)
+    function swRoll() {
+      var moved = false;
+      while (sw && sw.since != null) {
+        var end = weekEnd(sw.week);
+        if (Date.now() < end) break;
+        var ms = sw.acc + Math.max(0, end - sw.since);
+        if (Math.round(ms / MIN) >= 1) swq.push({ week: sw.week, cat: sw.cat, sub: sw.sub, ms: ms });
+        var nsub = sw.sub != null && subById(sw.sub) && !subById(sw.sub).archived ? sw.sub : null;
+        sw = { week: T.addWeeks(sw.week, 1), cat: sw.cat, sub: nsub, acc: 0, since: Math.max(sw.since, end) };
+        moved = true;
+      }
+      if (!moved) return false;
+      swStore();
+      if (sw.week > cur && Date.now() - swRefetched > 60000) {   // the calendar moved on under an open page
+        swRefetched = Date.now();
+        F.api("/v1/track/config").then(function (c) {
+          if (!c || !T.isKey(c.current_week) || c.current_week === cur) return;
+          ["current_week", "current_week_end", "published_through", "ended_early", "end_week", "public"].forEach(function (f) { if (f in c) cfg[f] = c[f]; });
+          if (c.subcats) cfg.subcats = c.subcats;
+          cur = c.current_week;
+          if (st) render();   // the form (st) is kept as it is
+        }, function () {});
+      }
+      swFlush();
+      return true;
+    }
+    function swStart(c, sub) {
+      swLoad(); swRoll();
+      if (sw && sw.cat === c.id && sw.sub === sub && sw.week === key) return;
+      if (sw) swStop(true);   // only one at a time: the other one's time goes to its own row first
+      sw = { week: key, cat: c.id, sub: sub, acc: 0, since: Date.now() };
+      swStore(); paintSw();
+      var r = ui.sw[hk(c.id, sub)]; if (r) r.toggle.focus();
+    }
+    function swToggle() {   // pause ⇄ resume
+      swLoad(); if (!sw) { paintSw(); return; }
+      swRoll();
+      if (sw.since != null) { sw.acc = swElapsed(sw); sw.since = null; }
+      else { sw.since = Date.now(); swStore(); swRoll(); }
+      swStore(); paintSw();
+    }
+    function swStop(quiet) {
+      swLoad(); if (!sw) { paintSw(); return; }
+      swRoll();
+      var it = { week: sw.week, cat: sw.cat, sub: sw.sub, ms: swElapsed(sw) }, k = hk(sw.cat, sw.sub), wasHere = sw.week === key;
+      sw = null;
+      if (Math.round(it.ms / MIN) >= 1) swq.push(it);
+      else if (!quiet) note("Stopped after less than half a minute — nothing added.");
+      swStore(); paintSw(); swFlush();
+      if (!quiet && wasHere && ui.sw[k] && ui.sw[k].start.isConnected) ui.sw[k].start.focus();
+    }
+    // add queued time, oldest first; the shown week goes through the form (keeps unsaved edits), others are
+    // loaded, added to and saved on their own key
+    function swFlush() {
+      if (swBusy) return;
+      swLoad();
+      if (!swq.length) return;
+      var it = swq.shift(); swStore();
+      swBusy = true;
+      swAdd(it).then(function (res) {
+        swBusy = false;
+        if (res && res.other) note("Added " + T.fmtHM(res.min / 60) + " to " + swName(it) + " in the week of " + T.fmtKeyShort(it.week) + " ✓");
+        paintSw(); swFlush();
+      }, function (e) {
+        swBusy = false;
+        swLoad(); swq.unshift(it); swStore();
+        note("Couldn't add " + T.fmtHM(Math.round(it.ms / MIN) / 60) + " to " + swName(it) + swWeekNote(it) + ": " + (e.status === 401 ? "your login has expired." : e.message), true, it);
+        paintSw();
+      });
+    }
+    function swAdd(it) {
+      var min = Math.round(it.ms / MIN);
+      if (min < 1) return Promise.resolve(null);
+      var sub = it.sub != null && subById(it.sub) ? it.sub : null;   // deleted meanwhile → unassigned
+      if (it.week === key && st) {
+        if (saving) return saveP.then(function () { return swAdd(it); });   // the save in flight would overwrite the form
+        var k = hk(it.cat, sub), p = parseHours(st.hours[k]);
+        if (p.err) return Promise.reject(new Error("fix the " + swName({ cat: it.cat, sub: sub }) + " hours first, then press Retry"));
+        st.hours[k] = String(Math.round(((p.v || 0) + min / 60) * 100) / 100);
+        var f = ui.fields["h:" + k];
+        if (f && f.isConnected) { f.value = st.hours[k]; refresh(); } else render();
+        return save().then(function () { return { min: min }; });   // a failed save leaves it in the form as an unsaved change
+      }
+      return F.api("/v1/track/weeks/" + it.week).then(function (w) {
+        var found = false, hours = (w.hours || []).map(function (h) {
+          var x = { category: h.category, subcat: h.subcat == null ? null : h.subcat, hours: h.hours };
+          if (x.category === it.cat && x.subcat === sub) { x.hours = Math.round((x.hours + min / 60) * 100) / 100; found = true; }
+          return x;
+        });
+        if (!found) hours.push({ category: it.cat, subcat: sub, hours: Math.round(min / 60 * 100) / 100 });
+        return F.api("/v1/track/weeks/" + it.week, { method: "POST", body: { hours: hours, kotu: w.kotu || [], kyotsu: w.kyotsu || [],
+          ratings: w.ratings || {}, summary: w.summary || "", summary_private: !!w.summary_private } });
+      }).then(function () { loadStrip(true); return { min: min, other: true }; });
+    }
+    // per-row controls: ▶ in the row; while it's this row's turn, a line under it with the time, ⏸/▶ and ■
+    function swRowControls(c, s, noneLabel, k) {
+      var who = s ? s.name : noneLabel === "Hours" ? c.label : c.label + " (other / unassigned)";
+      // data-f: render() puts focus back on the same control after a save re-renders the page
+      var start = el("button", { type: "button", class: "tk-sw-start", title: "Start a stopwatch", "data-f": "sw-start:" + k });
+      setBtn(start, "play", "", "Start stopwatch for " + who);
+      var time = el("span", { class: "tk-sw-time", role: "timer", "aria-label": "Stopwatch for " + who });
+      var state = el("span", { class: "tk-sw-state" });
+      var toggle = el("button", { type: "button", class: "fz-btn tk-small tk-sw-btn", "data-f": "sw-toggle:" + k });
+      var stop = el("button", { type: "button", class: "fz-btn tk-small tk-sw-btn", "data-f": "sw-stop:" + k });
+      setBtn(stop, "stop", "Stop", "Stop stopwatch for " + who + " and add the time");
+      var live = el("div", { class: "tk-sw-live", hidden: true }, el("span", { class: "tk-sw-dot", "aria-hidden": "true" }), time, state, el("span", { class: "tk-sw-btns" }, toggle, stop));
+      start.addEventListener("click", function () { swStart(c, s ? s.id : null); });
+      toggle.addEventListener("click", swToggle);
+      stop.addEventListener("click", function () { swStop(false); });
+      ui.sw[k] = { start: start, live: live, time: time, state: state, toggle: toggle, who: who };
+      return ui.sw[k];
+    }
+    function swBar() {
+      var label = el("span", { class: "tk-swbar-l" }), time = el("span", { class: "tk-sw-time", role: "timer" }), state = el("span", { class: "tk-sw-state" });
+      var toggle = el("button", { type: "button", class: "fz-btn tk-small tk-sw-btn" }), stop = el("button", { type: "button", class: "fz-btn tk-small tk-sw-btn" });
+      toggle.addEventListener("click", swToggle);
+      stop.addEventListener("click", function () { swStop(false); });
+      var retry = el("button", { type: "button", class: "fz-linkbtn", text: "Retry" }), drop = el("button", { type: "button", class: "fz-linkbtn", text: "Discard" });
+      retry.addEventListener("click", function () { swMsg = null; paintSw(); swFlush(); });
+      drop.addEventListener("click", function () {
+        var it = swMsg && swMsg.item; swMsg = null;
+        if (it) { swLoad(); swq = swq.filter(function (x) { return !(x.week === it.week && x.cat === it.cat && x.sub === it.sub && x.ms === it.ms); }); swStore(); }
+        paintSw(); swFlush();
+      });
+      var msgT = el("span"), msg = el("div", { class: "tk-swbar-msg", role: "status" }, msgT, retry, drop);
+      var main = el("div", { class: "tk-swbar-main" }, el("span", { class: "tk-sw-dot", "aria-hidden": "true" }), label, el("span", { class: "tk-swbar-t" }, time, state), el("span", { class: "tk-swbar-btns" }, toggle, stop));
+      ui.swbar = { box: el("div", { class: "tk-swbar", hidden: true, role: "region", "aria-label": "Stopwatch" }, main, msg), main: main, label: label, time: time, state: state, toggle: toggle, stop: stop, msg: msg, msgT: msgT, retry: retry, drop: drop };
+      return ui.swbar.box;
+    }
+    function paintSw() {
+      if (!ui.sw) return;
+      var now = Date.now(), k = sw ? hk(sw.cat, sw.sub) : null, mine = sw && sw.week === key && ui.sw[k] && ui.sw[k].start.isConnected ? ui.sw[k] : null;
+      var running = !!(sw && sw.since != null), txt = sw ? T.fmtClock(swElapsed(sw, now)) : "";
+      Object.keys(ui.sw).forEach(function (rk) {
+        var r = ui.sw[rk], on = r === mine;
+        r.start.hidden = on; r.live.hidden = !on;
+        r.live.classList.toggle("paused", on && !running);
+        if (!on) return;
+        r.time.textContent = txt; r.state.textContent = running ? "" : "Paused";
+        setBtn(r.toggle, running ? "pause" : "play", running ? "Pause" : "Resume", (running ? "Pause" : "Resume") + " stopwatch for " + r.who);
+      });
+      var b = ui.swbar;
+      if (b) {
+        var showMain = !!sw && !mine;
+        b.main.hidden = !showMain;
+        if (showMain) {
+          b.box.classList.toggle("paused", !running);
+          b.label.textContent = (running ? "Stopwatch running: " : "Stopwatch paused: ") + swName(sw) + swWeekNote(sw);
+          b.time.textContent = txt; b.state.textContent = "";
+          setBtn(b.toggle, running ? "pause" : "play", running ? "Pause" : "Resume", (running ? "Pause" : "Resume") + " stopwatch for " + swName(sw));
+          setBtn(b.stop, "stop", "Stop", "Stop stopwatch for " + swName(sw) + " and add the time");
+        }
+        b.msg.hidden = !swMsg;
+        if (swMsg) { b.msgT.textContent = swMsg.text; b.msg.classList.toggle("bad", swMsg.bad); b.retry.hidden = b.drop.hidden = !swMsg.item; }
+        b.box.hidden = !showMain && !swMsg;
+      }
+      if (running && !swTimer) swTimer = setInterval(swTick, 1000);
+      else if (!running && swTimer) { clearInterval(swTimer); swTimer = null; }
+    }
+    function swTick() {
+      var before = sw && sw.week;
+      swLoad();
+      if (swRoll() || (sw && sw.week) !== before) { paintSw(); return; }
+      if (!sw || sw.since == null) { paintSw(); return; }
+      var txt = T.fmtClock(swElapsed(sw));
+      var r = ui.sw[hk(sw.cat, sw.sub)];
+      if (r && !r.live.hidden) r.time.textContent = txt;
+      if (ui.swbar && !ui.swbar.main.hidden) ui.swbar.time.textContent = txt;
+    }
+    window.addEventListener("storage", function (e) {
+      if (!uid || (e.key !== swKey() && e.key !== swKey(true) && e.key !== null)) return;
+      swLoad(); paintSw();
+    });
+    document.addEventListener("visibilitychange", function () { if (!document.hidden && sw) swTick(); });
 
     function loggedOut(expired) {
       root.textContent = "";
@@ -485,12 +956,14 @@
     F.me().then(function (m) {
       if (m.offline) { msg("Couldn't reach the server. Try again in a moment."); return; }
       if (!m.user) { loggedOut(false); return; }
+      uid = m.user.id | 0;
       return F.api("/v1/track/config").then(function (c) {
         cfg = c || {}; cfg.subcats = cfg.subcats || [];
         cur = T.isKey(cfg.current_week) ? cfg.current_week : T.currentWeekKey();
         var q = new URLSearchParams(location.search).get("week"), k = cur;
         if (T.isKey(q)) { k = T.weekOfDate(q); if (k > cur) k = cur; if (k < "2000-01-01") k = "2000-01-01"; }
-        return loadWeek(k);
+        swLoad();
+        return loadWeek(k).then(function () { if (!st) return; swRoll(); swFlush(); paintSw(); });   // a stopwatch left running / time not yet saved
       }, function (e) { if (e.status === 401) loggedOut(true); else msg(e.message); });
     });
   };
@@ -498,27 +971,42 @@
   // =====================================================================================
   // Leaderboard
   // =====================================================================================
-  var PERIODS = [{ id: "week", label: "This week", n: 1 }, { id: "4w", label: "4 weeks", n: 4 }, { id: "12w", label: "12 weeks", n: 12 },
+  // Only published weeks are ranked (the server stops at published_through): "last" is that one
+  // week, the others end with it (or with an earlier ?week=). The current week appears once it ends.
+  var PERIODS = [{ id: "last", label: "Last week", n: 1 }, { id: "4w", label: "4 weeks", n: 4 }, { id: "12w", label: "12 weeks", n: 12 },
     { id: "52w", label: "52 weeks", n: 52 }, { id: "all", label: "All time" }];
-  var METRICS = [{ id: "immersion", label: "Immersion", long: "Immersion (active + passive)", color: "var(--fz-accent)" }]
+  var LB_PERIOD = "last", LB_METRIC = "active";   // defaults (left out of the URL)
+  var METRICS = [{ id: "all", label: "All", long: "All categories", noun: "hours", color: "var(--tk-all)" },
+    { id: "nopassive", label: "Exclude Passive", long: "All except passive immersion", noun: "hours outside passive immersion", color: "var(--tk-nopassive)" }]
     .concat(CATS.map(function (c) { return { id: c.id, label: c.short, long: c.label, noun: c.proper ? c.label : null, color: T.catColor(c.id) }; }))
     .concat([{ id: "kotu", label: "Kotu", long: "Kotu accuracy (average)", color: "var(--tk-kotu)", pct: true },
       { id: "kyotsu", label: "Kyōtsu", long: "Kyōtsu accuracy (average)", color: "var(--tk-kyotsu)", pct: true }]);
   var MET = {};
   METRICS.forEach(function (m) { MET[m.id] = m; });
+  var RATING = {};   // 1..4 → {e: emoji, t: word}, shared with the logger (T.RATINGS)
+  (T.RATINGS || [{ v: 1, e: "😞", t: "Rough" }, { v: 2, e: "😐", t: "So-so" }, { v: 3, e: "👌", t: "Good" }, { v: 4, e: "🔥", t: "Great" }])
+    .forEach(function (r) { RATING[r.v] = { e: r.e, t: String(r.t).toLowerCase() }; });
+  // hours → "h:mm" (API hours are exact hundredths, so whole minutes are exact)
+  function hm(v) { if (!num(v)) return "—"; var m = Math.round(Math.max(0, v) * 60); return Math.floor(m / 60) + ":" + String(m % 60).padStart(2, "0"); }
+  function signedPct(v) { return num(v) ? (v < 0 ? "−" : "+") + T.fmtNum(Math.abs(v), 1) + "%" : "—"; }
+  function catOrder(ids) { var o = CATS.map(function (c) { return c.id; }); return ids.slice().sort(function (a, b) { return (o.indexOf(a) + 1 || 99) - (o.indexOf(b) + 1 || 99); }); }
 
   T.initLeaderboard = function (root) {
     var q = new URLSearchParams(location.search);
     var cur = T.currentWeekKey();
-    var period = PERIODS.some(function (p) { return p.id === q.get("period"); }) ? q.get("period") : "4w";
-    var metric = Object.prototype.hasOwnProperty.call(MET, q.get("metric")) ? q.get("metric") : "immersion";   // not ?metric=__proto__/constructor
-    var week = T.isKey(q.get("week")) ? T.weekOfDate(q.get("week")) : null;   // null = current
-    var me = null, data = null, seq = 0, cache = {};
+    var qp = q.get("period") === "week" ? "last" : q.get("period");   // old links: "This week" became "Last week"
+    var period = PERIODS.some(function (p) { return p.id === qp; }) ? qp : LB_PERIOD;
+    // not ?metric=__proto__/constructor; old ?metric=immersion falls back to the default
+    var metric = Object.prototype.hasOwnProperty.call(MET, q.get("metric")) ? q.get("metric") : LB_METRIC;
+    var week = T.isKey(q.get("week")) ? T.weekOfDate(q.get("week")) : null;   // null = the latest published week
+    var pub = T.addWeeks(cur, -1);   // published_through until the server says otherwise
+    if (week && week >= pub) week = null;
+    var me = null, data = null, seq = 0, cache = {}, open = {};
 
     var periodSeg = el("div", { class: "tk-seg", role: "group", "aria-label": "Period" });
     PERIODS.forEach(function (p) {
       var b = el("button", { type: "button", "aria-pressed": String(p.id === period), text: p.label, "data-v": p.id });
-      b.addEventListener("click", function () { period = p.id; paintSeg(periodSeg, period); load(); });
+      b.addEventListener("click", function () { if (period === p.id) return; period = p.id; paintSeg(periodSeg, period); load(); });
       periodSeg.appendChild(b);
     });
     var metricSeg = el("div", { class: "tk-seg", role: "group", "aria-label": "Metric" });
@@ -527,18 +1015,27 @@
       b.addEventListener("click", function () { metric = m.id; paintSeg(metricSeg, metric); syncUrl(); paint(); });
       metricSeg.appendChild(b);
     });
-    var date = el("input", { type: "date", class: "fz-input tk-input-sm", id: "lbDate", min: "2000-01-01", max: T.addDays(cur, 6), "aria-label": "Period ends with the week containing this date" });
+    var date = el("input", { type: "date", class: "fz-input tk-input-sm", id: "lbDate", min: "2000-01-01", max: T.addDays(pub, 6), "aria-label": "Period ends with the week containing this date (published weeks only)" });
     var latest = el("button", { type: "button", class: "fz-btn tk-small", text: "Latest" });
-    date.addEventListener("change", function () { if (!T.isKey(date.value)) return; var k = T.weekOfDate(date.value); week = k >= cur ? null : k; load(); });
+    date.addEventListener("change", function () {
+      if (!T.isKey(date.value)) return;
+      var k = T.weekOfDate(date.value);
+      week = k >= pub ? null : k;   // nothing after published_through
+      load();
+    });
     latest.addEventListener("click", function () { week = null; load(); });
     function paintSeg(seg, v) { seg.querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-v") === v)); }); }
 
     var range = el("p", { class: "lb-range", role: "status" });
+    var note = el("p", { class: "lb-note" });
     var tableBox = el("div", { class: "lb-table-wrap" });
     var g1 = el("div"), g2 = el("div"), g2note = el("p", { class: "fz-muted tk-small", hidden: true });
     var g1h = el("h3"), g2h = el("h3");
     var graphs = el("section", { class: "tk-card", "aria-label": "Graphs" },
       el("div", { class: "lb-graph" }, g1h, g1), el("div", { class: "lb-graph" }, g2h, g2note, g2));
+    var goalsIntro = el("p", { class: "fz-muted tk-small lb-goals-intro" }), goalsBody = el("div");
+    var goals = el("section", { class: "tk-card lb-goals", "aria-labelledby": "lbGoalsH", hidden: true },
+      el("h2", { id: "lbGoalsH", text: "Goal achievers" }), goalsIntro, goalsBody);
     var feed = el("section", { class: "tk-card", "aria-label": "Recent summaries" });
     root.textContent = "";
     root.append(
@@ -546,34 +1043,41 @@
         el("div", { class: "lb-ctl" }, el("span", { text: "Period" }), periodSeg),
         el("div", { class: "lb-ctl" }, el("label", { for: "lbDate", class: "fz-muted", style: "font-size:0.8em;min-width:4.5em", text: "Ending" }), date, latest),
         el("div", { class: "lb-ctl" }, el("span", { text: "Metric" }), metricSeg)),
-      range,
+      range, note,
       el("section", { class: "tk-card", "aria-label": "Rankings" }, tableBox),
-      graphs, feed);
+      goals, graphs, feed);
     var c1 = null, c2 = null;
 
     function syncUrl() {
       var u = new URL(location.href);
-      u.searchParams.set("period", period);
+      if (period !== LB_PERIOD) u.searchParams.set("period", period); else u.searchParams.delete("period");
       if (week) u.searchParams.set("week", week); else u.searchParams.delete("week");
-      if (metric !== "immersion") u.searchParams.set("metric", metric); else u.searchParams.delete("metric");
+      if (metric !== LB_METRIC) u.searchParams.set("metric", metric); else u.searchParams.delete("metric");
       history.replaceState(null, "", u.pathname + u.search + u.hash);
     }
 
     function load() {
       syncUrl();
-      var end = week || cur;
-      date.value = end; latest.disabled = !week;
+      date.value = week || pub; latest.disabled = !week;
+      if (period !== "last") { goals.hidden = true; gseq++; }
       var ck = period + "|" + (week || "");
       var my = ++seq;
-      root.classList.add("loading");
       tableBox.style.opacity = "0.5";
+      // always send period: the server's default (4w) isn't ours
       var p = cache[ck] || F.api("/v1/track/leaderboard?period=" + period + (week ? "&week=" + week : ""));
       cache[ck] = p;
       p.then(function (d) {
         if (my !== seq) return;
         tableBox.style.opacity = "";
         data = d || { users: [], weeks: [] };
+        if (T.isKey(data.published_through)) {
+          pub = data.published_through;
+          date.max = T.addDays(pub, 6);
+          if (week && week >= pub) { week = null; syncUrl(); }
+          date.value = week || pub; latest.disabled = !week;
+        }
         paint();
+        loadGoals();
       }, function (e) {
         delete cache[ck];
         if (my !== seq) return;
@@ -586,55 +1090,97 @@
     function value(u) {
       if (metric === "kotu" || metric === "kyotsu") return num(u[metric]) ? u[metric] : null;
       var t = u.totals || {};
-      if (metric === "immersion" && !num(t.immersion)) return (num(t.active) ? t.active : 0) + (num(t.passive) ? t.passive : 0);
+      if (metric === "all" && !num(t.all)) return T.sumTotals(t);
+      if (metric === "nopassive" && !num(t.nopassive)) return T.sumTotals(t) - (num(t.passive) ? t.passive : 0);
       return num(t[metric]) ? t[metric] : 0;
     }
+    function shownWeek() { return (data && (data.to || (data.weeks && data.weeks[data.weeks.length - 1]))) || week || pub; }
+    // "Sun 18 Oct, 04:00" in the viewer's own time zone
+    function localTime(ms) { return new Date(ms).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
+
+    function paintRange() {
+      var P = PERIODS.filter(function (p) { return p.id === period; })[0];
+      var to = shownWeek(), from = data.from || (data.weeks && data.weeks[0]) || to;
+      var span = T.fmtKeyLong(from) + " → " + T.fmtKeyLong(T.addDays(to, 6));
+      range.textContent = period === "last" ? (week ? "" : "Last week: ") + T.weekTitle(to) + " (" + T.fmtDayLabel(to) + " → " + T.fmtDayLabel(T.addDays(to, 6)) + ")"
+        : period === "all" ? "All time: " + span
+        : P.label + ": " + span;
+      // the running week is never shown until it ends (or the admin ends it early)
+      var cw = T.isKey(data.current_week) ? data.current_week : cur, endMs = Date.parse(data.current_week_end);
+      if (!isFinite(endMs)) endMs = T.weekStartMs(cw) + 7 * 864e5;
+      note.textContent = data.ended_early
+        ? "The admin released this week's results (week of " + T.fmtDayLabel(cw) + ") early, so they're included. The following week's results appear once it ends: " + localTime(endMs + 7 * 864e5) + " your time."
+        : "This week's results (week of " + T.fmtDayLabel(cw) + ") appear once it ends: " + localTime(endMs) + " your time.";
+    }
+
     function paint() {
       if (!data) return;
-      var M = MET[metric], fmt = M.pct ? T.fmtPct : T.fmtH;
-      var from = data.from || (data.weeks && data.weeks[0]), to = data.to || week || cur;
+      var M = MET[metric], fmt = M.pct ? T.fmtPct : hm, isLast = period === "last", to = shownWeek();
       var P = PERIODS.filter(function (p) { return p.id === period; })[0];
-      range.textContent = period === "week" ? T.weekTitle(to) + (to === cur ? " (this week)" : "")
-        : period === "all" ? "All time, up to " + T.fmtKeyLong(T.addDays(to, 6))
-        : P.label + ": " + (from ? T.fmtKeyLong(from) : "") + " → " + T.fmtKeyLong(T.addDays(to, 6));
+      paintRange();
 
       var rows = (data.users || []).map(function (u) { return { u: u, v: value(u) }; })
         .filter(function (r) { return r.v != null && (M.pct || r.v > 0); })   // nobody ranked at 0 h
         .sort(function (a, b) { return b.v - a.v || String(a.u.user && a.u.user.name).localeCompare(String(b.u.user && b.u.user.name)); });
       var missing = (data.users || []).length - rows.length;
 
-      // table
+      // table: rank, name, [metric h:mm], Kotu, Kyōtsu, [weeks], details toggle
       tableBox.textContent = "";
       if (!rows.length) {
         tableBox.appendChild(el("p", { class: "fc-empty", text: (data.users || []).length ? "Nobody has logged " + (M.noun || M.long.toLowerCase()).replace(/ \(average\)$/, "") + " in this period." : "Nobody has logged anything in this period yet." }));
       } else {
+        var sorted = function (id) { return metric === id ? "descending" : null; };
+        var hr = el("tr", {},
+          el("th", { scope: "col", text: "#" }), el("th", { scope: "col", text: "Name" }),
+          M.pct ? null : el("th", { scope: "col", class: "num lb-sel", "aria-sort": "descending" }, M.label, el("span", { class: "lb-unit", text: " h:mm" })),
+          el("th", { scope: "col", class: "num" + (metric === "kotu" ? " lb-sel" : ""), "aria-sort": sorted("kotu"), text: "Kotu" }),
+          el("th", { scope: "col", class: "num" + (metric === "kyotsu" ? " lb-sel" : ""), "aria-sort": sorted("kyotsu"), text: "Kyōtsu" }),
+          isLast ? null : el("th", { scope: "col", class: "num lb-wk", text: "Weeks" }),
+          el("th", { scope: "col", class: "lb-tg" }, el("span", { class: "fz-sr", text: "Details" })));
+        var ncol = hr.children.length;
         var tb = el("tbody"), rank = 0, prevV = null;
         rows.forEach(function (r, i) {
           if (r.v !== prevV) { rank = i + 1; prevV = r.v; }
-          var mine = me && r.u.user && r.u.user.id === me.id;
-          tb.appendChild(el("tr", { class: mine ? "me" : null },
+          var u = r.u, uid = (u.user && u.user.id) | 0, mine = me && uid === me.id, name = (u.user && u.user.name) || "Someone";
+          var detId = "lbd-" + uid;
+          var det = el("tr", { class: "lb-det-row" + (mine ? " me" : ""), id: detId, hidden: !open[uid] }, el("td", { colspan: String(ncol) }));
+          var btn = el("button", { type: "button", class: "lb-toggle", "aria-expanded": String(!!open[uid]), "aria-controls": detId, "aria-label": "Details for " + name, title: "Details" });
+          var fill = function () { if (!det.firstChild.firstChild) det.firstChild.appendChild(detail(u, isLast)); };
+          if (open[uid]) fill();
+          btn.addEventListener("click", function () {
+            var o = btn.getAttribute("aria-expanded") !== "true";
+            if (o) fill();
+            btn.setAttribute("aria-expanded", String(o));
+            det.hidden = !o;
+            if (o) open[uid] = 1; else delete open[uid];
+            row.classList.toggle("open", o);
+          });
+          var row = el("tr", { class: "lb-row" + (mine ? " me" : "") + (open[uid] ? " open" : "") },
             el("td", { class: "lb-rank num", text: String(rank) }),
-            el("td", {}, T.userLink(r.u.user, 32)),
-            el("td", { class: "num", text: fmt(r.v) }),
-            el("td", { class: "num", text: String(r.u.weeks_logged | 0) })));
+            el("td", { class: "lb-name" }, T.userLink(u.user, 32)),
+            M.pct ? null : el("td", { class: "num lb-sel", text: hm(r.v) }),
+            el("td", { class: "num" + (metric === "kotu" ? " lb-sel" : ""), text: T.fmtPct(u.kotu) }),
+            el("td", { class: "num" + (metric === "kyotsu" ? " lb-sel" : ""), text: T.fmtPct(u.kyotsu) }),
+            isLast ? null : el("td", { class: "num lb-wk", text: String(u.weeks_logged | 0) }),
+            el("td", { class: "lb-tg" }, btn));
+          tb.append(row, det);
         });
-        tableBox.appendChild(el("table", { class: "lb-table" },
-          el("thead", {}, el("tr", {}, el("th", { text: "#" }), el("th", { text: "Name" }), el("th", { class: "num", text: M.label + (M.pct ? " %" : " h") }), el("th", { class: "num", text: "Weeks" }))),
-          tb));
+        tableBox.appendChild(el("table", { class: "lb-table" }, el("thead", {}, hr), tb));
         if (missing) tableBox.appendChild(el("p", { class: "fz-muted tk-small", text: missing + " more " + (missing === 1 ? "person" : "people") + " logged this period but no " + (M.pct ? M.label + " scores." : (M.noun || M.long.toLowerCase()) + ".") }));
       }
 
       // graph 1: the metric per user
-      g1h.textContent = M.long + " — " + (period === "week" ? (week ? "that week" : "this week") : P.label.toLowerCase());
+      var unit = M.pct ? "" : " (h:mm)";
+      g1h.textContent = M.long + unit + " — " + (isLast ? "week of " + T.fmtDayLabel(to) : P.label.toLowerCase());
       var top = rows.slice(0, 20);
-      var o1 = { rows: top.map(function (r) { return { label: (r.u.user && r.u.user.name) || "Someone", value: r.v, href: F.profileHref ? F.profileHref(r.u.user) : null, me: me && r.u.user && r.u.user.id === me.id, note: (r.u.weeks_logged | 0) + " week" + ((r.u.weeks_logged | 0) === 1 ? "" : "s") + " logged" }; }),
-        color: M.color, fmt: fmt, max: M.pct ? 100 : 0, valueLabel: M.label, ariaLabel: M.long + " per person" };
+      var o1 = { rows: top.map(function (r) { return { label: (r.u.user && r.u.user.name) || "Someone", value: r.v, href: F.profileHref ? F.profileHref(r.u.user) : null, me: me && r.u.user && r.u.user.id === me.id, note: isLast ? null : (r.u.weeks_logged | 0) + " week" + ((r.u.weeks_logged | 0) === 1 ? "" : "s") + " logged" }; }),
+        color: M.color, fmt: fmt, max: M.pct ? 100 : 0, valueLabel: M.pct ? M.label : M.label + " (h:mm)", ariaLabel: M.long + " per person" };
       if (c1) c1.update(o1); else c1 = FazonCharts.hbars(g1, o1);
       graphs.hidden = !rows.length;
 
       // graph 2: per week, top 8
       var weeks = data.weeks || [];
-      g2h.textContent = M.long + " per week — top " + Math.min(8, rows.length);
+      g2h.textContent = M.long + unit + " per week — top " + Math.min(8, rows.length);
       if (weeks.length < 2) {
         g2note.hidden = false; g2note.textContent = "Pick a longer period to see week-by-week lines."; g2.hidden = true;
       } else {
@@ -645,9 +1191,110 @@
           return { label: (r.u.user && r.u.user.name) || "Someone", color: T.slotColor(i), values: weeks.map(function (_, j) { return num(s[j]) ? s[j] : null; }) };
         });
         var o2 = { x: weeks, xLabel: function (k) { return T.fmtKeyAxis(k, multiYear); }, xTitle: T.weekTitle, series: ser, yMax: M.pct ? 100 : null,
-          fmt: function (v, tick) { return tick ? (M.pct ? v + "%" : T.fmtNum(v)) : fmt(v); }, ariaLabel: M.long + " per week, top people" };
+          fmt: function (v, tick) { return M.pct ? (tick ? v + "%" : T.fmtPct(v)) : hm(v); }, ariaLabel: M.long + " per week, top people" };
         if (c2) c2.update(o2); else c2 = FazonCharts.lines(g2, o2);
       }
+    }
+
+    // ---- one person's expanded row: totals, per-category breakdown (+ ratings), summary ----
+    function detail(u, isLast) {
+      var t = u.totals || {}, all = num(t.all) ? t.all : T.sumTotals(t);
+      var nop = num(t.nopassive) ? t.nopassive : all - (num(t.passive) ? t.passive : 0);
+      var stat = function (k, v, cls) { return el("div", { class: "lb-stat" + (cls ? " " + cls : "") }, el("dt", { text: k }), el("dd", { text: v })); };
+      var stats = el("dl", { class: "lb-stats" },
+        stat("All", hm(all), "lb-all"), stat("Exclude Passive", hm(nop), "lb-nop"),
+        stat("Kotu", T.fmtPct(u.kotu)), stat("Kyōtsu", T.fmtPct(u.kyotsu)),
+        isLast ? null : stat("Weeks logged", String(u.weeks_logged | 0)));
+      var bar = el("div", { class: "lb-stack", "aria-hidden": "true" }), list = el("ul", { class: "lb-cats" + (isLast ? " rated" : ""), "aria-label": "Hours per category (h:mm)" });
+      CATS.forEach(function (c) {
+        var v = num(t[c.id]) ? t[c.id] : 0, rt = isLast && u.ratings ? RATING[u.ratings[c.id]] : null;
+        if (v > 0 && all > 0) { var sg = el("span", { title: c.short + " " + hm(v) }); sg.style.background = T.catColor(c.id); sg.style.flexGrow = String(v); bar.appendChild(sg); }
+        var dot = el("span", { class: "tk-dotc", "aria-hidden": "true" }); dot.style.background = T.catColor(c.id);
+        list.appendChild(el("li", { class: v > 0 ? null : "zero" }, dot,
+          el("span", { class: "lb-cat-n", title: c.label, text: c.short }),
+          el("span", { class: "lb-cat-v", text: hm(v) }),
+          isLast ? el("span", rt ? { class: "lb-rate", role: "img", "aria-label": "self-rating: " + rt.t, title: "Self-rating: " + rt.t, text: rt.e } : { class: "lb-rate" }) : null));
+      });
+      var sum;
+      if (u.summary && String(u.summary).trim()) {
+        var txt = el("div", { class: "sm-text", text: u.summary });
+        sum = el("div", { class: "lb-sum" }, el("p", { class: "lb-sum-h", text: isLast || !T.isKey(u.summary_week) ? "Summary" : "Summary — week of " + T.fmtDayLabel(u.summary_week) }), txt);
+        requestAnimationFrame(function () {   // clamp long ones, like the feed
+          if (txt.scrollHeight < 190) return;
+          txt.classList.add("clamped");
+          var more = el("button", { type: "button", class: "fz-linkbtn sm-more", text: "Read more", "aria-expanded": "false" });
+          more.addEventListener("click", function () {
+            var o = txt.classList.toggle("clamped") === false;
+            more.textContent = o ? "Show less" : "Read more";
+            more.setAttribute("aria-expanded", String(o));
+          });
+          sum.appendChild(more);
+        });
+      } else sum = el("p", { class: "fz-muted tk-small lb-sum-none", text: isLast ? "No public summary for this week." : "No public summary in this period." });
+      return el("div", { class: "lb-det" }, stats, all > 0 ? bar : null, list, sum);
+    }
+
+    // ---- goal achievers (Last week only) ----
+    var gcache = {}, gseq = 0;
+    function loadGoals() {
+      if (period !== "last" || !data) { goals.hidden = true; return; }
+      var wk = shownWeek(), my = ++gseq;
+      goals.hidden = false;
+      goalsIntro.textContent = "Who met the goals they set for the week of " + T.fmtKeyLong(wk) + ", ranked by how far they beat them (all goal hours together). Meeting every goal ranks above meeting only some, whatever the percentage.";
+      goalsBody.style.opacity = "0.5";
+      var p = gcache[wk] || F.api("/v1/track/leaderboard/goals?week=" + wk);
+      gcache[wk] = p;
+      p.then(function (d) {
+        if (my !== gseq) return;
+        goalsBody.style.opacity = "";
+        paintGoals((d && d.users) || []);
+      }, function (e) {
+        delete gcache[wk];
+        if (my !== gseq) return;
+        goalsBody.style.opacity = "";
+        goalsBody.textContent = "";
+        goalsBody.appendChild(el("p", { class: "fz-error", text: e.message }));
+      });
+    }
+    function paintGoals(users) {
+      goalsBody.textContent = "";
+      if (!users.length) { goalsBody.appendChild(el("p", { class: "fc-empty", text: "Nobody met any of their goals that week." })); return; }
+      var rank = 0;   // the server's order: tier 1 first, then by percentage
+      [{ t1: true, h: "Met all their goals" }, { t1: false, h: "Met some of their goals" }].forEach(function (tier) {
+        var us = users.filter(function (u) { return (u.tier != null ? u.tier === 1 : !!u.all_met) === tier.t1; });
+        if (!us.length) return;
+        var ol = el("ol", { class: "lb-gl" });
+        us.forEach(function (u) { ol.appendChild(goalItem(u, ++rank)); });
+        goalsBody.append(el("div", { class: "lb-tier" + (tier.t1 ? "" : " t2") }, el("h3", { text: tier.h }), ol));
+      });
+    }
+    function goalItem(u, rank) {
+      var uid = (u.user && u.user.id) | 0, id = "lbg-" + uid, name = (u.user && u.user.name) || "Someone";
+      var det = el("ul", { class: "lb-gd", id: id, hidden: true, "aria-label": "Goals" });
+      catOrder(Object.keys(u.goals || {})).forEach(function (c) {
+        var g = u.goals[c], l = u.logged && num(u.logged[c]) ? u.logged[c] : 0, met = num(g) && l >= g;
+        var dot = el("span", { class: "tk-dotc", "aria-hidden": "true" }); dot.style.background = T.catColor(c);
+        det.appendChild(el("li", { class: met ? "met" : "miss" }, dot,
+          el("span", { class: "lb-gd-n", text: CAT[c] ? CAT[c].short : c }),
+          el("span", { class: "lb-gd-v" }, el("b", { text: hm(l) }), " logged / " + hm(g) + " goal"),
+          el("span", { class: "lb-gd-m", role: "img", "aria-label": met ? "met" : "not met", title: met ? "Met" : "Not met", text: met ? "✓" : "✗" })));
+      });
+      var btn = el("button", { type: "button", class: "lb-toggle", "aria-expanded": "false", "aria-controls": id, "aria-label": "Goal details for " + name, title: "Goal details" });
+      var li = el("li", { class: "lb-gi" + (me && uid === me.id ? " me" : "") },
+        el("div", { class: "lb-gi-row" },
+          el("span", { class: "lb-rank num", text: String(rank) }),
+          el("span", { class: "lb-gi-name" }, T.userLink(u.user, 28)),
+          el("span", { class: "lb-gi-stats" },
+            el("b", { class: "lb-gpct" + (num(u.percent) && u.percent < 0 ? " neg" : ""), title: "Logged in the goal categories vs the goals' total", text: signedPct(u.percent) }),
+            el("span", { class: "lb-gcnt", text: (u.goals_met | 0) + "/" + (u.goals_set | 0) + " goals" })),
+          btn), det);
+      btn.addEventListener("click", function () {
+        var o = btn.getAttribute("aria-expanded") !== "true";
+        btn.setAttribute("aria-expanded", String(o));
+        det.hidden = !o;
+        li.classList.toggle("open", o);
+      });
+      return li;
     }
 
     // ---- recent summaries feed ----
@@ -666,7 +1313,7 @@
           var id = ((it.user && it.user.id) | 0) + "|" + it.week;
           if (seen[id]) return;
           seen[id] = 1; added++;
-          list.appendChild(T.summaryCard(it));
+          list.appendChild(T.summaryCard(it, { fmtH: hm }));
           if (!oldest || it.week < oldest) oldest = it.week;
         });
         if (!added && items.length >= LIMIT && inclusive) return loadFeed(false);

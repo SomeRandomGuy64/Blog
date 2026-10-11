@@ -56,6 +56,11 @@
   T.fmtNum = function (v, d) { return num(v) ? (Math.round(v * 100) / 100).toLocaleString("en", { maximumFractionDigits: d == null ? 2 : d }) : "—"; };
   T.fmtH = function (v) { return num(v) ? T.fmtNum(v) + " h" : "—"; };
   T.fmtPct = function (v) { return num(v) ? T.fmtNum(v, 1) + "%" : "—"; };
+  // logger (goals, stopwatch): hours → "35:00" / "2:30"; ms → "0:42:10"
+  T.fmtHM = function (v) { if (!num(v)) return "—"; var m = Math.round(Math.max(0, v) * 60); return Math.floor(m / 60) + ":" + String(m % 60).padStart(2, "0"); };
+  T.fmtClock = function (ms) { var s = Math.floor(Math.max(0, ms) / 1000); return Math.floor(s / 3600) + ":" + String(Math.floor(s / 60) % 60).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
+  // weekly self-ratings (API values 1–4)
+  T.RATINGS = [{ v: 1, e: "😞", t: "Rough" }, { v: 2, e: "😐", t: "So-so" }, { v: 3, e: "👌", t: "Good" }, { v: 4, e: "🔥", t: "Great" }];
   T.sumTotals = function (t) { var a = 0; if (t) CATS.forEach(function (c) { if (num(t[c.id])) a += t[c.id]; }); return a; };
   T.mean = function (arr) { var v = (arr || []).filter(num); return v.length ? v.reduce(function (a, b) { return a + b; }, 0) / v.length : null; };
 
@@ -87,7 +92,7 @@
   };
 
   // ---- one summary card (leaderboard feed + profile list) ----
-  // item: {user?, week, summary, totals?, kotu?, kyotsu?, private?}
+  // item: {user?, week, summary, totals?, kotu?, kyotsu?, private?}; opts: {noUser?, fmtH?(hours) → string}
   T.summaryCard = function (it, opts) {
     var F = window.Fazon, el = F.el;
     opts = opts || {};
@@ -100,7 +105,7 @@
       var v = it.totals && it.totals[c.id];
       if (num(v) && v > 0) {
         var dot = el("span", { class: "tk-dotc" }); dot.style.background = T.catColor(c.id);
-        chips.appendChild(el("span", { class: "sm-chip", title: c.label }, dot, c.short + " " + T.fmtH(v)));
+        chips.appendChild(el("span", { class: "sm-chip", title: c.label }, dot, c.short + " " + (opts.fmtH || T.fmtH)(v)));   // opts.fmtH: the leaderboard's h:mm
       }
     });
     if (num(it.kotu)) chips.appendChild(el("span", { class: "sm-chip", text: "Kotu " + T.fmtPct(it.kotu) }));
@@ -228,18 +233,79 @@
     if (used.length < 2 && !used.some(function (c) { return weeks.some(function (w) { return w.subtotals && w.subtotals[c.id] && Object.keys(w.subtotals[c.id]).some(function (s) { return s !== "none"; }); }); })) seg.hidden = true;
     draw();
 
-    // Kotu + Kyōtsu weekly scores
-    var hasScores = weeks.some(function (w) { return num(w.kotu) || num(w.kyotsu); });
-    if (hasScores) {
-      var sbox = el("div");
-      root.appendChild(el("div", { class: "tkp-block" }, el("div", { class: "tkp-block-h" }, el("h3", { text: "Kotu & Kyōtsu accuracy (weekly average)" })), sbox));
-      var ser = [];
-      if (weeks.some(function (w) { return num(w.kotu); })) ser.push({ label: "Kotu", color: "var(--tk-kotu)", values: keys.map(function (k) { return byKey[k] && num(byKey[k].kotu) ? byKey[k].kotu : null; }) });
-      if (weeks.some(function (w) { return num(w.kyotsu); })) ser.push({ label: "Kyōtsu", color: "var(--tk-kyotsu)", values: keys.map(function (k) { return byKey[k] && num(byKey[k].kyotsu) ? byKey[k].kyotsu : null; }) });
-      FazonCharts.lines(sbox, { x: keys, xLabel: xLabel, xTitle: T.weekTitle, series: ser, yMax: 100,
-        fmt: function (v, tick) { return tick ? v + "%" : T.fmtPct(v); }, ariaLabel: "Weekly Kotu and Kyōtsu accuracy" });
-    }
+    accuracy(root, d, weeks, last);
     if (own) root.appendChild(el("p", { class: "tkp-link" }, el("a", { href: "/track/", text: "Log this week's hours →" })));
+  }
+
+  // Kotu + Kyōtsu accuracy: weekly averages or day by day, from the first scored week / day (not the
+  // first logged one); missing weeks / days between two scores are bridged by dashed estimates.
+  var ACC_VIEW = "fz-track-acc-view";
+  function accuracy(root, d, weeks, lastWeek) {
+    var el = window.Fazon.el;
+    var scored = weeks.filter(function (w) { return num(w.kotu) || num(w.kyotsu); });
+    if (!scored.length) return;
+    var byKey = {}, byDay = {}, firstDay = null, lastDay = null;
+    weeks.forEach(function (w) {
+      byKey[w.week] = w;
+      (w.days || []).forEach(function (day, i) {
+        var kv = w.kotu_days && w.kotu_days[i], yv = w.kyotsu_days && w.kyotsu_days[i];
+        byDay[day] = { kotu: num(kv) ? kv : null, kyotsu: num(yv) ? yv : null, src: w.kyotsu_source && w.kyotsu_source[i] };
+        if ((num(kv) || num(yv)) && (!firstDay || day < firstDay)) firstDay = day;
+        if (!lastDay || day > lastDay) lastDay = day;
+      });
+    });
+    var firstWeek = T.isKey(d.first_score_week) && byKey[d.first_score_week] ? d.first_score_week : scored[0].week;
+    var wkeys = [];
+    for (var k = firstWeek; k <= lastWeek; k = T.addWeeks(k, 1)) wkeys.push(k);
+    // days run to the end of the last returned week, but never past today's label date
+    var cur = T.currentWeekKey(), today = T.addDays(cur, Math.max(0, Math.min(6, Math.floor((Date.now() - T.weekStartMs(cur)) / DAY))));
+    if (lastDay && lastDay > today) lastDay = today;
+    var dkeys = [];
+    if (firstDay) for (var dk = firstDay; dk <= lastDay; dk = T.addDays(dk, 1)) dkeys.push(dk);
+
+    var view = "week";
+    try { if (localStorage.getItem(ACC_VIEW) === "day") view = "day"; } catch (e) { /* storage blocked */ }
+    var seg = el("div", { class: "tk-seg", role: "group", "aria-label": "Accuracy view" });
+    var box = el("div"), title = el("h3");
+    root.appendChild(el("div", { class: "tkp-block tkp-acc" }, el("div", { class: "tkp-block-h" }, title, seg), box));
+    var chart = null;
+    var pct = function (v, tick) { return tick ? v + "%" : T.fmtPct(v); };
+    function draw() {
+      var o, daily = view === "day", ser = [];
+      title.textContent = "Kotu & Kyōtsu accuracy (" + (daily ? "day by day" : "weekly average") + ")";
+      if (daily) {
+        var kot = dkeys.map(function (k) { return byDay[k] ? byDay[k].kotu : null; });
+        var kyo = dkeys.map(function (k) { return byDay[k] ? byDay[k].kyotsu : null; });
+        if (kot.some(num)) ser.push({ label: "Kotu", color: "var(--tk-kotu)", values: kot });
+        if (kyo.some(num)) ser.push({ label: "Kyōtsu", color: "var(--tk-kyotsu)", values: kyo,
+          notes: dkeys.map(function (k) { return byDay[k] && num(byDay[k].kyotsu) && byDay[k].src === "auto" ? "(auto from trainer)" : null; }) });
+        o = { x: dkeys, xLabel: T.fmtKeyShort, xTitle: T.fmtDayLabel, ariaLabel: "Daily Kotu and Kyōtsu accuracy", minStep: 3 };
+      } else {
+        var multiYear = wkeys[0].slice(0, 4) !== wkeys[wkeys.length - 1].slice(0, 4) && wkeys.length > 20;
+        ["kotu", "kyotsu"].forEach(function (f) {
+          var vals = wkeys.map(function (k) { return byKey[k] && num(byKey[k][f]) ? byKey[k][f] : null; });
+          if (vals.some(num)) ser.push({ label: f === "kotu" ? "Kotu" : "Kyōtsu", color: "var(--tk-" + f + ")", values: vals });
+        });
+        o = { x: wkeys, xLabel: function (k) { return T.fmtKeyAxis(k, multiYear); }, xTitle: T.weekTitle, ariaLabel: "Weekly Kotu and Kyōtsu accuracy" };
+      }
+      o.series = ser; o.yMax = 100; o.fmt = pct; o.estimateGaps = true;
+      if (chart) chart.update(o); else chart = FazonCharts.lines(box, o);
+      // a long day-by-day run scrolls inside the chart: open on the latest days
+      var sc = box.querySelector(".fc-scroll");
+      if (sc) sc.scrollLeft = sc.scrollWidth;
+    }
+    [{ id: "week", label: "Weekly average" }, { id: "day", label: "Day by day" }].forEach(function (b) {
+      var btn = el("button", { type: "button", "aria-pressed": String(b.id === view), text: b.label });
+      btn.addEventListener("click", function () {
+        if (view === b.id) return;
+        view = b.id;
+        seg.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === btn)); });
+        try { localStorage.setItem(ACC_VIEW, view); } catch (e) { /* storage blocked */ }
+        draw();
+      });
+      seg.appendChild(btn);
+    });
+    draw();
   }
 
   function summaries(root, d, sums, own) {
