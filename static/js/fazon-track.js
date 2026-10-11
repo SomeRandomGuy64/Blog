@@ -1218,18 +1218,8 @@
       var sum;
       if (u.summary && String(u.summary).trim()) {
         var txt = el("div", { class: "sm-text", text: u.summary });
+        // shown in full here (unlike the feed, which clamps long ones)
         sum = el("div", { class: "lb-sum" }, el("p", { class: "lb-sum-h", text: isLast || !T.isKey(u.summary_week) ? "Summary" : "Summary — week of " + T.fmtDayLabel(u.summary_week) }), txt);
-        requestAnimationFrame(function () {   // clamp long ones, like the feed
-          if (txt.scrollHeight < 190) return;
-          txt.classList.add("clamped");
-          var more = el("button", { type: "button", class: "fz-linkbtn sm-more", text: "Read more", "aria-expanded": "false" });
-          more.addEventListener("click", function () {
-            var o = txt.classList.toggle("clamped") === false;
-            more.textContent = o ? "Show less" : "Read more";
-            more.setAttribute("aria-expanded", String(o));
-          });
-          sum.appendChild(more);
-        });
       } else sum = el("p", { class: "fz-muted tk-small lb-sum-none", text: isLast ? "No public summary for this week." : "No public summary in this period." });
       return el("div", { class: "lb-det" }, stats, all > 0 ? bar : null, list, sum);
     }
