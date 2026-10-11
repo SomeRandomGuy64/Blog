@@ -74,12 +74,13 @@
     }
 
     function speakerStats(answers){
-      const by={}, order=[];
+      // speaker ids come from the saved session: no prototype keys ("__proto__", "constructor")
+      const by=Object.create(null), order=[], known=k=>Object.prototype.hasOwnProperty.call(SPEAKERS,k);
       answers.forEach(a=>{ const k=String(a.speaker||"?"); if(!by[k]){ by[k]={c:0,t:0}; order.push(k); } by[k].t++; if(a.ok) by[k].c++; });
-      const ids=Object.keys(SPEAKERS).filter(k=>by[k]).concat(order.filter(k=>!(k in SPEAKERS)));
+      const ids=Object.keys(SPEAKERS).filter(k=>by[k]).concat(order.filter(k=>!known(k)));
       const rows=ids.map(k=>{ const r=by[k], p=pct(r.c,r.t);
         return el("div",{class:"ks-spk"},
-          el("div",{class:"ks-spk-top"},el("span",{class:"jp",text:SPEAKERS[k]||k}),el("span",{class:"pat-n",text:`${r.c} of ${r.t} (${p}%)`})),
+          el("div",{class:"ks-spk-top"},el("span",{class:"jp",text:known(k)?SPEAKERS[k]:k}),el("span",{class:"pat-n",text:`${r.c} of ${r.t} (${p}%)`})),
           el("div",{class:"ks-bar"},el("span",{style:`width:${p}%`}))); });
       return panel("By speaker",...(rows.length?rows:[el("p",{class:"ks-empty",text:"No answers."})]));
     }

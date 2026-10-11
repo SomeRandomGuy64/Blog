@@ -511,7 +511,7 @@
     var q = new URLSearchParams(location.search);
     var cur = T.currentWeekKey();
     var period = PERIODS.some(function (p) { return p.id === q.get("period"); }) ? q.get("period") : "4w";
-    var metric = MET[q.get("metric")] ? q.get("metric") : "immersion";
+    var metric = Object.prototype.hasOwnProperty.call(MET, q.get("metric")) ? q.get("metric") : "immersion";   // not ?metric=__proto__/constructor
     var week = T.isKey(q.get("week")) ? T.weekOfDate(q.get("week")) : null;   // null = current
     var me = null, data = null, seq = 0, cache = {};
 

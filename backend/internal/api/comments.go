@@ -11,6 +11,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"fazon.nexus/backend/internal/db"
 )
 
 const (
@@ -202,7 +204,13 @@ func (s *Server) postComment(w http.ResponseWriter, r *http.Request, u *user) {
 		writeErr(w, http.StatusBadRequest, "comment must be 1-5000 characters")
 		return
 	}
-	title := truncateRunes(strings.TrimSpace(cleanBody(in.Title)), maxTitleRunes)
+	// Titles are shown inline in notifications and profiles: no bidi controls (see db.NormalizeName).
+	title := truncateRunes(strings.TrimSpace(strings.Map(func(r rune) rune {
+		if db.IsBidiControl(r) || r == '\n' || r == '\t' {
+			return ' '
+		}
+		return r
+	}, cleanBody(in.Title))), maxTitleRunes)
 	now := s.now()
 	if !s.commentLimit.allow(strconv.FormatInt(u.ID, 10), now) {
 		writeErr(w, http.StatusTooManyRequests, "too many comments, slow down")

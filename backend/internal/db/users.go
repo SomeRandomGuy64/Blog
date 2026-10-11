@@ -42,16 +42,24 @@ func NormalizeEmail(s string) (string, error) {
 	return s, nil
 }
 
-// NormalizeName trims a display name and requires 1–40 runes with no control characters.
+// NormalizeName trims a display name and requires 1–40 runes with no control characters and
+// no bidi embedding/override/isolate controls (an unclosed U+202E in a name reverses the text
+// around it wherever the name is shown inline, e.g. "X liked your comment on …").
 func NormalizeName(s string) (string, error) {
 	s = strings.TrimSpace(s)
 	if n := utf8.RuneCountInString(s); n < 1 || n > 40 {
 		return "", errors.New("name must be 1-40 characters")
 	}
-	if !utf8.ValidString(s) || strings.ContainsFunc(s, unicode.IsControl) {
+	if !utf8.ValidString(s) || strings.ContainsFunc(s, unicode.IsControl) || strings.ContainsFunc(s, IsBidiControl) {
 		return "", errors.New("name must not contain control characters")
 	}
 	return s, nil
+}
+
+// IsBidiControl reports the explicit bidi formatting characters: LRE/RLE/PDF/LRO/RLO
+// (U+202A–U+202E) and LRI/RLI/FSI/PDI (U+2066–U+2069).
+func IsBidiControl(r rune) bool {
+	return r >= 0x202A && r <= 0x202E || r >= 0x2066 && r <= 0x2069
 }
 
 func scanUser(row interface{ Scan(...any) error }) (User, error) {

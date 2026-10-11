@@ -624,3 +624,10 @@ a.notif { display: flex; gap: 12px; align-items: flex-start; }
 .fz-uc-name .cmt-tag { font-size: 0.65em; font-weight: 400; }
 .fz-uc-bio { white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
 .fz-uc-meta { color: var(--fz-muted); font-size: 0.88em; }
+
+/* User-supplied names, titles and snippets are bidi-isolated, so a stray U+202E (right-to-left
+   override) in one can't reverse the text around it ("X liked your comment on …"). */
+.fz-np-line b, .notif-line b, .pf-r-line b, .fz-acct-id b, .fz-uc-name span, .pf-name span, .cmt-author,
+.fz-np-snip, .notif-snip, .pf-r-snip, .lb-user a, .sm-who a, .tk-row-name, .tk-arch-row span, .fc-li, .fc-tip-r span, .fc-tip-t {
+    unicode-bidi: isolate;
+}

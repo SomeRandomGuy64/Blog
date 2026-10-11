@@ -73,15 +73,21 @@
   var ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return ESC[c]; }); }
 
-  // el("a", {href: "/x", class: "y", onclick: fn}, "text", childNode, ...) — text is always textContent
+  // el("a", {href: "/x", class: "y", onclick: fn}, "text", childNode, ...) — text is always textContent.
+  // Guard rails for values that come from data: on* only ever takes a function (never an inline
+  // handler string), and URL attributes refuse javascript:/vbscript:/data: (browsers ignore
+  // tabs/newlines and leading spaces in a scheme, so those are stripped before the check).
+  var URL_ATTR = { href: 1, src: 1, action: 1, formaction: 1, "xlink:href": 1, poster: 1 };
   function el(tag, attrs) {
     var n = document.createElement(tag);
     if (attrs) Object.keys(attrs).forEach(function (k) {
       var v = attrs[k];
       if (v == null || v === false) return;
+      var lk = k.toLowerCase();
       if (k === "class") n.className = v;
       else if (k === "text") n.textContent = v;
-      else if (k.slice(0, 2) === "on" && typeof v === "function") n.addEventListener(k.slice(2), v);
+      else if (lk.slice(0, 2) === "on") { if (typeof v === "function") n.addEventListener(lk.slice(2), v); }
+      else if (URL_ATTR[lk] && /^(javascript|vbscript|data):/i.test(String(v).replace(/[\u0000-\u0020\u007f]/g, ""))) return;
       else if (k in n && typeof v !== "string") n[k] = v;
       else n.setAttribute(k, v === true ? "" : v);
     });

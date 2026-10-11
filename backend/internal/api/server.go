@@ -130,6 +130,10 @@ func (s *Server) guard(next http.Handler) http.Handler {
 		origin := r.Header.Get("Origin")
 		allowed := origin != "" && originAllowed(s.cfg.Origins, origin)
 		w.Header().Add("Vary", "Origin")
+		// Defence in depth: no response (JSON, avatar, error) is ever sniffed or rendered as a
+		// page that could run script, even if opened directly.
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; sandbox")
 		if allowed {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
