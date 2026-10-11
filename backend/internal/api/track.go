@@ -171,15 +171,24 @@ func validSubcat(category, name string) (string, error) {
 // insertSubcat creates a (validated) sub-category at the end of its category; errStatus 409 on
 // a name clash or the per-category limits.
 func (s *Server) insertSubcat(ctx context.Context, userID int64, category, name string) (subcatJSON, error) {
-	c := subcatJSON{Category: category, Name: name}
-	err := s.tx(ctx, func(tx *sql.Tx) error {
-		if err := subcatConflict(tx, userID, category, name, 0, false); err != nil {
-			return err
-		}
-		return tx.QueryRow(`INSERT INTO track_subcats (user_id, category, name, position, created_at)
-			VALUES (?1, ?2, ?3, (SELECT IFNULL(MAX(position) + 1, 0) FROM track_subcats WHERE user_id = ?1 AND category = ?2), ?4)
-			RETURNING id, position`, userID, category, name, s.now().Unix()).Scan(&c.ID, &c.Position)
+	var c subcatJSON
+	err := s.tx(ctx, func(tx *sql.Tx) (err error) {
+		c, err = insertSubcatTx(tx, userID, category, name, s.now().Unix())
+		return err
 	})
+	return c, err
+}
+
+// insertSubcatTx is insertSubcat inside a transaction (the Kyōtsu trainer creates its
+// sub-category in the transaction that saves the session).
+func insertSubcatTx(tx *sql.Tx, userID int64, category, name string, now int64) (subcatJSON, error) {
+	c := subcatJSON{Category: category, Name: name}
+	if err := subcatConflict(tx, userID, category, name, 0, false); err != nil {
+		return c, err
+	}
+	err := tx.QueryRow(`INSERT INTO track_subcats (user_id, category, name, position, created_at)
+		VALUES (?1, ?2, ?3, (SELECT IFNULL(MAX(position) + 1, 0) FROM track_subcats WHERE user_id = ?1 AND category = ?2), ?4)
+		RETURNING id, position`, userID, category, name, now).Scan(&c.ID, &c.Position)
 	return c, err
 }
 

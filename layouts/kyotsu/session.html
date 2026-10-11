@@ -57,12 +57,35 @@
       const big=el("div",{class:"ks-acc"},
         el("div",{class:"ks-acc-n",text:s.total?pct(s.correct,s.total)+"%":"—"}),
         el("div",{class:"ks-acc-f mono",text:`${s.correct} / ${s.total} correct`}));
+      const active=s.active_seconds>0;   // 0 = saved by an older trainer, which didn't measure it
       const dl=el("dl",{class:"ks-facts"},
         el("dt",{text:"Date"}),el("dd",{text:fmtDate(s.started)}),
         el("dt",{text:"Duration"}),el("dd",{text:duration(s.started,s.ended)}),
+        ...(active?[el("dt",{text:"Practice time"}),el("dd",{class:"mono",text:fmtClock(s.active_seconds)})]:[]),
         el("dt",{text:"Layout"}),el("dd",{text:LAYOUTS[s.layout]||s.layout||"—"}),
         el("dt",{text:"Advanced Mode"}),el("dd",{text:s.advanced?"On":"Off"}));
-      return panel("This session",el("div",{class:"ks-sum"},big,dl));
+      return panel("This session",el("div",{class:"ks-sum"},big,dl,active?trackNote(s):null));
+    }
+
+    // what the session's practice time did on the user's Track (the server's record of it)
+    const fmtClock=sec=>{ const t=Math.round(sec), h=Math.floor(t/3600), m=Math.floor(t/60)%60, ss=String(t%60).padStart(2,"0");
+      return h?`${h}:${String(m).padStart(2,"0")}:${ss}`:`${m}:${ss}`; };
+    const fmtMin=h=>{ const m=Math.round(h*60); return m<60?`${m} min`:`${Math.floor(m/60)} h ${String(m%60).padStart(2,"0")} min`; };
+    // Track weeks run Sunday 03:00 UTC → Sunday 03:00 UTC, keyed by the Saturday before (internal/week)
+    function weekKey(ms){ const d=new Date(ms-3*3600e3); d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+1)); return d.toISOString().slice(0,10); }
+    const fmtKey=k=>new Date(k+"T00:00:00Z").toLocaleDateString(undefined,{day:"numeric",month:"short",timeZone:"UTC"});
+    function trackNote(s){
+      const t=s.track_added, box=el("div",{class:"ks-track"});
+      if(!t){ box.append(el("p",{text:"Under half a minute of practice, so nothing was added to your Track."})); return box; }
+      const cur=t.week===weekKey(Date.now());
+      if(t.hours>0){
+        box.append(el("p",{},"Added ",el("b",{text:fmtMin(t.hours)})," to ",
+          el("b",{text:"Phonetic training › "+(t.subcat!=null?t.subcat:"Other / unassigned")}),
+          cur?" for this week. ":` for the week of ${fmtKey(t.week)}. `,
+          el("a",{href:cur?"/track/":"/track/?week="+encodeURIComponent(t.week),text:"View in Track →"})));
+      }
+      if(t.note) box.append(el("p",{class:"ks-track-note",text:t.note}));
+      return box;
     }
 
     function patternStats(answers){

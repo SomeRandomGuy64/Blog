@@ -4,10 +4,17 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"maps"
+	"math"
 	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
+
+	"fazon.nexus/backend/internal/week"
 )
 
 const (
@@ -32,22 +39,76 @@ type kyotsuAnswer struct {
 }
 
 type kyotsuSummary struct {
-	ID       int64           `json:"id"`
-	Started  string          `json:"started"`
-	Ended    string          `json:"ended"`
-	Layout   string          `json:"layout"`
-	Advanced bool            `json:"advanced"`
-	Total    int             `json:"total"`
-	Correct  int             `json:"correct"`
-	Answers  json.RawMessage `json:"answers,omitempty"`
+	ID            int64           `json:"id"`
+	Started       string          `json:"started"`
+	Ended         string          `json:"ended"`
+	Layout        string          `json:"layout"`
+	Advanced      bool            `json:"advanced"`
+	Total         int             `json:"total"`
+	Correct       int             `json:"correct"`
+	ActiveSeconds int64           `json:"active_seconds"` // practice time the trainer measured; 0 = none
+	TrackAdded    *trackAdded     `json:"track_added"`    // null = nothing added to Track (and nothing to say)
+	Answers       json.RawMessage `json:"answers,omitempty"`
 }
 
+// trackAdded is what a session added to its owner's Track: phonetic hours in the week it ended in.
+type trackAdded struct {
+	Week   string  `json:"week"`
+	Hours  float64 `json:"hours"`
+	Subcat *string `json:"subcat"` // the sub-category's name at the time; null = unassigned
+	Note   string  `json:"note,omitempty"`
+}
+
+// kyotsuCols are the columns scanKyotsu reads (answers_json not included).
+const kyotsuCols = `id, started_at, ended_at, layout, advanced, total, correct, active_seconds, track_centihours, track_subcat, track_note`
+
+func scanKyotsu(row interface{ Scan(...any) error }, extra ...any) (kyotsuSummary, error) {
+	var k kyotsuSummary
+	var started, ended, cents int64
+	var sub sql.NullString
+	var note string
+	err := row.Scan(append([]any{&k.ID, &started, &ended, &k.Layout, &k.Advanced, &k.Total, &k.Correct,
+		&k.ActiveSeconds, &cents, &sub, &note}, extra...)...)
+	if err != nil {
+		return k, err
+	}
+	k.Started, k.Ended = rfc3339(started), rfc3339(ended)
+	if cents > 0 || note != "" {
+		k.TrackAdded = &trackAdded{Week: week.Of(time.Unix(ended, 0)).String(), Hours: float64(cents) / 100, Note: note}
+		if sub.Valid {
+			k.TrackAdded.Subcat = &sub.String
+		}
+	}
+	return k, nil
+}
+
+const (
+	kyotsuSubcat   = "Kyōtsu" // the Phonetic training sub-category trainer time goes to
+	kyotsuCategory = "phonetic"
+)
+
+var clientIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{8,64}$`)
+
+// practiceCents turns active seconds into hundredths of an hour like the site's stopwatch does:
+// rounded to whole minutes first.
+func practiceCents(sec int64) int64 {
+	min := (sec + 30) / 60
+	return int64(math.Round(float64(min) * 100 / 60))
+}
+
+// postKyotsu stores a finished trainer session and, in the same transaction, adds its active
+// practice time to the user's Track: Phonetic training, the "Kyōtsu" sub-category (created or
+// restored from the archive if needed), the week the session ended in (now). A save repeated
+// with the same client_id (a retry after a lost response) updates that session instead: newer
+// answers replace the stored ones and only time not yet added is added.
 func (s *Server) postKyotsu(w http.ResponseWriter, r *http.Request, u *user) {
 	var in struct {
-		Started  string         `json:"started"`
-		Layout   string         `json:"layout"`
-		Advanced bool           `json:"advanced"`
-		Answers  []kyotsuAnswer `json:"answers"`
+		Started       string         `json:"started"`
+		Layout        string         `json:"layout"`
+		Advanced      bool           `json:"advanced"`
+		Answers       []kyotsuAnswer `json:"answers"`
+		ActiveSeconds *float64       `json:"active_seconds"`
+		ClientID      string         `json:"client_id"`
 	}
 	if !decode(w, r, maxKyotsuBody, &in) {
 		return
@@ -69,6 +130,10 @@ func (s *Server) postKyotsu(w http.ResponseWriter, r *http.Request, u *user) {
 		writeErr(w, http.StatusBadRequest, "answers must have 1-5000 entries")
 		return
 	}
+	if in.ClientID != "" && !clientIDRe.MatchString(in.ClientID) {
+		writeErr(w, http.StatusBadRequest, "client_id must be 8-64 letters, digits, - or _")
+		return
+	}
 	correct := 0
 	for i, a := range in.Answers {
 		if !kyotsuCats[a.Cat] {
@@ -85,6 +150,13 @@ func (s *Server) postKyotsu(w http.ResponseWriter, r *http.Request, u *user) {
 			correct++
 		}
 	}
+	// Active time: never negative, never more than the session's wall-clock span (a bad or
+	// tampered value can't add more than the time that actually passed).
+	var active int64
+	if in.ActiveSeconds != nil && *in.ActiveSeconds > 0 {
+		span := int64(now.Sub(started) / time.Second)
+		active = min(int64(math.Round(min(*in.ActiveSeconds, 1e9))), span)
+	}
 	if !s.kyoLimit.allow(strconv.FormatInt(u.ID, 10), now) {
 		writeErr(w, http.StatusTooManyRequests, "too many sessions, slow down")
 		return
@@ -94,23 +166,183 @@ func (s *Server) postKyotsu(w http.ResponseWriter, r *http.Request, u *user) {
 		internalErr(w, "encode answers", err)
 		return
 	}
-	var id int64
-	err = s.db.QueryRowContext(r.Context(), `INSERT INTO kyotsu_sessions
-		(user_id, started_at, ended_at, layout, advanced, total, correct, answers_json)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-		u.ID, started.Unix(), now.Unix(), in.Layout, in.Advanced, len(in.Answers), correct, string(answers)).Scan(&id)
+	var clientID any
+	if in.ClientID != "" {
+		clientID = in.ClientID
+	}
+	status := http.StatusCreated
+	var out kyotsuSummary
+	err = s.tx(r.Context(), func(tx *sql.Tx) error {
+		var id, ended, prevActive, prevCents int64
+		var total int
+		err := tx.QueryRow(`SELECT id, ended_at, active_seconds, track_centihours, total FROM kyotsu_sessions
+			WHERE user_id = ? AND client_id = ?`, u.ID, clientID).Scan(&id, &ended, &prevActive, &prevCents, &total)
+		switch {
+		case errors.Is(err, sql.ErrNoRows): // a new session
+			ended = now.Unix()
+			if err := tx.QueryRow(`INSERT INTO kyotsu_sessions
+				(user_id, started_at, ended_at, layout, advanced, total, correct, answers_json, active_seconds, client_id)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+				u.ID, started.Unix(), ended, in.Layout, in.Advanced, len(in.Answers), correct, string(answers), active, clientID).Scan(&id); err != nil {
+				return err
+			}
+		case err != nil:
+			return err
+		default: // a retry: keep the first save's end time (and so its week); take newer answers
+			status = http.StatusOK
+			if len(in.Answers) > total {
+				if _, err := tx.Exec(`UPDATE kyotsu_sessions SET total = ?, correct = ?, answers_json = ? WHERE id = ?`,
+					len(in.Answers), correct, string(answers), id); err != nil {
+					return err
+				}
+			}
+			if active <= prevActive {
+				active = prevActive
+			} else if _, err := tx.Exec(`UPDATE kyotsu_sessions SET active_seconds = ? WHERE id = ?`, active, id); err != nil {
+				return err
+			}
+		}
+		// Only time not yet added (a retry adds the difference, if any).
+		if add := practiceCents(active) - practiceCents(prevActive); add > 0 {
+			if err := s.addKyotsuTime(tx, u.ID, id, week.Of(time.Unix(ended, 0)).String(), add, now.Unix()); err != nil {
+				return err
+			}
+		}
+		out, err = scanKyotsu(tx.QueryRow(`SELECT `+kyotsuCols+` FROM kyotsu_sessions WHERE id = ?`, id))
+		return err
+	})
 	if err != nil {
-		internalErr(w, "save kyotsu session", err)
+		writeTxErr(w, "save kyotsu session", err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]int64{"id": id})
+	writeJSON(w, status, map[string]any{"id": out.ID, "active_seconds": out.ActiveSeconds, "track_added": out.TrackAdded})
+}
+
+// addKyotsuTime adds cents of phonetic time from session id to the user's week key and records
+// on the session what it added, where, and why there if it wasn't the Kyōtsu sub-category.
+// It never fails the session over Track's rules: a sub-category that can't be created means
+// the unassigned bucket, and the 168 h caps shrink the addition (possibly to nothing).
+func (s *Server) addKyotsuTime(tx *sql.Tx, userID, id int64, key string, cents, now int64) error {
+	hours, err := weekHoursTx(tx, userID, key)
+	if err != nil {
+		return err
+	}
+	var sub int64
+	var name, note string
+	if catCents(hours, kyotsuCategory) < maxWeekCents { // no sub-category made for time that can't be added
+		if sub, name, note, err = kyotsuSubcatTx(tx, userID, now); err != nil {
+			return err
+		}
+	}
+	before := maps.Clone(hours)
+	added := addCapped(hours, hourSlot{kyotsuCategory, sub}, cents)
+	switch {
+	case added == 0:
+		note = "Nothing was added: Phonetic training already has 168 h this week."
+	case added < cents:
+		note = joinNote(note, fmt.Sprintf("Only %s h of %s h was added: Phonetic training can't go over 168 h in a week.",
+			fmtCents(added), fmtCents(cents)))
+	}
+	if err := writeWeekHoursTx(tx, userID, key, now, before, hours); err != nil {
+		return err
+	}
+	var subName any
+	if added > 0 && sub != 0 {
+		subName = name
+	}
+	_, err = tx.Exec(`UPDATE kyotsu_sessions SET track_centihours = track_centihours + ?,
+			track_subcat = COALESCE(track_subcat, ?), track_note = CASE WHEN ? = '' THEN track_note ELSE ? END
+		WHERE id = ?`, added, subName, note, note, id)
+	return err
+}
+
+func joinNote(a, b string) string {
+	if a == "" {
+		return b
+	}
+	return a + " " + b
+}
+
+// kyotsuSubcatTx finds the user's Phonetic training sub-category for trainer time: an active
+// one named Kyōtsu or Kyotsu (any case; the exact "Kyōtsu" first, then display order), else an
+// archived one restored, else a new "Kyōtsu" — by the same rules as the site's sub-category
+// edits. When the rules don't allow it (30 active / 100 in all), the time goes to the
+// unassigned bucket (sub 0) and note says why.
+func kyotsuSubcatTx(tx *sql.Tx, userID, now int64) (sub int64, name, note string, err error) {
+	type cand struct {
+		id       int64
+		name     string
+		archived bool
+	}
+	var active, archived []cand
+	rows, err := tx.Query(`SELECT id, name, archived FROM track_subcats WHERE user_id = ? AND category = ?
+		ORDER BY position, id`, userID, kyotsuCategory)
+	if err != nil {
+		return 0, "", "", err
+	}
+	for rows.Next() {
+		var c cand
+		if err := rows.Scan(&c.id, &c.name, &c.archived); err != nil {
+			rows.Close()
+			return 0, "", "", err
+		}
+		if strings.EqualFold(c.name, kyotsuSubcat) || strings.EqualFold(c.name, "Kyotsu") {
+			if c.archived {
+				archived = append(archived, c)
+			} else {
+				active = append(active, c)
+			}
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, "", "", err
+	}
+	pick := func(cs []cand) cand { // the exact name if there is one, else the first
+		for _, c := range cs {
+			if c.name == kyotsuSubcat {
+				return c
+			}
+		}
+		return cs[0]
+	}
+	fallback := func(err error) (int64, string, string, error) {
+		var es errStatus
+		if !errors.As(err, &es) {
+			return 0, "", "", err
+		}
+		return 0, "", "Your Phonetic training sub-categories are at their limit (" + strings.TrimSuffix(es.msg, ".") +
+			"), so it went to Other / unassigned.", nil
+	}
+	switch {
+	case len(active) > 0:
+		c := pick(active)
+		return c.id, c.name, "", nil
+	case len(archived) > 0:
+		// Restoring is unarchiving, which the site allows within the 30-active limit; the name
+		// can't clash (no active sub-category matches it).
+		c := pick(archived)
+		if err := subcatConflict(tx, userID, kyotsuCategory, c.name, c.id, true); err != nil {
+			return fallback(err)
+		}
+		if _, err := tx.Exec(`UPDATE track_subcats SET archived = 0 WHERE id = ?`, c.id); err != nil {
+			return 0, "", "", err
+		}
+		return c.id, c.name, "Restored your archived “" + c.name + "” sub-category under Phonetic training for it.", nil
+	default:
+		c, err := insertSubcatTx(tx, userID, kyotsuCategory, kyotsuSubcat, now)
+		if err != nil {
+			return fallback(err)
+		}
+		return c.ID, c.Name, "Created a “" + kyotsuSubcat + "” sub-category under Phonetic training for it.", nil
+	}
 }
 
 // listKyotsu returns the newest sessions (up to maxSessionsList), oldest first for charting.
 func (s *Server) listKyotsu(w http.ResponseWriter, r *http.Request, u *user) {
 	rows, err := s.db.QueryContext(r.Context(), `
 		SELECT * FROM (
-			SELECT id, started_at, ended_at, layout, advanced, total, correct FROM kyotsu_sessions
+			SELECT `+kyotsuCols+` FROM kyotsu_sessions
 			WHERE user_id = ? ORDER BY started_at DESC, id DESC LIMIT ?
 		) ORDER BY started_at, id`, u.ID, maxSessionsList)
 	if err != nil {
@@ -120,13 +352,11 @@ func (s *Server) listKyotsu(w http.ResponseWriter, r *http.Request, u *user) {
 	defer rows.Close()
 	out := []kyotsuSummary{}
 	for rows.Next() {
-		var k kyotsuSummary
-		var started, ended int64
-		if err := rows.Scan(&k.ID, &started, &ended, &k.Layout, &k.Advanced, &k.Total, &k.Correct); err != nil {
+		k, err := scanKyotsu(rows)
+		if err != nil {
 			internalErr(w, "scan kyotsu session", err)
 			return
 		}
-		k.Started, k.Ended = rfc3339(started), rfc3339(ended)
 		out = append(out, k)
 	}
 	if err := rows.Err(); err != nil {
@@ -141,13 +371,10 @@ func (s *Server) getKyotsu(w http.ResponseWriter, r *http.Request, u *user) {
 	if !ok {
 		return
 	}
-	var k kyotsuSummary
-	var started, ended int64
 	var answers string
 	// Someone else's session is a 404, not a 403: ids don't reveal what exists.
-	err := s.db.QueryRowContext(r.Context(), `SELECT id, started_at, ended_at, layout, advanced, total, correct, answers_json
-		FROM kyotsu_sessions WHERE id = ? AND user_id = ?`, id, u.ID).
-		Scan(&k.ID, &started, &ended, &k.Layout, &k.Advanced, &k.Total, &k.Correct, &answers)
+	k, err := scanKyotsu(s.db.QueryRowContext(r.Context(), `SELECT `+kyotsuCols+`, answers_json
+		FROM kyotsu_sessions WHERE id = ? AND user_id = ?`, id, u.ID), &answers)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeErr(w, http.StatusNotFound, "not found")
 		return
@@ -156,7 +383,6 @@ func (s *Server) getKyotsu(w http.ResponseWriter, r *http.Request, u *user) {
 		internalErr(w, "get kyotsu session", err)
 		return
 	}
-	k.Started, k.Ended = rfc3339(started), rfc3339(ended)
 	k.Answers = json.RawMessage(answers)
 	writeJSON(w, http.StatusOK, k)
 }

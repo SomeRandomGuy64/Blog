@@ -218,16 +218,15 @@ func (s *Server) export(ctx context.Context, r *http.Request, u *user) (map[stri
 
 	kyotsu := []kyotsuSummary{}
 	err = s.each(ctx, func(rows *sql.Rows) error {
-		var k kyotsuSummary
-		var started, ended int64
 		var answers string
-		if err := rows.Scan(&k.ID, &started, &ended, &k.Layout, &k.Advanced, &k.Total, &k.Correct, &answers); err != nil {
+		k, err := scanKyotsu(rows, &answers)
+		if err != nil {
 			return err
 		}
-		k.Started, k.Ended, k.Answers = rfc3339(started), rfc3339(ended), json.RawMessage(answers)
+		k.Answers = json.RawMessage(answers)
 		kyotsu = append(kyotsu, k)
 		return nil
-	}, `SELECT id, started_at, ended_at, layout, advanced, total, correct, answers_json
+	}, `SELECT `+kyotsuCols+`, answers_json
 		FROM kyotsu_sessions WHERE user_id = ? ORDER BY started_at, id`, u.ID)
 	if err != nil {
 		return nil, err

@@ -26,7 +26,8 @@ Only what you give the site or what it needs to work:
 - **Track:** the hours you log per category and sub-category, your sub-category names, Kotu and
   Kyōtsu scores, weekly summaries (and whether each one is private), your weekly self-ratings and
   goals, and whether your Track is public.
-- **Kyōtsu trainer sessions:** when you trained, the settings you used and your answers.
+- **Kyōtsu trainer sessions:** when you trained, the settings you used, your answers and your active
+  practice time (which is also added to Phonetic training on your Track).
 - **API keys:** if you create any, their name, permission (read or read & write), a short prefix
   and when they were created and last used. The keys themselves are stored only as a one-way
   fingerprint (hash), so nobody can read them back.

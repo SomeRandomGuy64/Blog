@@ -364,6 +364,13 @@ body.light-mode {
 .kyotsu-quiz .ring-fg { transition: var(--theme-fade), stroke-dasharray 0.3s ease; }
 .kyotsu-quiz .sw::after { transition: var(--theme-fade), left 0.15s ease; }
 
+/* active practice time (Statistics panel row + the kotu layout's foot) */
+.kyotsu-quiz .kt-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.kyotsu-quiz .kt-row .kt-time { font-size: 15px; min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
+.kyotsu-quiz .kt-state { color: var(--k-muted); font-size: 12px; }
+.kyotsu-quiz .kt-row.paused .kt-time, .kyotsu-quiz .kt-foot.paused { opacity: 0.55; }
+.kyotsu-quiz .kt-foot .kt-time { font-variant-numeric: tabular-nums; }
+
 /* "End session" (logged-in users) at the foot of the Statistics panel */
 .kyotsu-quiz .end-session[hidden] { display: none; }
 .kyotsu-quiz .endbtn {
@@ -377,6 +384,7 @@ body.light-mode {
 .kyotsu-quiz .endbtn:disabled { opacity: 0.4; cursor: default; }
 .kyotsu-quiz .end-note { color: var(--k-muted); font-size: 12px; line-height: 1.5; margin-top: 8px; }
 .kyotsu-quiz .end-note.err { color: var(--k-bad); }
+.kyotsu-quiz .end-note a { color: var(--k-accent-ink); }
 
 /* ---- session stats page (/kyotsu/session/) ---- */
 .kyotsu-quiz.ks-page { width: auto; margin-left: 0; display: flex; flex-direction: column; gap: 14px; }
@@ -393,6 +401,11 @@ body.light-mode {
 .kyotsu-quiz .ks-facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 13px; }
 .kyotsu-quiz .ks-facts dt { color: var(--k-muted); }
 .kyotsu-quiz .ks-facts dd { margin: 0; text-align: right; }
+.kyotsu-quiz .ks-track { border-top: 1px solid var(--k-line); padding-top: 12px; font-size: 13px; line-height: 1.55; }
+.kyotsu-quiz .ks-track p { margin: 0; }
+.kyotsu-quiz .ks-track p + p { margin-top: 6px; }
+.kyotsu-quiz .ks-track a { color: var(--k-accent-ink); white-space: nowrap; }
+.kyotsu-quiz .ks-track-note { color: var(--k-muted); font-size: 12.5px; }
 
 .kyotsu-quiz .ks-spk + .ks-spk { margin-top: 10px; }
 .kyotsu-quiz .ks-spk-top { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }

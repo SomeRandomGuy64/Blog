@@ -38,6 +38,10 @@
   // =====================================================================================
   T.initLogger = function (root) {
     var cfg = null, cur = null, key = null, wk = null, st = null, base = "", saving = false, savedAt = null, saveErr = "";
+    // stale: the week changed on the server since it was loaded here (another tab, the Kyōtsu trainer adding
+    // practice time, the API). A save replaces the whole week, so it's refused (409) until the week is reloaded.
+    var stale = false;
+    var STALE_MSG = "This week was changed elsewhere (another tab, the Kyōtsu trainer or the API). Reload it to get the latest; unsaved changes here are lost.";
     var ui = {}, stripData = null, stripRange = null, openMenu = null, showErrs = false, saveP = null, uid = 0;
     T.loadMD();   // summary preview renders Markdown (fazon-track-charts.js)
 
@@ -104,19 +108,36 @@
     }
     function loadWeek(k) {
       if (ui.form) ui.form.style.opacity = "0.5";
-      return F.api("/v1/track/weeks/" + k).then(function (w) {
-        wk = w; key = w.week || k; st = fromServer(w); base = compute().norm;
-        savedAt = null; saveErr = ""; showErrs = false; goalUI = { open: false, vals: {} };
-        var u = new URL(location.href);
-        if (key === cur) u.searchParams.delete("week"); else u.searchParams.set("week", key);
-        history.replaceState(null, "", u.pathname + u.search + u.hash);
-        render();
-        loadStrip(false);
-      }, function (e) {
+      return F.api("/v1/track/weeks/" + k).then(function (w) { showWeek(w, k); }, function (e) {
         if (ui.form) ui.form.style.opacity = "";
         if (e.status === 401) { loggedOut(true); return; }
         if (!wk) msg(e.message); else alert(e.message);
       });
+    }
+
+    function showWeek(w, k) {
+      wk = w; key = w.week || k; st = fromServer(w); base = compute().norm;
+      savedAt = null; saveErr = ""; stale = false; showErrs = false; goalUI = { open: false, vals: {} };
+      var u = new URL(location.href);
+      if (key === cur) u.searchParams.delete("week"); else u.searchParams.set("week", key);
+      history.replaceState(null, "", u.pathname + u.search + u.hash);
+      render();
+      loadStrip(false);
+    }
+    // back on this tab: if the week changed elsewhere meanwhile, show the new one (nothing unsaved here
+    // to lose) or warn before a save would be refused
+    function checkFresh() {
+      if (!st || saving || stale) return;
+      var k = key;
+      F.api("/v1/track/weeks/" + k).then(function (w) {
+        if (key !== k || saving || !st || (w.updated || "") === (wk.updated || "")) return;
+        if (!dirty()) { var y = window.scrollY; showWeek(w, k); window.scrollTo(0, y); swFlush(); paintSw(); }
+        else { stale = true; refresh(); }
+      }, function () {});
+    }
+    function reloadStale() {
+      var y = window.scrollY;
+      return loadWeek(key).then(function () { window.scrollTo(0, y); swFlush(); paintSw(); });
     }
 
     // ---- recent-weeks strip (12 weeks around the one shown) ----
@@ -198,7 +219,9 @@
       ui.status = el("span", { class: "tk-status", role: "status" });
       ui.save = el("button", { type: "button", class: "fz-btn primary", text: "Save week" });
       ui.save.addEventListener("click", save);
-      var bar = el("div", { class: "tk-savebar" }, ui.status, ui.save);
+      ui.reload = el("button", { type: "button", class: "fz-btn", text: "Reload week", hidden: true });
+      ui.reload.addEventListener("click", reloadStale);
+      var bar = el("div", { class: "tk-savebar" }, ui.status, ui.reload, ui.save);
 
       var pub = el("input", { type: "checkbox", checked: !!cfg.public, id: "tkPublic" });
       var pubErr = el("span", { class: "tk-err" });
@@ -504,12 +527,15 @@
       paintSummaryNote();
       var d = r.norm !== base;
       ui.status.className = "tk-status";
+      ui.reload.hidden = !stale || saving;
       if (saving) ui.status.textContent = "Saving…";
+      else if (stale) { ui.status.textContent = STALE_MSG; ui.status.classList.add("bad"); }
       else if (!r.ok) { ui.status.textContent = "Fix the highlighted fields to save."; ui.status.classList.add("bad"); }
       else if (saveErr && d) { ui.status.textContent = saveErr; ui.status.classList.add("bad"); }
       else if (d) { ui.status.textContent = "● Unsaved changes"; ui.status.classList.add("dirty"); }
       else ui.status.textContent = savedAt ? "Saved ✓ " + savedAt : wk.updated ? "Saved · last edited " + F.relTime(wk.updated) : "Nothing logged for this week yet.";
-      ui.save.disabled = saving || !r.ok || !d;
+      ui.save.disabled = saving || stale || !r.ok || !d;
+      ui.save.hidden = stale && !saving;   // Reload week takes its place
     }
 
     // → Promise<boolean> (true = saved); while a save runs, saveP is it
@@ -520,10 +546,13 @@
       showErrs = true;
       if (!r.ok) { refresh(); var bad = root.querySelector(".tk-form .bad"); if (bad && bad.focus) bad.focus(); return Promise.resolve(false); }
       if (r.norm === base) return Promise.resolve(true);
+      if (stale) { refresh(); return Promise.resolve(false); }
       saving = true; saveErr = ""; refresh();
       var ratings = {}, sk = key;
       CATS.forEach(function (c) { if (st.ratings[c.id]) ratings[c.id] = st.ratings[c.id]; });
-      var body = { hours: r.hours, kotu: r.kotu, kyotsu: r.kyotsu, ratings: ratings, summary: st.summary.trim(), summary_private: !!st.priv };
+      // if_updated: refused (409) if the week changed on the server since it was loaded here
+      var body = { hours: r.hours, kotu: r.kotu, kyotsu: r.kyotsu, ratings: ratings, summary: st.summary.trim(), summary_private: !!st.priv,
+        if_updated: wk.updated || "" };
       return (saveP = F.api("/v1/track/weeks/" + sk, { method: "POST", body: body }).then(function (w) {
         saving = false;
         if (key !== sk) return true;   // navigated away meanwhile
@@ -535,6 +564,7 @@
         saving = false;
         if (key !== sk) return false;
         if (e.status === 401) saveErr = "Your login has expired — log in again in another tab, then save.";
+        else if (e.status === 409) stale = true;
         else saveErr = "Couldn't save: " + e.message;
         refresh();
         return false;
@@ -871,6 +901,7 @@
       swBusy = true;
       swAdd(it).then(function (res) {
         swBusy = false;
+        if (swMsg && swMsg.bad && swMsg.item && swMsg.item.week === it.week && swMsg.item.cat === it.cat && swMsg.item.sub === it.sub && swMsg.item.ms === it.ms) swMsg = null;
         if (res && res.other) note("Added " + T.fmtHM(res.min / 60) + " to " + swName(it) + " in the week of " + T.fmtKeyShort(it.week) + " ✓");
         paintSw(); swFlush();
       }, function (e) {
@@ -880,18 +911,31 @@
         paintSw();
       });
     }
-    function swAdd(it) {
+    // retried: a 409 (the week changed elsewhere) was already answered by reloading the week once
+    function swAdd(it, retried) {
       var min = Math.round(it.ms / MIN);
       if (min < 1) return Promise.resolve(null);
       var sub = it.sub != null && subById(it.sub) ? it.sub : null;   // deleted meanwhile → unassigned
+      var staleErr = function () {
+        var e = new Error("this week was changed elsewhere. Reload week adds it (unsaved edits on this page are lost)."); e.status = 409; return e;
+      };
       if (it.week === key && st) {
-        if (saving) return saveP.then(function () { return swAdd(it); });   // the save in flight would overwrite the form
-        var k = hk(it.cat, sub), p = parseHours(st.hours[k]);
+        if (saving) return saveP.then(function () { return swAdd(it, retried); });   // the save in flight would overwrite the form
+        if (stale) return Promise.reject(staleErr());
+        var k = hk(it.cat, sub), p = parseHours(st.hours[k]), wasDirty = dirty(), prev = st.hours[k];
         if (p.err) return Promise.reject(new Error("fix the " + swName({ cat: it.cat, sub: sub }) + " hours first, then press Retry"));
         st.hours[k] = String(Math.round(((p.v || 0) + min / 60) * 100) / 100);
         var f = ui.fields["h:" + k];
         if (f && f.isConnected) { f.value = st.hours[k]; refresh(); } else render();
-        return save().then(function () { return { min: min }; });   // a failed save leaves it in the form as an unsaved change
+        return save().then(function (ok) {
+          if (ok || !stale || key !== it.week) return { min: min };   // a failed save leaves it in the form as an unsaved change
+          // 409: take the time back out of the stale form; it stays queued, nothing is lost
+          st.hours[k] = prev; var f2 = ui.fields["h:" + k];
+          if (f2 && f2.isConnected) { f2.value = prev || ""; refresh(); } else render();
+          // nothing else unsaved here: reload the week and add the time to the fresh copy
+          if (!wasDirty && !retried) return loadWeek(key).then(function () { return swAdd(it, true); });
+          throw staleErr();
+        });
       }
       return F.api("/v1/track/weeks/" + it.week).then(function (w) {
         var found = false, hours = (w.hours || []).map(function (h) {
@@ -901,8 +945,11 @@
         });
         if (!found) hours.push({ category: it.cat, subcat: sub, hours: Math.round(min / 60 * 100) / 100 });
         return F.api("/v1/track/weeks/" + it.week, { method: "POST", body: { hours: hours, kotu: w.kotu || [], kyotsu: w.kyotsu || [],
-          ratings: w.ratings || {}, summary: w.summary || "", summary_private: !!w.summary_private } });
-      }).then(function () { loadStrip(true); return { min: min, other: true }; });
+          ratings: w.ratings || {}, summary: w.summary || "", summary_private: !!w.summary_private, if_updated: w.updated || "" } });
+      }).then(function () { loadStrip(true); return { min: min, other: true }; }, function (e) {
+        if (e.status === 409 && !retried) return swAdd(it, true);   // changed between the read and the write: once more
+        throw e;
+      });
     }
     // per-row controls: ▶ in the row; while it's this row's turn, a line under it with the time, ⏸/▶ and ■
     function swRowControls(c, s, noneLabel, k) {
@@ -983,7 +1030,7 @@
       if (!uid || (e.key !== swKey() && e.key !== swKey(true) && e.key !== null)) return;
       swLoad(); paintSw();
     });
-    document.addEventListener("visibilitychange", function () { if (!document.hidden && sw) swTick(); });
+    document.addEventListener("visibilitychange", function () { if (document.hidden) return; if (sw) swTick(); checkFresh(); });
 
     function loggedOut(expired) {
       root.textContent = "";

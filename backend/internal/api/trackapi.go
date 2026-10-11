@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net/http"
 	"regexp"
@@ -235,9 +236,14 @@ func (s *Server) apiSetGoals(w http.ResponseWriter, r *http.Request, u *user) {
 // or ratings) and bumps its updated_at, as a site save does.
 func touchWeek(tx *sql.Tx, userID int64, key string, now int64) error {
 	_, err := tx.Exec(`INSERT INTO track_weeks (user_id, week, updated_at) VALUES (?, ?, ?)
-		ON CONFLICT (user_id, week) DO UPDATE SET updated_at = excluded.updated_at`, userID, key, now)
+		ON CONFLICT (user_id, week) DO UPDATE SET updated_at = `+bumpUpdated, userID, key, now)
 	return err
 }
+
+// bumpUpdated is the updated_at of a changed week in an upsert: now, but always later than
+// before, so every change gives the week a new "updated" (the logger's if_updated check) even
+// with two changes in the same second.
+const bumpUpdated = `MAX(excluded.updated_at, track_weeks.updated_at + 1)`
 
 // pruneWeek deletes the week's row if nothing is left in it — no hours, Kotu or Kyōtsu entries,
 // summary or ratings — the same rule as the site's save, so a week emptied through the API is
@@ -269,6 +275,90 @@ func pruneWeek(tx *sql.Tx, userID int64, key string) error {
 	}
 	_, err = tx.Exec(`DELETE FROM track_weeks WHERE user_id = ? AND week = ?`, userID, key)
 	return err
+}
+
+// hourSlot is one hours row of a week: a category and a sub-category id (0 = unassigned).
+type hourSlot struct {
+	cat string
+	sub int64
+}
+
+// weekHoursTx reads a week's hour rows (hundredths of an hour) inside tx.
+func weekHoursTx(tx *sql.Tx, userID int64, key string) (map[hourSlot]int64, error) {
+	hours := map[hourSlot]int64{}
+	rows, err := tx.Query(`SELECT category, IFNULL(subcat_id, 0), centihours FROM track_hours WHERE user_id = ? AND week = ?`, userID, key)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var sl hourSlot
+		var c int64
+		if err := rows.Scan(&sl.cat, &sl.sub, &c); err != nil {
+			return nil, err
+		}
+		hours[sl] = c
+	}
+	return hours, rows.Err()
+}
+
+// catCents is a category's total in a week's hour rows.
+func catCents(hours map[hourSlot]int64, cat string) int64 {
+	var t int64
+	for sl, c := range hours {
+		if sl.cat == cat {
+			t += c
+		}
+	}
+	return t
+}
+
+// addCapped adds up to cents to the row sl of a week's hours, as much as the 168 h per row and
+// per category allow, and returns what it added.
+func addCapped(hours map[hourSlot]int64, sl hourSlot, cents int64) int64 {
+	room := maxWeekCents - catCents(hours, sl.cat) // the row is part of its category
+	cents = max(0, min(cents, room))
+	if cents > 0 {
+		hours[sl] += cents
+	}
+	return cents
+}
+
+// writeWeekHoursTx stores a week's changed hour rows: every row of after that differs from
+// before (0 removes a row). If anything changed, the week gets a track_weeks row / a new
+// updated_at first (touchWeek, as a site save does) and is unlogged afterwards if nothing is
+// left in it (pruneWeek). Callers check the 168 h limits.
+func writeWeekHoursTx(tx *sql.Tx, userID int64, key string, now int64, before, after map[hourSlot]int64) error {
+	changed := false
+	for sl, c := range after {
+		changed = changed || c != before[sl]
+	}
+	if !changed {
+		return nil
+	}
+	if err := touchWeek(tx, userID, key, now); err != nil {
+		return err
+	}
+	for sl, c := range after {
+		if c == before[sl] {
+			continue
+		}
+		var subID any
+		if sl.sub != 0 {
+			subID = sl.sub
+		}
+		if _, err := tx.Exec(`DELETE FROM track_hours WHERE user_id = ? AND week = ? AND category = ? AND IFNULL(subcat_id, 0) = ?`,
+			userID, key, sl.cat, sl.sub); err != nil {
+			return err
+		}
+		if c > 0 {
+			if _, err := tx.Exec(`INSERT INTO track_hours (user_id, week, category, subcat_id, centihours) VALUES (?, ?, ?, ?, ?)`,
+				userID, key, sl.cat, subID, c); err != nil {
+				return err
+			}
+		}
+	}
+	return pruneWeek(tx, userID, key)
 }
 
 var (
@@ -424,34 +514,13 @@ func (s *Server) apiPatchHours(w http.ResponseWriter, r *http.Request, u *user) 
 		if err := rows.Err(); err != nil {
 			return err
 		}
-		type slot struct {
-			cat string
-			sub int64
-		}
-		hours := map[slot]int64{}
-		rows, err = tx.Query(`SELECT category, IFNULL(subcat_id, 0), centihours FROM track_hours WHERE user_id = ? AND week = ?`, u.ID, key)
+		hours, err := weekHoursTx(tx, u.ID, key)
 		if err != nil {
 			return err
 		}
-		for rows.Next() {
-			var sl slot
-			var c int64
-			if err := rows.Scan(&sl.cat, &sl.sub, &c); err != nil {
-				rows.Close()
-				return err
-			}
-			hours[sl] = c
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return err
-		}
-		before := make(map[slot]int64, len(hours))
-		for sl, c := range hours {
-			before[sl] = c
-		}
+		before := maps.Clone(hours)
 		for i, c := range changes {
-			sl := slot{c.cat, c.id}
+			sl := hourSlot{c.cat, c.id}
 			switch {
 			case c.name != "":
 				// Active sub-categories of the category, by name ignoring case; an exact match
@@ -499,46 +568,13 @@ func (s *Server) apiPatchHours(w http.ResponseWriter, r *http.Request, u *user) 
 			}
 			hours[sl] = v
 		}
-		catTotal := map[string]int64{}
-		for sl, c := range hours {
-			catTotal[sl.cat] += c
-		}
 		for _, c := range trackCategories {
-			if catTotal[c.ID] > maxWeekCents {
+			if t := catCents(hours, c.ID); t > maxWeekCents {
 				return errStatus{http.StatusBadRequest, fmt.Sprintf("%s would add up to %s h in this week; at most 168 h per category",
-					c.ID, fmtCents(catTotal[c.ID]))}
+					c.ID, fmtCents(t))}
 			}
 		}
-		changed := false
-		for sl, c := range hours {
-			changed = changed || c != before[sl]
-		}
-		if !changed {
-			return nil
-		}
-		if err := touchWeek(tx, u.ID, key, s.now().Unix()); err != nil {
-			return err
-		}
-		for sl, c := range hours {
-			if c == before[sl] {
-				continue
-			}
-			var subID any
-			if sl.sub != 0 {
-				subID = sl.sub
-			}
-			if _, err := tx.Exec(`DELETE FROM track_hours WHERE user_id = ? AND week = ? AND category = ? AND IFNULL(subcat_id, 0) = ?`,
-				u.ID, key, sl.cat, sl.sub); err != nil {
-				return err
-			}
-			if c > 0 {
-				if _, err := tx.Exec(`INSERT INTO track_hours (user_id, week, category, subcat_id, centihours) VALUES (?, ?, ?, ?, ?)`,
-					u.ID, key, sl.cat, subID, c); err != nil {
-					return err
-				}
-			}
-		}
-		return pruneWeek(tx, u.ID, key)
+		return writeWeekHoursTx(tx, u.ID, key, s.now().Unix(), before, hours)
 	})
 	if err != nil {
 		writeTxErr(w, "patch hours", err)

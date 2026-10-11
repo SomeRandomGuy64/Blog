@@ -13,7 +13,8 @@ cmd/fazond         main: config (flags / FAZOND_* env), serve, CLI, hourly maint
 internal/api       handlers, session auth, CORS/CSRF, rate limits; api_test.go covers the spec
 internal/db        open + pragmas, embedded migrations (PRAGMA user_version; 0001 init, 0002 avatars,
                    0003 track + bio, 0004 track 'anki' category, 0005 track ratings/goals + settings,
-                   0006 api_keys, 0007 roles + mutes + signup_tokens),
+                   0006 api_keys, 0007 roles + mutes + signup_tokens, 0008 user ids never reused,
+                   0009 Kyōtsu practice time on kyotsu_sessions),
                    users/tokens, backup, purge
 internal/week      Track week calendar (Sun 03:00 UTC weeks, Saturday keys)
 internal/mail      resend (HTTP API), smtp (STARTTLS) and log mailers; RFC 5322 message builder
@@ -44,8 +45,8 @@ All JSON; errors are `{"error":"msg"}` with 400/401/403/404/409/413/415/429/500.
 | `POST`/`DELETE /v1/comments/{id}/like` | `{"likes":N,"liked":bool}`, idempotent |
 | `GET /v1/notifications?limit=50&before=ID` | `{"notifications":[…],"unread":N}` newest first |
 | `POST /v1/notifications/read` `{ids:[…]}` or `{all:true}` | `{"unread":N}` |
-| `POST /v1/kyotsu/sessions` `{started,layout,advanced,answers}` | 201 `{"id":N}` |
-| `GET /v1/kyotsu/sessions`, `GET /v1/kyotsu/sessions/{id}` | own sessions only (others' are 404) |
+| `POST /v1/kyotsu/sessions` `{started,layout,advanced,answers,active_seconds,client_id}` | 201 `{"id":N,"active_seconds":S,"track_added":{…}\|null}` (200 for a retry of the same `client_id`); adds the practice time to your Track (see Kyōtsu practice time) |
+| `GET /v1/kyotsu/sessions`, `GET /v1/kyotsu/sessions/{id}` | own sessions only (others' are 404); each has `active_seconds` and `track_added` |
 | `GET /v1/levels` | `{"levels":[0,5,20,…,49005]}`: XP needed for levels 1–100, `5·(L−1)²` |
 | `GET /v1/users/{id}` | public profile: `{user,joined,comments,likes,recent:[…20]}` (no email) |
 | `POST /v1/me/profile` `{name}` | change display name (1–40 characters) → `{"user":…}` |
@@ -56,7 +57,7 @@ All JSON; errors are `{"error":"msg"}` with 400/401/403/404/409/413/415/429/500.
 | `GET /v1/track/config` | categories (in display order: `active`, `passive`, `phonetic`, `output`, `soroban`, `anki`), your sub-categories, `public`, `current_week`, `current_week_end`, `published_through`, `ended_early`; admins also get `end_week` (see Track) |
 | `POST /v1/track/subcats` `{category,name}`; `POST`/`DELETE /v1/track/subcats/{id}` | sub-categories: rename/archive/reorder; delete only if unused (else 409) |
 | `POST /v1/track/settings` `{public}` | show/hide yourself on the leaderboard and others' view of your track |
-| `GET`/`POST /v1/track/weeks/{key}` | your week (hours, Kotu/Kyōtsu daily %, auto Kyōtsu from trainer sessions, `ratings`, summary, plus read-only `goals`/`goals_open`); POST replaces it (goals excepted) |
+| `GET`/`POST /v1/track/weeks/{key}` | your week (hours, Kotu/Kyōtsu daily %, auto Kyōtsu from trainer sessions, `ratings`, summary, plus read-only `goals`/`goals_open`, `updated`); POST replaces it (goals excepted); with `if_updated` (the `updated` it loaded, `""` for an unlogged week) it is a 409 if the week changed since |
 | `POST /v1/track/weeks/{key}/goals` `{goals:{category:hours}}` | set goals for the current week; write-once (see Track) → the week |
 | `GET /v1/track/weeks?from=&to=` | your logged weeks (default last 52), totals/subtotals/scores/ratings |
 | `GET /v1/users/{id}/track` | someone's track history up to `published_through` (the owner: up to now; 404 if they hid it); non-private summaries, ratings, day-by-day scores |
@@ -110,6 +111,37 @@ time it opens. It is idempotent; `DELETE` undoes it (also idempotent). Both answ
 ```
 
 `GET /v1/track/config` carries the same fields (`end_week` for admins only).
+
+**Kyōtsu practice time.** The trainer measures the session's active time on the client (it
+counts while the tab is visible and in use, stops when the tab is hidden and 5 minutes after the
+last tap/click/key/scroll until the next one, and stops at End session) and sends it as
+`active_seconds` with the session. In the transaction that stores the session the server adds
+it to the user's Track: category `phonetic`, week = the week the session ended in (the server's
+now, `week.Of`). Clamped to 0 … the session's wall-clock span (`started` → now), rounded to whole
+minutes, then to hundredths of an hour like the stopwatch (12:34 → 13 min → 0.22 h); under half
+a minute adds nothing. It goes into the user's active Phonetic sub-category named `Kyōtsu` or
+`Kyotsu` (any case; the exact `Kyōtsu` first); if there is none, an archived one is restored,
+else a `Kyōtsu` sub-category is created — by the site's rules (30 active / 100 in all per
+category); when they don't allow it, into the unassigned bucket. The 168 h per category cap
+shrinks the addition instead of failing the save. The week gets a `track_weeks` row / a new
+`updated_at` like any save (`touchWeek`, the same add-to-row code as `PATCH …/hours`). The
+session stores `active_seconds` and what it added (`track_centihours`, `track_subcat` name,
+`track_note`); `track_added` in the responses is
+`{"week":"2026-10-10","hours":0.22,"subcat":"Kyōtsu"|null,"note":"Created a “Kyōtsu” sub-category …"}`
+(`hours` 0 with a note when the cap left no room; null when nothing was added and there's
+nothing to say). `client_id` (8–64 of `A-Z a-z 0-9 _ -`, one per trainer run) makes the save
+idempotent: a repeat for the same user updates that session (newer answers if there are more;
+`active_seconds` only upwards; only the not-yet-added difference goes to Track) and answers 200.
+Missing or 0 `active_seconds` (older cached trainer pages) adds nothing.
+
+**Stale weeks.** `POST /v1/track/weeks/{key}` replaces the whole week, so a logger tab holding an
+old copy would wipe time added meanwhile (trainer, stopwatch in another tab, API). The logger
+sends `if_updated` (the week's `updated` as loaded, `""` if it wasn't logged); a mismatch is a
+409 and it shows "changed elsewhere" with a Reload week button (its stopwatch takes the time out
+of the stale form, reloads and adds it again, or keeps it queued if the form had other unsaved
+edits). Without `if_updated` the save is unconditional, as before. Every change moves a week's
+`updated_at` on by at least a second (`MAX(now, previous + 1)`), so two changes within the same
+second still differ (`updated` can then run a second or two ahead of the clock).
 
 **Ratings**: an optional self-rating per category per week, `1` 😞, `2` 😐, `3` 👌, `4` 🔥.
 Week documents, list items, profile weeks and feed items have `"ratings":{"active":3,"anki":4}`

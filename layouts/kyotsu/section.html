@@ -36,7 +36,7 @@
       <div class="verdict" id="verdict"></div>
       <div class="reveal" id="reveal"></div>
       <div class="next"><button class="nextbtn" id="nextBtn" hidden>Next word →</button></div>
-      <div class="kotu-foot"><span id="kAnswered">0</span> Answered</div>
+      <div class="kotu-foot"><span id="kAnswered">0</span> Answered<span class="kt-foot" title="Active practice time this session"> · <span aria-hidden="true">⏱</span> <span class="mono kt-time">0:00</span></span></div>
     </div>
 
     <p class="kyotsu-note">
@@ -54,13 +54,22 @@
           <b class="acc-pct" id="accPct">—</b>
           <svg class="ring" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="11" class="ring-bg"/><circle cx="14" cy="14" r="11" class="ring-fg" id="accRing"/></svg>
         </div>
+        <div class="kt-row" title="Counts while this tab is open and you're using it; pauses when you switch away or after 5 minutes without a tap or key">
+          <span class="acc-k">Practice time</span>
+          <span class="kt-state" id="ktState"></span>
+          <b class="mono kt-time" role="timer" aria-label="Active practice time this session">0:00</b>
+        </div>
         <div class="panel-sep"></div>
         <div class="pat-head"><b>Pattern Stats</b><span id="patTotal">0 of 0 (0%)</span></div>
         <div id="patRows"></div>
         <div class="end-session" id="endSession" hidden>
           <div class="panel-sep"></div>
           <button type="button" class="endbtn" id="endBtn" disabled>End session</button>
-          <div class="end-note" id="endNote">Saves this session's answers to your account and shows its stats.</div>
+          <div class="end-note" id="endNote">Saves this session's answers to your account, adds its practice time to Phonetic training on your Track, and shows its stats.</div>
+        </div>
+        <div class="end-session" id="endAnon" hidden>
+          <div class="panel-sep"></div>
+          <div class="end-note">You're not logged in, so sessions aren't saved and their practice time isn't added to a Track. <a id="endLogin" href="/account/">Log in</a> before you start to track it.</div>
         </div>
       </section>
 
@@ -173,7 +182,40 @@
     const stats={correct:0,total:0,cats:{},hist:[]};
     // full per-answer log for "End session" (hist only keeps the last 60, for the chips);
     // restarted whenever the score is reset
-    const session={started:new Date().toISOString(),answers:[]};
+    // client_id lets the server recognise a retried save of the same run (see End session)
+    const runId=()=>{ try{ if(crypto.randomUUID) return crypto.randomUUID(); }catch(e){}
+      return Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,12); };
+    const session={started:new Date().toISOString(),answers:[],id:runId()};
+
+    // Active practice time for this run; End session sends it and the server adds it to the
+    // user's Track (Phonetic training). It counts while the tab is visible and in use: it stops
+    // when the tab is hidden, and IDLE_MS after the last tap/click/key/scroll it stops too (the
+    // gap after that isn't counted) until the next one. Restarted with the session.
+    const IDLE_MS=5*60*1000;
+    const timer={ms:0,since:null,last:0,frozen:false};
+    const timerMs=(now=Date.now())=>timer.ms+(timer.since!=null?Math.max(0,Math.min(now,timer.last+IDLE_MS)-timer.since):0);
+    function timerStop(now=Date.now()){ if(timer.since==null) return; timer.ms=timerMs(now); timer.since=null; }
+    function timerPoke(){   // someone is using the page
+      if(timer.frozen||document.hidden) return;
+      const now=Date.now();
+      if(timer.since!=null&&now-timer.last>IDLE_MS) timerStop(now);   // back after an idle gap: don't count it
+      if(timer.since==null) timer.since=now;
+      timer.last=now; paintTimer();
+    }
+    function timerReset(){ timer.ms=0; timer.since=null; timer.frozen=false; timerPoke(); paintTimer(); }
+    const fmtClock=ms=>{ const t=Math.floor(ms/1000), h=Math.floor(t/3600), m=Math.floor(t/60)%60, sec=String(t%60).padStart(2,"0");
+      return h?`${h}:${String(m).padStart(2,"0")}:${sec}`:`${m}:${sec}`; };
+    function paintTimer(){
+      const now=Date.now(), txt=fmtClock(timerMs(now));
+      const paused=timer.since==null||now-timer.last>IDLE_MS;
+      document.querySelectorAll(".kt-time").forEach(n=>{ if(n.textContent!==txt) n.textContent=txt; });
+      const st=$("#ktState"), label=timer.frozen?"":paused&&timer.ms>0?"paused":"";
+      if(st.textContent!==label) st.textContent=label;
+      document.querySelectorAll(".kt-row,.kt-foot").forEach(n=>n.classList.toggle("paused",paused));
+    }
+    ["pointerdown","keydown","wheel","touchstart"].forEach(t=>document.addEventListener(t,timerPoke,{capture:true,passive:true}));
+    document.addEventListener("visibilitychange",()=>{ if(document.hidden){ timerStop(); paintTimer(); } else timerPoke(); });
+    setInterval(()=>{ if(!document.hidden) paintTimer(); },1000);
 
     // Pattern Stats buckets: Keihan register 式 × kernel 核 (not Tokyo 平板/頭高/…).
     // Isolated words can't show 無核 vs 尾核 except an explicit word-final ↘.
@@ -376,7 +418,7 @@
       advanced=e.target.checked; padPending=advanced;
       $("#listenBar").classList.toggle("on",advanced);
       Object.assign(stats,{correct:0,total:0,cats:{},hist:[]});
-      session.started=new Date().toISOString(); session.answers=[]; $("#endNote").classList.remove("err");
+      session.started=new Date().toISOString(); session.answers=[]; session.id=runId(); timerReset(); $("#endNote").classList.remove("err");
       renderStats();
       newQuestion(); });
     // Kotu-style: number keys pick (or, once answered, replay) the row with that badge
@@ -390,19 +432,25 @@
     // On failure the run stays as it is, so it can be retried.
     let saving=false;
     const END_NOTE=$("#endNote").textContent;
-    if(window.Fazon) Fazon.me().then(m=>{ if(m.user) $("#endSession").hidden=false; });
+    if(window.Fazon) Fazon.me().then(m=>{
+      if(m.user) $("#endSession").hidden=false;
+      else if(!m.offline){ $("#endLogin").href=Fazon.loginHref(); $("#endAnon").hidden=false; }
+    });
     $("#endBtn").addEventListener("click",()=>{
       if(saving||!session.answers.length) return;
       saving=true; const btn=$("#endBtn"), note=$("#endNote");
       btn.disabled=true; btn.textContent="Saving…"; note.classList.remove("err"); note.textContent=END_NOTE;
+      timerStop(); timer.frozen=true; paintTimer();   // the clock stops at End session
       Fazon.api("/v1/kyotsu/sessions",{method:"POST",body:{started:session.started,layout,advanced,
-        answers:session.answers.slice(-5000)}})
+        answers:session.answers.slice(-5000),active_seconds:Math.round(timerMs()/1000),client_id:session.id}})
         .then(d=>{ location.href="/kyotsu/session/?id="+encodeURIComponent(d.id); },
           e=>{ saving=false; btn.textContent="End session"; btn.disabled=!session.answers.length;
+            timer.frozen=false; timerPoke();   // the run goes on; a retry sends the same client_id
             note.classList.add("err");
             note.textContent=(e.status===401?"You've been logged out — log in again in another tab, then retry. ":"Couldn't save the session: "+e.message+" ")+"Your answers are still here."; });
     });
     setLayout(layout);
+    timerPoke();   // the session (and its clock) starts with the page
     if(typeof QUIZ!=="undefined"){
       $("#qStats").textContent=`${QUIZ.length} minimal pairs · ${SPEAKERS.map(s=>s.label).join(" / ")}, random per word. `;
       newQuestion();

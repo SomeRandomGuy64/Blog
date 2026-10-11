@@ -18,7 +18,7 @@ import (
 )
 
 // latestVersion is the number of the newest migration.
-const latestVersion = 8
+const latestVersion = 9
 
 func open(t *testing.T, path string) *sql.DB {
 	t.Helper()
@@ -632,7 +632,7 @@ func TestMigrateFromV6(t *testing.T) {
 		`SELECT id, email, name, is_admin, track_public, bio, created_at FROM users ORDER BY id`,
 		`SELECT * FROM sessions`, `SELECT * FROM login_tokens`, `SELECT * FROM pages`,
 		`SELECT * FROM comments ORDER BY id`, `SELECT * FROM comment_likes`, `SELECT * FROM notifications`,
-		`SELECT * FROM avatars`, `SELECT * FROM kyotsu_sessions`, `SELECT * FROM track_subcats`,
+		`SELECT * FROM avatars`, `SELECT id, user_id, started_at, ended_at, layout, advanced, total, correct, answers_json FROM kyotsu_sessions` /* 0009 adds columns */, `SELECT * FROM track_subcats`,
 		`SELECT rowid, * FROM track_hours`, `SELECT * FROM track_weeks`, `SELECT * FROM track_ratings`,
 		`SELECT * FROM track_goals`, `SELECT * FROM api_keys`, `SELECT * FROM settings WHERE key != 'users_max_id'`, /* added by 0008 */
 		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name != 'users' ORDER BY name`,
@@ -757,5 +757,43 @@ func TestUserIDsNeverReused(t *testing.T) {
 	d.QueryRow(`SELECT id FROM users WHERE email = 'admin@example.com'`).Scan(&again)
 	if again != adminID {
 		t.Fatalf("EnsureAdmin changed the id %d → %d", adminID, again)
+	}
+}
+
+// Production is at version 8; 0009 only adds kyotsu_sessions columns (practice time, what it
+// added to Track, the trainer's client id) with defaults that mean "nothing", and a partial
+// unique index on (user_id, client_id). Existing sessions must come through unchanged.
+func TestMigrateFromV8(t *testing.T) {
+	path := oldDB(t, 8,
+		`INSERT INTO users (id, email, name, role, created_at) VALUES (2, 'a@example.com', 'A', 'user', 0)`,
+		`INSERT INTO kyotsu_sessions (user_id, started_at, ended_at, layout, advanced, total, correct, answers_json) VALUES (2, 10, 70, 'kotu', 1, 3, 2, '[{"ok":true}]')`,
+		`INSERT INTO kyotsu_sessions (user_id, started_at, ended_at, layout, total, correct, answers_json) VALUES (2, 80, 90, 'classic', 1, 0, '[]')`,
+	)
+	d := open(t, path)
+	var version int
+	d.QueryRow("PRAGMA user_version").Scan(&version)
+	if version != latestVersion {
+		t.Fatalf("user_version=%d", version)
+	}
+	got := dumpRows(t, d, `SELECT id, user_id, started_at, ended_at, layout, advanced, total, correct, answers_json,
+		active_seconds, track_centihours, track_subcat, track_note, client_id FROM kyotsu_sessions ORDER BY id`)
+	want := "1 2 10 70 kotu 1 3 2 [{\"ok\":true}] 0 0 <nil>  <nil>\n2 2 80 90 classic 0 1 0 [] 0 0 <nil>  <nil>\n"
+	if got != want {
+		t.Fatalf("sessions after migration:\n%s\nwant:\n%s", got, want)
+	}
+	// client_id is unique per user; NULL (older trainers) any number of times.
+	ins := `INSERT INTO kyotsu_sessions (user_id, started_at, ended_at, layout, total, correct, answers_json, client_id) VALUES (2, 0, 1, 'kotu', 1, 1, '[]', ?)`
+	for _, id := range []any{nil, nil, "abcdefgh"} {
+		if _, err := d.Exec(ins, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := d.Exec(ins, "abcdefgh"); err == nil {
+		t.Fatal("duplicate client_id accepted")
+	}
+	for _, q := range []string{`PRAGMA foreign_key_check`, `PRAGMA integrity_check`} {
+		if got := dumpRows(t, d, q); got != "" && got != "ok\n" {
+			t.Fatalf("%s: %s", q, got)
+		}
 	}
 }

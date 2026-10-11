@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -462,9 +463,26 @@ func (s *Server) saveWeek(w http.ResponseWriter, r *http.Request, u *user) {
 		Ratings        map[string]*int `json:"ratings"`
 		Summary        string          `json:"summary"`
 		SummaryPrivate bool            `json:"summary_private"`
+		// The week's "updated" as the client loaded it ("" = it wasn't logged). When given, the
+		// save is refused with a 409 if the week has changed since (another tab, the Kyōtsu
+		// trainer adding time, the API), since a save replaces the whole week. Absent = no check.
+		IfUpdated *string `json:"if_updated"`
 	}
 	if !decode(w, r, maxBody, &in) {
 		return
+	}
+	var ifUpdated *int64 // nil = no check; 0 = expects no row
+	if in.IfUpdated != nil {
+		var v int64
+		if *in.IfUpdated != "" {
+			t, err := time.Parse(time.RFC3339, *in.IfUpdated)
+			if err != nil {
+				writeErr(w, http.StatusBadRequest, "if_updated must be the week's updated time (RFC 3339) or \"\"")
+				return
+			}
+			v = t.Unix()
+		}
+		ifUpdated = &v
 	}
 	ratings := map[string]int{}
 	for cat, v := range in.Ratings {
@@ -533,6 +551,16 @@ func (s *Server) saveWeek(w http.ResponseWriter, r *http.Request, u *user) {
 	}
 	key := k.String()
 	err := s.tx(r.Context(), func(tx *sql.Tx) error {
+		if ifUpdated != nil {
+			var cur int64
+			err := tx.QueryRow(`SELECT updated_at FROM track_weeks WHERE user_id = ? AND week = ?`, u.ID, key).Scan(&cur)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			if cur != *ifUpdated {
+				return errStatus{http.StatusConflict, "This week was changed elsewhere since you loaded it (another tab, the Kyōtsu trainer or the API). Reload it to get the latest."}
+			}
+		}
 		owned := map[int64]string{}
 		rows, err := tx.Query(`SELECT id, category FROM track_subcats WHERE user_id = ?`, u.ID)
 		if err != nil {
@@ -567,7 +595,7 @@ func (s *Server) saveWeek(w http.ResponseWriter, r *http.Request, u *user) {
 		if _, err := tx.Exec(`INSERT INTO track_weeks (user_id, week, kotu, kyotsu, summary, summary_private, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (user_id, week) DO UPDATE SET kotu = excluded.kotu, kyotsu = excluded.kyotsu,
-				summary = excluded.summary, summary_private = excluded.summary_private, updated_at = excluded.updated_at`,
+				summary = excluded.summary, summary_private = excluded.summary_private, updated_at = `+bumpUpdated,
 			u.ID, key, string(kotuJSON), string(kyotsuJSON), summary, in.SummaryPrivate, s.now().Unix()); err != nil {
 			return err
 		}
