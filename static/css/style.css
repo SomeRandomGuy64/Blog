@@ -259,6 +259,11 @@ rt {
     font-size: 0.8em;
     opacity: 0.75;
 }
+/* Ko-fi mug link (footer.html): small, full-strength colour on hover/focus */
+.site-footer .kofi { display: inline-block; line-height: 0; border-radius: 4px; transition: transform 0.15s ease; }
+.site-footer .kofi img { height: 26px; width: auto; }
+.site-footer .kofi:hover, .site-footer .kofi:focus-visible { transform: translateY(-2px); }
+.site-footer .kofi:focus-visible { outline: 2px solid var(--text-color); outline-offset: 3px; }
 
 /* content images */
 main img {
