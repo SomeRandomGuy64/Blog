@@ -15,7 +15,7 @@ internal/db        open + pragmas, embedded migrations (PRAGMA user_version; 000
                    0003 track + bio, 0004 track 'anki' category, 0005 track ratings/goals + settings,
                    0006 api_keys, 0007 roles + mutes + signup_tokens, 0008 user ids never reused,
                    0009 Kyōtsu practice time on kyotsu_sessions, 0010 page_likes + notifications
-                   rebuilt for 'page_like'),
+                   rebuilt for 'page_like', 0011 Tokyo mode: users.hyojungo + kyotsu_sessions.mode),
                    users/tokens, backup, purge
 internal/week      Track week calendar (Sun 03:00 UTC weeks, Saturday keys)
 internal/mail      resend (HTTP API), smtp (STARTTLS) and log mailers; RFC 5322 message builder
@@ -40,6 +40,7 @@ All JSON; errors are `{"error":"msg"}` with 400/401/403/404/409/413/415/429/500.
 | `POST /v1/admin/users/{id}/role` `{role}` | admins: `user`/`moderator`/`admin` → `{"user":<row>}` |
 | `POST /v1/admin/users/{id}/mute`, `…/unmute` | moderators (regular users only) and admins → `{"user":<row>}`; idempotent |
 | `DELETE /v1/admin/users/{id}` | admins: delete that account and all its data, like `DELETE /v1/me` |
+| `POST /v1/admin/users/{id}/hyojungo` `{on}` | admins: give / take Tokyo-mode access (not for admins, who always have it: 409) → `{"user":<row>}` |
 | `GET /v1/comments?page=/articles/x/` | `{"comments":[…]}` oldest first; deleted comments with live replies come back as tombstones |
 | `POST /v1/comments` `{page,parent,body}` | 201 comment (login; 403 `"You've been blocked from commenting."` if muted); 404 if `page` isn't in the site's comment-pages index, 503 if no index has loaded yet. A `title` field (older frontends) is ignored |
 | `DELETE /v1/comments/{id}` | author, moderator or admin; soft delete (also drops its likes and notifications) |
@@ -48,8 +49,9 @@ All JSON; errors are `{"error":"msg"}` with 400/401/403/404/409/413/415/429/500.
 | `POST`/`DELETE /v1/pages/likes?page=/articles/x/` | like / unlike an article (login; muted users too) → `{"count":N,"liked":bool}`, idempotent; same 404/503; 60 per user per 10 minutes |
 | `GET /v1/notifications?limit=50&before=ID` | `{"notifications":[…],"unread":N}` newest first |
 | `POST /v1/notifications/read` `{ids:[…]}` or `{all:true}` | `{"unread":N}` |
-| `POST /v1/kyotsu/sessions` `{started,layout,advanced,answers,active_seconds,client_id}` | 201 `{"id":N,"active_seconds":S,"track_added":{…}\|null}` (200 for a retry of the same `client_id`); adds the practice time to your Track (see Kyōtsu practice time) |
-| `GET /v1/kyotsu/sessions`, `GET /v1/kyotsu/sessions/{id}` | own sessions only (others' are 404); each has `active_seconds` and `track_added` |
+| `POST /v1/kyotsu/sessions` `{started,layout,mode,advanced,answers,active_seconds,client_id}` | `mode` `keihan` (default) or `tokyo` (needs Tokyo-mode access, else 403; see Tokyo mode); 201 `{"id":N,"active_seconds":S,"track_added":{…}\|null}` (200 for a retry of the same `client_id`); adds the practice time to your Track (see Kyōtsu practice time) |
+| `GET /v1/kyotsu/sessions`, `GET /v1/kyotsu/sessions/{id}` | own sessions only (others' are 404); each has `mode`, `active_seconds` and `track_added` |
+| `GET /v1/hyojungo/pairs`, `GET /v1/hyojungo/audio/{id}.aac` | Tokyo mode's pairs index and clips: login + Tokyo-mode access (401/403), 404 if not set up; `Cache-Control: private` |
 | `GET /v1/levels` | `{"levels":[0,5,20,…,49005]}`: XP needed for levels 1–100, `5·(L−1)²` |
 | `GET /v1/users/{id}` | public profile: `{user,joined,comments,likes,recent:[…20]}` (no email) |
 | `POST /v1/me/profile` `{name}` | change display name (1–40 characters) → `{"user":…}` |
@@ -125,6 +127,16 @@ time it opens. It is idempotent; `DELETE` undoes it (also idempotent). Both answ
 ```
 
 `GET /v1/track/config` carries the same fields (`end_week` for admins only).
+
+**Tokyo mode (標準語).** The trainer's second mode uses Kotu's minimal pairs (kotu.io, via
+Kuuuube/minimal-pairs): NHK accent-dictionary recordings, so they are never in the repo or on
+the static site. `deploy/hyojungo_build.py` turns the pairs into `index.json` + `audio/*.aac`
+under `$FAZOND_DATA/hyojungo/`, and fazond serves them only to logged-in accounts with access:
+admins, and anyone given it on the admin page or with `fazond user hyojungo -email X [-off]`
+(`/v1/me` has `hyojungo`). Tokyo sessions are stored with `mode: "tokyo"`, Kotu's own Pattern
+Stats buckets as `cat` (`TH` Heiban / Odaka, `TA` Atamadaka, `TN` Nakadaka), their practice
+time goes to a `Kotu` Phonetic sub-category (else `コツ`; same rules as below), and their
+scores fill Track's Kotu % as `kotu_auto` the way Keihan sessions fill Kyōtsu's.
 
 **Kyōtsu practice time.** The trainer measures the session's active time on the client (it
 counts while the tab is visible and in use, stops when the tab is hidden and 5 minutes after the
@@ -215,8 +227,8 @@ tier 2 (met some) whatever the percentages; within a tier by exact percentage, t
 first_score_week}`; each week has `week, totals, subtotals, kotu, kyotsu` (weekly averages),
 `ratings`, `summary` (`""` if private, unless you're the owner, who also gets `summary_private`),
 and day-by-day scores: `days` (the 7 label dates, Saturday … Friday as in the week view),
-`kotu_days` (7 values or null), `kyotsu_days` (7 effective values: manual, else the trainer's)
-and `kyotsu_source` (`"manual"`, `"auto"` or null per day). `first_score_week` is the first
+`kotu_days` / `kyotsu_days` (7 effective values: manual, else the trainer's Tokyo / Keihan mode)
+and `kotu_source` / `kyotsu_source` (`"manual"`, `"auto"` or null per day). `first_score_week` is the first
 returned week with any Kotu or Kyōtsu value (null if none). Only logged weeks are listed, so
 trainer sessions in a week with nothing logged don't appear here.
 
@@ -339,6 +351,14 @@ ssh root@SERVER 'systemctl daemon-reload && systemctl enable --now fazond &&
 ```
 
 Add `deploy/Caddyfile.snippet` to `/etc/caddy/Caddyfile`, then `systemctl reload caddy`.
+Tokyo mode's data (see Tokyo mode) goes in separately, never through git:
+
+```sh
+git clone --depth 1 https://github.com/Kuuuube/minimal-pairs.git /tmp/kmp
+python3 deploy/hyojungo_build.py /tmp/kmp /tmp/hyojungo
+rsync -a --delete /tmp/hyojungo/ root@SERVER:/var/lib/fazond/hyojungo/
+ssh root@SERVER 'chown -R fazond: /var/lib/fazond/hyojungo'
+```
 Upgrade: copy the new binary to `/usr/local/bin/fazond`, `systemctl restart fazond`
 (migrations run on start). Deploy the site before a fazond that needs something new from it:
 fazond only takes comments on pages listed in `$FAZOND_SITE/comment-pages.json`, so if the site

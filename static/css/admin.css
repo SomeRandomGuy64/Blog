@@ -38,6 +38,7 @@
 .adm-ctl[hidden] { display: none; }
 .adm-role { width: auto; padding: 0.3em 0.5em; font-size: 0.85em; }
 .adm-ctl .fz-btn { font-size: 0.85em; }
+.fz-btn.adm-tokyo[aria-pressed="true"] { border-color: var(--fz-accent); color: var(--fz-accent); background: var(--fz-accent-soft); }
 .fz-btn.adm-danger { border-color: var(--fz-bad); color: var(--fz-bad); }
 .fz-btn.adm-danger:hover:not(:disabled) { background: var(--fz-bad); color: #fff; }
 .fz-btn.adm-danger.solid { background: var(--fz-bad); color: #fff; }

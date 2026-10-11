@@ -33,6 +33,8 @@ type selfUser struct {
 	publicUser
 	Email string `json:"email"`
 	Muted bool   `json:"muted"` // blocked from commenting by a moderator
+	// Hyojungo: the trainer's Tokyo mode is open to this account (see api/hyojungo.go)
+	Hyojungo bool `json:"hyojungo"`
 }
 
 func avatarPath(userID, updated int64) string {
@@ -97,7 +99,7 @@ func (s *Server) selfUser(ctx context.Context, u *user) (selfUser, error) {
 	if p == nil {
 		return selfUser{}, errors.New("user vanished")
 	}
-	return selfUser{*p, u.Email, u.Muted}, nil
+	return selfUser{*p, u.Email, u.Muted, u.Hyojungo}, nil
 }
 
 // writeSelf answers {"user": <the requester, freshly loaded>}.

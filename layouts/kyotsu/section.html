@@ -5,6 +5,11 @@
   {{ with .Content }}{{ . }}{{ end }}
 
   <div class="kyotsu-quiz" id="quiz">
+    <div class="layout-toggle mode-toggle" id="modeToggle" role="group" aria-label="Pitch" hidden>
+      <span class="lt-k">Pitch</span>
+      <button type="button" data-mode="keihan">Keihan</button>
+      <button type="button" data-mode="tokyo">Tokyo <span class="jp">標準語</span></button>
+    </div>
     <div class="layout-toggle" role="group" aria-label="Test layout">
       <span class="lt-k">Layout</span>
       <button type="button" data-layout="kotu">Kotu-style</button>
@@ -22,15 +27,16 @@
       <div class="kotu-label">Prompt</div>
       <div class="prompt">
         <div class="reading jp" id="reading">—</div>
-        <div class="hint"><span class="for-classic">Which of the two words is this?</span><span class="for-kotu">Choose the matching pitch pattern.</span></div>
+        <div class="hint"><span class="for-classic" id="hintClassic">Which of the two words is this?</span><span class="for-kotu">Choose the matching pitch pattern.</span></div>
         <div class="voicechip"><span class="dot"></span><span id="voiceName">—</span></div>
       </div>
       <div class="play">
         <button class="playbtn" id="playBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span class="for-classic">Play word</span><span class="for-kotu">Replay Audio</span></button>
       </div>
 
-      <div class="q">Tap the word you heard</div>
+      <div class="q" id="qText">Tap the word you heard</div>
       <div class="kotu-sep"></div>
+      <div class="mode-msg" id="modeMsg" role="status" hidden></div>
       <div class="options" id="options"></div>
 
       <div class="verdict" id="verdict"></div>
@@ -40,8 +46,8 @@
     </div>
 
     <p class="kyotsu-note">
-      After you answer, tap either word to replay it.<br>
-      <span id="qStats"></span>Keihan pitch. <span class="for-classic">Pitch shown high/low per mora, ˺ marks a downstep.</span><span class="for-kotu">The line sits over high morae; a tick marks where the pitch drops (also after the last mora). Keys 1/2 pick a row.</span>
+      <span id="replayNote">After you answer, tap either word to replay it.</span><br>
+      <span id="qStats"></span><span id="pitchNote">Keihan pitch.</span> <span class="for-classic">Pitch shown high/low per mora, ˺ marks a downstep.</span><span class="for-kotu">The line sits over high morae; a tick marks where the pitch drops (also after the last mora). <span id="keysNote">Keys 1/2</span> pick a row.</span>
     </p>
     </div>
 
@@ -126,10 +132,16 @@
         // his own pitch (user ear-check 2026-10-08)
         "016B":"HL","060A":"HLLL","082B":"LH","093A":"HLL","097A":"LHL","097B":"LLL","105B":"LH","145A":"LH","152B":"HLL","165B":"LHL"}},
     ];
+    // Tokyo (標準語) mode: Kotu's own minimal sets (2 or 3 words each), NHK accent-dictionary
+    // recordings. Those are NHK's, so they aren't on this site: the API serves the sets and clips
+    // only to accounts with access (user.hyojungo), on the session cookie.
+    const NHK={id:"nhk", label:"NHK (Tokyo)", base:(window.Fazon?Fazon.base:"")+"/v1/hyojungo/audio/", ext:".aac"};
     const patternFor=(spk,m)=>(spk.overrides&&spk.overrides[m.audio])||m.pattern;
     const $=s=>document.querySelector(s);
     const rnd=n=>Math.floor(Math.random()*n);
-    const SMALL=new Set([..."ャュョァィゥェォヮ"]);
+    const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>"&#"+c.charCodeAt(0)+";");   // Tokyo data comes from the API
+    // small kana join the mora before them; so does ゚ (U+309A, the nasal mark in カ゚)
+    const SMALL=new Set([..."ャュョァィゥェォヮ゚"]);
 
     function moras(reading){
       const out=[];
@@ -149,7 +161,7 @@
       for(let i=0;i<n;i++){
         dots+=`<circle cx="${x(i)}" cy="${y(i)}" r="4.5" fill="${steps[i]?'var(--k-hi)':'var(--k-lo)'}"/>`;
         if(drop.includes(i)&&i<n-1) dots+=`<text class="mono" x="${x(i)+8}" y="${y(i)-6}" font-size="12" fill="var(--k-hi)">˺</text>`;
-        labels+=`<text class="jp" x="${x(i)}" y="${h-9}" font-size="13" text-anchor="middle" fill="var(--k-muted)">${ms[i]||''}</text>`;
+        labels+=`<text class="jp" x="${x(i)}" y="${h-9}" font-size="13" text-anchor="middle" fill="var(--k-muted)">${esc(ms[i]||'')}</text>`;
       }
       if(endDrop){const g=n;
         extra+=`<polyline points="${x(n-1)},${yH} ${x(g)},${yL}" fill="none" stroke="var(--k-hi)" stroke-width="2.5" stroke-dasharray="3 3" stroke-linecap="round" opacity=".7"/>`;
@@ -164,13 +176,23 @@
     // Kotu-style word: katakana with a thin line over each high mora and a short tick
     // down wherever the pitch drops — after a H followed by L, or a word-final ↘.
     // Low morae get no line, so a Keihan low onset (LLH) just shows the line late.
-    function overline(reading, pattern){
-      const ms=moras(reading), hs=[], drop=new Set();
+    // dv (Tokyo data only) = indices of devoiced morae, drawn muted with a dotted underline.
+    function overline(reading, pattern, dv){
+      const ms=moras(reading), hs=[], drop=new Set(), dvs=new Set(dv||[]);
       for(const c of pattern){ if(c==="H"||c==="L") hs.push(c==="H"); else if(c==="↘"||c==="↓") drop.add(hs.length-1); }
       return `<span class="kword jp">`+ms.map((m,i)=>{
         const hi=hs[i], dn=hi&&(drop.has(i)||(i<hs.length-1&&!hs[i+1]));
-        return `<span class="m${hi?" hi":""}${dn?" dn":""}">${m}</span>`;
+        return `<span class="m${hi?" hi":""}${dn?" dn":""}${dvs.has(i)?" dv":""}">${esc(m)}</span>`;
       }).join("")+`</span>`;
+    }
+
+    // Tokyo answers have no kanji: the "surface" is the pattern name + accent number ("Atamadaka [1]")
+    function tokyoName(acc,pat){ const n=pat.replace(/[^HL]/g,"").length;
+      return (acc===0?"Heiban":acc===1?"Atamadaka":acc>=n?"Odaka":"Nakadaka")+` [${acc}]`; }
+    // GET /v1/hyojungo/pairs → the trainer's pair shape; members carry their own reading (pron)
+    function tokyoPool(d){
+      return ((d&&d.pairs)||[]).filter(p=>p&&Array.isArray(p.m)&&p.m.length>=2).map(p=>({key:"t"+p.id, kana:p.kana, reading:p.m[0].pron,
+        members:p.m.map(m=>({reading:m.pron, pattern:m.pat, cat:m.cat, dv:m.dv||[], audio:m.a, surface:tokyoName(m.acc,m.pat)}))}));
     }
 
     // Layout toggle: "kotu" (kotu.io-style rows, the default) or "classic" (pitch-graph cards).
@@ -247,6 +269,13 @@
       SPEAKERS.forEach(sp=>Object.values(sp.overrides||{}).forEach(v=>seen.add(category(v))));
       shownCats=CATS.filter(c=>seen.has(c.id));
     }
+    const keihanCats=shownCats;
+    // Tokyo mode: kotu.io's three buckets (m.cat from the API)
+    const CATS_T=[
+      {id:"TH",jp:"平板・尾高",en:"Heiban / Odaka",eg:"LHHH"},
+      {id:"TA",jp:"頭高",     en:"Atamadaka",     eg:"HLLL"},
+      {id:"TN",jp:"中高",     en:"Nakadaka",      eg:"LHLL"},
+    ];
 
     // Pause toggles (kotu defaults: move on after a correct answer, wait after a wrong one)
     const PAUSE_KEY="kyotsu-pause";
@@ -260,8 +289,10 @@
     let advanced=false, padPending=false;
 
     let cur=null, answered=false, lastKey="";
+    // the active pitch mode's pairs + voices (Keihan: quiz_data.js + SPEAKERS; Tokyo: the API's sets + NHK)
+    let mode="keihan", POOL=typeof QUIZ!=="undefined"?QUIZ:null, VOICES=SPEAKERS;
     const audioEl=new Audio();
-    function clipUrl(spk,m){ return spk.base + m.audio + ".mp3"; }
+    function clipUrl(spk,m){ return spk.base + encodeURIComponent(m.audio) + (spk.ext||".mp3"); }
     let actx=null, padSrc=null;
     function stopPadded(){ if(padSrc){ try{ padSrc.stop(); }catch(e){} padSrc=null; } }
     function play(url){ stopPadded(); audioEl.src=url; audioEl.currentTime=0; const p=audioEl.play(); p.catch(()=>{}); return p; }
@@ -270,7 +301,7 @@
       actx=actx||new (window.AudioContext||window.webkitAudioContext)();
       if(actx.state!=="running"){ await Promise.race([actx.resume(),new Promise(r=>setTimeout(r,200))]);
         if(actx.state!=="running") throw new Error("audio context blocked"); }
-      const clip=await actx.decodeAudioData(await (await fetch(url)).arrayBuffer());
+      const clip=await actx.decodeAudioData(await (await fetch(url,{credentials:"include"})).arrayBuffer());   // Tokyo clips need the session cookie
       if(!isCurrent()) throw new Error("stale");
       const off=Math.round(pad*clip.sampleRate);
       const buf=actx.createBuffer(clip.numberOfChannels,clip.length+off,clip.sampleRate);
@@ -298,15 +329,16 @@
 
     function newQuestion(){
       let pair, key;
-      do{ pair=QUIZ[rnd(QUIZ.length)]; key=pair.reading; }while(QUIZ.length>1 && key===lastKey);
+      do{ pair=POOL[rnd(POOL.length)]; key=pair.key||pair.reading; }while(POOL.length>1 && key===lastKey);
       lastKey=key;
       // a pair may restrict which speakers can voice it (e.g. 278 is Kobe-indiscernible)
       // ...and a speaker may only cover some pairs (`covers`, e.g. a partial delivery)
       const pn=pair.members[0].audio.slice(0,3);
-      const allowed=SPEAKERS.filter(s=>(!pair.voices||pair.voices.includes(s.id))&&(!s.covers||s.covers(pn)));
+      const allowed=VOICES.filter(s=>(!pair.voices||pair.voices.includes(s.id))&&(!s.covers||s.covers(pn)));
       const speaker=allowed[rnd(allowed.length)];
-      const target=rnd(2);
-      const order=Math.random()<.5?[0,1]:[1,0];
+      // N members (Keihan pairs: 2; Tokyo sets: 2 or 3): random target, shuffled rows
+      const n=pair.members.length, target=rnd(n), order=pair.members.map((_,i)=>i);
+      for(let i=n-1;i>0;i--){ const j=rnd(i+1); [order[i],order[j]]=[order[j],order[i]]; }
       cur={pair,target,order,speaker,queued:true}; answered=false; updatePlayBtn();
 
       renderPrompt();
@@ -320,20 +352,21 @@
     }
 
     function renderPrompt(){
-      $("#reading").textContent=layout==="kotu"?hira(cur.pair.reading):cur.pair.reading;
+      $("#reading").textContent=layout==="kotu"?(cur.pair.kana||hira(cur.pair.reading)):cur.pair.reading;
     }
     function renderOptions(){
       const {pair,order,speaker}=cur;
       const opts=$("#options"); opts.innerHTML="";
+      opts.classList.toggle("n3",order.length>2);
       order.forEach((mi,slot)=>{
-        const m=pair.members[mi];
+        const m=pair.members[mi], rd=m.reading||pair.reading;
         const pat=patternFor(speaker,m);
         const el=document.createElement("button");
         el.className="opt"; el.dataset.mi=mi;
         const icon=`<div class="playicon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></div>`;
         el.innerHTML=layout==="kotu"
-          ? icon+`<div class="badge">${slot+1}</div>${overline(pair.reading,pat)}<span class="ksurface jp"></span>`
-          : icon+`<div class="slot mono">${slot+1}</div>${contour(pair.reading,pat)}<div class="pat">${pat}</div>`;
+          ? icon+`<div class="badge">${slot+1}</div>${overline(rd,pat,m.dv)}<span class="ksurface jp"></span>`
+          : icon+`<div class="slot mono">${slot+1}</div>${contour(rd,pat)}<div class="pat">${esc(pat)}</div>`;
         el.addEventListener("click",()=>{ if(cur.skipping) return; if(!answered) choose(mi); else play(clipUrl(speaker,pair.members[mi])); });
         opts.appendChild(el);
       });
@@ -343,7 +376,7 @@
       const {pair,target,picked}=cur;
       [...document.querySelectorAll(".opt")].forEach(b=>{ b.classList.add("answered");
         const bi=+b.dataset.mi, surf=pair.members[bi].surface;
-        const slot=b.querySelector(".slot"); if(slot) slot.outerHTML=`<div class="surface jp">${surf}</div>`;
+        const slot=b.querySelector(".slot"); if(slot) slot.outerHTML=`<div class="surface jp">${esc(surf)}</div>`;
         const ks=b.querySelector(".ksurface"); if(ks) ks.textContent=surf;
         b.title="Play "+surf;
         if(bi===target) b.classList.add("correct");
@@ -362,14 +395,14 @@
       $("#patRows").innerHTML=shownCats.map(c=>{ const r=st.cats[c.id]||{c:0,t:0};
         return `<div class="pat-row"><div><div class="pat-k">${c.en} <span class="jp">${c.jp}</span></div>${overline("◯".repeat(c.eg.replace(/[↘↓]/g,"").length),c.eg)}</div>`+
           `<span class="pat-n">${r.c} of ${r.t} (${pct(r.c,r.t)}%)</span></div>`; }).join("");
-      $("#hist").innerHTML=st.hist.map((h,i)=>`<button type="button" class="hchip ${h.ok?"good":"bad"}" data-i="${i}" title="${h.surface} · ${h.pat}">${overline(h.reading,h.pat)}</button>`).join("");
+      $("#hist").innerHTML=st.hist.map((h,i)=>`<button type="button" class="hchip ${h.ok?"good":"bad"}" data-i="${i}" title="${esc(h.surface)} · ${esc(h.pat)}">${overline(h.reading,h.pat,h.dv)}</button>`).join("");
       $("#histEmpty").hidden=st.hist.length>0;
       if(!saving) $("#endBtn").disabled=session.answers.length===0;
     }
     function setLayout(l){
       layout=l; try{ localStorage.setItem(LAYOUT_KEY,l); }catch(e){}
       $("#quiz").classList.toggle("kotu",l==="kotu");
-      document.querySelectorAll(".layout-toggle button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.layout===l));
+      document.querySelectorAll(".layout-toggle button[data-layout]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.layout===l));
       renderStats();
       if(cur){ renderPrompt(); renderOptions(); }
     }
@@ -377,13 +410,14 @@
     const PRESS_MS=350;
     function choose(mi){
       if(answered) return; answered=true;
+      setMsg("");   // e.g. a "couldn't load Tokyo mode" notice
       const {pair,target,speaker}=cur;
       cur.picked=mi;
       const st=stats; st.total++; const ok=mi===target; if(ok)st.correct++;
-      const t=pair.members[target], tPat=patternFor(speaker,t), cat=category(tPat);
+      const t=pair.members[target], tPat=patternFor(speaker,t), cat=t.cat||category(tPat), rd=t.reading||pair.reading;
       const r=st.cats[cat]||(st.cats[cat]={c:0,t:0}); r.t++; if(ok) r.c++;
-      st.hist.unshift({reading:pair.reading,pat:tPat,surface:t.surface,ok,url:clipUrl(speaker,t)});
-      session.answers.push({reading:pair.reading,surface:t.surface,pattern:tPat,cat,speaker:speaker.id,ok});
+      st.hist.unshift({reading:rd,pat:tPat,dv:t.dv,surface:t.surface,ok,url:clipUrl(speaker,t)});
+      session.answers.push({reading:rd,surface:t.surface,pattern:tPat,cat,speaker:speaker.id,ok});
       if(st.hist.length>60) st.hist.pop();
       // the tapped option presses down for a short beat (input ignored meanwhile). Then:
       // pause off for this outcome → straight to the next word, no feedback;
@@ -399,17 +433,25 @@
       markAnswered();
       const v=$("#verdict");
       v.textContent=ok?"Correct":"Not quite"; v.className="verdict "+(ok?"good":"bad");
-      $("#reveal").innerHTML=`You heard <b class="jp">${t.surface}</b> · <span class="mono">${tPat}</span>, in ${speaker.label}'s voice`;
+      $("#reveal").innerHTML=mode==="tokyo"
+        ? `You heard <b class="jp">${esc(cur.pair.kana)}</b> · ${esc(t.surface)} · <span class="mono">${esc(tPat)}</span>, from the NHK accent dictionary`
+        : `You heard <b class="jp">${t.surface}</b> · <span class="mono">${tPat}</span>, in ${speaker.label}'s voice`;
       $("#nextBtn").hidden=false; $("#nextBtn").focus({preventScroll:true});
       renderStats();
     }
 
     $("#playBtn").addEventListener("click",playTarget);
     $("#nextBtn").addEventListener("click",newQuestion);
-    document.querySelectorAll(".layout-toggle button").forEach(b=>b.addEventListener("click",()=>setLayout(b.dataset.layout)));
+    document.querySelectorAll(".layout-toggle button[data-layout]").forEach(b=>b.addEventListener("click",()=>setLayout(b.dataset.layout)));
     $("#hist").addEventListener("click",e=>{ const b=e.target.closest(".hchip"); if(b) play(stats.hist[+b.dataset.i].url); });
     [["#pauseOk","ok"],["#pauseBad","bad"]].forEach(([sel,k])=>{ const el=$(sel); el.checked=pause[k];
       el.addEventListener("change",()=>{ pause[k]=el.checked; try{ localStorage.setItem(PAUSE_KEY,JSON.stringify(pause)); }catch(e){} }); });
+    // a fresh run: score, history, session (new client id) and clock
+    function resetRun(){
+      Object.assign(stats,{correct:0,total:0,cats:{},hist:[]});
+      session.started=new Date().toISOString(); session.answers=[]; session.id=runId(); timerReset(); $("#endNote").classList.remove("err");
+      renderStats();
+    }
     // switching mode wipes the score and history and starts a fresh word, so scores from the two
     // modes never mix (and you can't flip to normal mode for a replay mid-run)
     $("#listenMode").addEventListener("change",e=>{
@@ -417,14 +459,67 @@
         e.target.checked=advanced; return; }
       advanced=e.target.checked; padPending=advanced;
       $("#listenBar").classList.toggle("on",advanced);
-      Object.assign(stats,{correct:0,total:0,cats:{},hist:[]});
-      session.started=new Date().toISOString(); session.answers=[]; session.id=runId(); timerReset(); $("#endNote").classList.remove("err");
-      renderStats();
-      newQuestion(); });
+      resetRun();
+      if(POOL&&!pendingMode) newQuestion(); });
+
+    // Pitch mode: "keihan" (this site's recordings, the default) or "tokyo" (Kotu's sets; only shown
+    // to accounts with access). Switching resets the run like Advanced Mode, so scores never mix.
+    // ?mode=keihan|tokyo forces one; a saved/asked-for "tokyo" without access falls back to Keihan.
+    const MODE_KEY="kyotsu-mode";
+    let wantMode="keihan", pendingMode=null, modeSeq=0, tokyoP=null;
+    try{ const q=new URLSearchParams(location.search).get("mode"), saved=localStorage.getItem(MODE_KEY);
+      wantMode=(q==="keihan"||q==="tokyo")?q:(saved==="tokyo"?"tokyo":"keihan"); }catch(e){}
+    // the note/hint texts that differ (Keihan's are the page's own markup)
+    const TEXT={keihan:{},tokyo:{hintClassic:"Which pitch pattern is this?",qText:"Tap the pattern you heard",
+      replayNote:"After you answer, tap any option to replay it.",keysNote:"Number keys",
+      pitchNote:`Tokyo pitch, NHK accent-dictionary recordings via Kotu (<a href="https://kotu.io" target="_blank" rel="noopener">kotu.io</a>). Faded, dotted morae are devoiced.`}};
+    Object.keys(TEXT.tokyo).forEach(id=>{ TEXT.keihan[id]=$("#"+id).innerHTML; });
+    function paintTexts(){
+      const tx=TEXT[mode]; Object.keys(tx).forEach(id=>{ $("#"+id).innerHTML=tx[id]; });
+      $("#qStats").textContent=!POOL?"":mode==="tokyo"?`${POOL.length} minimal sets · ${NHK.label}. `
+        :`${POOL.length} minimal pairs · ${SPEAKERS.map(s=>s.label).join(" / ")}, random per word. `;
+    }
+    function setMsg(text,err){ const n=$("#modeMsg"); n.textContent=text||""; n.hidden=!text; n.classList.toggle("err",!!err); }
+    const paintMode=m=>document.querySelectorAll(".mode-toggle button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.mode===m));
+    // empty card while the Tokyo sets load
+    function clearCard(text){
+      audioEl.pause(); stopPadded(); cur=null; answered=false; updatePlayBtn();
+      $("#reading").textContent="—"; $("#voiceName").textContent="—"; $("#options").innerHTML="";
+      $("#verdict").textContent=""; $("#verdict").className="verdict"; $("#reveal").textContent=""; $("#nextBtn").hidden=true;
+      setMsg(text);
+    }
+    // fetched once (cookie auth: 401 logged out, 403 no access, 404 not set up on the server)
+    function loadTokyo(){
+      return tokyoP||(tokyoP=Fazon.api("/v1/hyojungo/pairs").then(d=>{ const p=tokyoPool(d); if(!p.length) throw new Error("no sets came back."); return p; })
+        .catch(e=>{ tokyoP=null; throw e; }));
+    }
+    function applyMode(m,pool){
+      mode=m; pendingMode=null; lastKey=""; setMsg("");
+      POOL=m==="tokyo"?pool:(typeof QUIZ!=="undefined"?QUIZ:null); VOICES=m==="tokyo"?[NHK]:SPEAKERS; shownCats=m==="tokyo"?CATS_T:keihanCats;
+      $("#quiz").classList.toggle("tokyo",m==="tokyo"); paintMode(m); paintTexts();
+      resetRun();
+      if(POOL) newQuestion(); else clearCard("");
+    }
+    function setMode(m,ask){
+      if(m===(pendingMode||mode)) return;
+      if(ask&&stats.total&&!confirm(`Switching to ${m==="tokyo"?"Tokyo":"Keihan"} pitch resets your answers. Continue?`)) return;
+      if(ask) try{ localStorage.setItem(MODE_KEY,m); }catch(e){}
+      const my=++modeSeq;
+      if(m==="keihan"){ applyMode("keihan"); return; }
+      pendingMode="tokyo"; paintMode("tokyo"); resetRun(); clearCard("Loading the Tokyo sets…");
+      loadTokyo().then(pool=>{ if(my===modeSeq) applyMode("tokyo",pool); },e=>{
+        if(my!==modeSeq) return;
+        applyMode("keihan");
+        setMsg((e.status===401?"You're logged out, so Tokyo mode isn't available.":e.status===403?"Tokyo mode isn't enabled for your account."
+          :e.status===404?"Tokyo mode isn't set up on the server yet.":"Couldn't load Tokyo mode: "+e.message)+" Back to Keihan.",true);
+      });
+    }
+    document.querySelectorAll(".mode-toggle button").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.mode,true)));
+
     // Kotu-style: number keys pick (or, once answered, replay) the row with that badge
     document.addEventListener("keydown",e=>{
       if(layout!=="kotu"||!cur||cur.skipping||e.ctrlKey||e.metaKey||e.altKey) return;
-      const n=+e.key; if(n!==1&&n!==2) return;
+      const n=+e.key; if(!(n>=1&&n<=cur.order.length)) return;
       const mi=cur.order[n-1];
       if(!answered) choose(mi); else play(clipUrl(cur.speaker,cur.pair.members[mi]));
     });
@@ -432,9 +527,15 @@
     // On failure the run stays as it is, so it can be retried.
     let saving=false;
     const END_NOTE=$("#endNote").textContent;
+    // Tokyo first (saved / ?mode=tokyo): the card waits for /v1/me instead of starting a Keihan word
+    const tokyoFirst=wantMode==="tokyo"&&!!window.Fazon;
     if(window.Fazon) Fazon.me().then(m=>{
       if(m.user) $("#endSession").hidden=false;
       else if(!m.offline){ $("#endLogin").href=Fazon.loginHref(); $("#endAnon").hidden=false; }
+      const ok=!!(m.user&&m.user.hyojungo);
+      $("#modeToggle").hidden=!ok;
+      if(!tokyoFirst||mode!=="keihan"||pendingMode) return;
+      if(ok) setMode("tokyo",false); else applyMode("keihan");
     });
     $("#endBtn").addEventListener("click",()=>{
       if(saving||!session.answers.length) return;
@@ -442,7 +543,7 @@
       btn.disabled=true; btn.textContent="Saving…"; note.classList.remove("err"); note.textContent=END_NOTE;
       timerStop(); timer.frozen=true; paintTimer();   // the clock stops at End session
       Fazon.api("/v1/kyotsu/sessions",{method:"POST",body:{started:session.started,layout,advanced,
-        answers:session.answers.slice(-5000),active_seconds:Math.round(timerMs()/1000),client_id:session.id}})
+        mode,answers:session.answers.slice(-5000),active_seconds:Math.round(timerMs()/1000),client_id:session.id}})
         .then(d=>{ location.href="/kyotsu/session/?id="+encodeURIComponent(d.id); },
           e=>{ saving=false; btn.textContent="End session"; btn.disabled=!session.answers.length;
             timer.frozen=false; timerPoke();   // the run goes on; a retry sends the same client_id
@@ -451,10 +552,9 @@
     });
     setLayout(layout);
     timerPoke();   // the session (and its clock) starts with the page
-    if(typeof QUIZ!=="undefined"){
-      $("#qStats").textContent=`${QUIZ.length} minimal pairs · ${SPEAKERS.map(s=>s.label).join(" / ")}, random per word. `;
-      newQuestion();
-    }
+    paintMode(mode); paintTexts();
+    if(tokyoFirst) clearCard("Loading…");
+    else if(POOL) newQuestion();
   })();
   </script>
 {{ end }}

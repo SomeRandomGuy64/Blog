@@ -38,6 +38,7 @@ const usage = `usage:
   fazond [serve] [flags]
   fazond user add -email X -name Y [-admin] [flags]
   fazond user list [flags]
+  fazond user hyojungo -email X [-off] [flags]   give (or take) the trainer's Tokyo mode
   fazond login-link -email X [-next /path/] [flags]
 run "fazond serve -h" for the shared config flags`
 
@@ -59,6 +60,8 @@ func main() {
 		err = userAdd(args)
 	case "user list":
 		err = userList(args)
+	case "user hyojungo":
+		err = userHyojungo(args)
 	case "login-link":
 		err = loginLink(args)
 	case "help":
@@ -111,7 +114,8 @@ func serve(args []string) error {
 	defer stop()
 
 	srv := api.New(d, api.Config{Site: cfg.site, Origins: cfg.origins, CookieSecure: cfg.cookieSecure,
-		Mailer: cfg.mailer(), MailTimeout: time.Minute, AuthorEmail: cfg.adminEmail})
+		Mailer: cfg.mailer(), MailTimeout: time.Minute, AuthorEmail: cfg.adminEmail,
+		HyojungoDir: filepath.Join(cfg.dataDir, "hyojungo")})
 	httpSrv := &http.Server{Addr: cfg.listen, Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 2 * time.Minute}
 	maintDone := make(chan struct{})
@@ -209,6 +213,31 @@ func userList(args []string) error {
 		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\n", u.ID, u.Email, u.Name, u.Role, u.Created.Format(time.RFC3339))
 	}
 	return tw.Flush()
+}
+
+// userHyojungo gives an account the trainer's Tokyo mode (Kotu's NHK pairs), or takes it away
+// with -off. Admins always have it. The admin page does the same.
+func userHyojungo(args []string) error {
+	var email string
+	var off bool
+	_, d, err := open("user hyojungo", args, func(fs *flag.FlagSet) {
+		fs.StringVar(&email, "email", "", "account email (required)")
+		fs.BoolVar(&off, "off", false, "take Tokyo mode away instead")
+	})
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	u, err := db.UserByEmail(context.Background(), d, email)
+	if err != nil {
+		return fmt.Errorf("%s: %w", email, err)
+	}
+	if _, err := d.Exec(`UPDATE users SET hyojungo = ? WHERE id = ?`, !off, u.ID); err != nil {
+		return err
+	}
+	fmt.Printf("%s <%s>: Tokyo mode %s%s\n", u.Name, u.Email, map[bool]string{true: "off", false: "on"}[off],
+		map[bool]string{true: " (admins always have it)", false: ""}[u.Admin])
+	return nil
 }
 
 func loginLink(args []string) error {

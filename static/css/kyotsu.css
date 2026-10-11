@@ -145,6 +145,9 @@ body.light-mode {
   text-align: center; margin: 24px 0 12px;
 }
 .kyotsu-quiz .options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* three-word sets (Tokyo mode) side by side; stacked on phones (the kotu layout's rows win below) */
+.kyotsu-quiz .options.n3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 560px) { .kyotsu-quiz .options.n3 { grid-template-columns: 1fr; } }
 .kyotsu-quiz .opt {
   position: relative; background: var(--k-surface2); border: 1.5px solid var(--k-line);
   border-radius: 14px; padding: 16px 12px 14px; cursor: pointer; text-align: center;
@@ -215,6 +218,16 @@ body.light-mode {
 .kyotsu-quiz .layout-toggle button[aria-pressed="true"] {
   background: var(--k-accent-soft); border-color: var(--k-accent); color: var(--k-accent-ink); font-weight: 700;
 }
+/* pitch mode (Keihan ⇄ Tokyo): same pills, only shown to accounts with Tokyo access */
+.kyotsu-quiz .layout-toggle[hidden] { display: none; }
+.kyotsu-quiz .mode-toggle { margin-bottom: 8px; }
+/* loading / couldn't-load notice for Tokyo mode, in the card */
+.kyotsu-quiz .mode-msg { text-align: center; color: var(--k-muted); font-size: 13.5px; margin: 0 0 14px; }
+.kyotsu-quiz .mode-msg[hidden] { display: none; }
+.kyotsu-quiz .mode-msg.err { color: var(--k-bad); }
+/* Tokyo answers are pattern names ("Atamadaka [1]"), not kanji */
+.kyotsu-quiz.tokyo .opt .surface { font-size: 17px; }
+.kyotsu-quiz.tokyo.kotu .opt .ksurface { font-size: 13px; }
 
 .kyotsu-quiz .for-kotu, .kyotsu-note .for-kotu,
 .kyotsu-quiz .kotu-label, .kyotsu-quiz .kotu-sep, .kyotsu-quiz .kotu-foot { display: none; }
@@ -283,6 +296,10 @@ body.light-mode {
 .kyotsu-quiz .kword .m.hi:last-child:not(.dn)::before { right: 1px; }
 .kyotsu-quiz .kword .m.dn::after {
   content: ""; position: absolute; right: 0; top: -5px; height: 5px; border-right: 1.5px solid var(--k-pitch);
+}
+/* devoiced mora (Tokyo data): faded, dotted underline */
+.kyotsu-quiz .kword .m.dv {
+  color: var(--k-muted); text-decoration: underline dotted 1.5px; text-underline-offset: 4px;
 }
 
 /* answer beat: the tapped option sinks, like a pressed key.
@@ -445,3 +462,5 @@ body.light-mode {
 .kyotsu-quiz .ks-more { display: block; margin: 10px auto 0; border: 1px solid var(--k-line); background: var(--k-surface2); color: var(--text-color);
   font-family: inherit; font-size: 12.5px; padding: 6px 14px; border-radius: 999px; cursor: pointer; }
 .kyotsu-quiz .ks-more[hidden] { display: none; }
+.kyotsu-quiz .ks-other { margin: 12px 0 0; text-align: center; font-size: 12.5px; }
+.kyotsu-quiz .ks-other a { color: var(--k-accent-ink); }

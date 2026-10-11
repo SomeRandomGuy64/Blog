@@ -37,6 +37,9 @@ type Config struct {
 	// AuthorEmail is the account that writes every article (FAZOND_ADMIN_EMAIL): article likes
 	// are its XP and notify it. "" = no author (article likes count but give nobody XP).
 	AuthorEmail string
+	// HyojungoDir holds the trainer's Tokyo-mode data (index.json, audio/; see hyojungo.go).
+	// "" or missing = Tokyo mode not set up (its endpoints answer 404).
+	HyojungoDir string
 }
 
 type Server struct {
@@ -108,6 +111,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/admin/users/{id}/mute", s.staff(s.adminMute))
 	mux.HandleFunc("POST /v1/admin/users/{id}/unmute", s.staff(s.adminUnmute))
 	mux.HandleFunc("DELETE /v1/admin/users/{id}", s.staff(s.adminDeleteUser))
+	mux.HandleFunc("POST /v1/admin/users/{id}/hyojungo", s.staff(s.adminSetHyojungo))
 
 	mux.HandleFunc("GET /v1/comments", s.listComments)
 	mux.HandleFunc("POST /v1/comments", s.authed(s.postComment))
@@ -125,6 +129,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/kyotsu/sessions", s.authed(s.postKyotsu))
 	mux.HandleFunc("GET /v1/kyotsu/sessions", s.authed(s.listKyotsu))
 	mux.HandleFunc("GET /v1/kyotsu/sessions/{id}", s.authed(s.getKyotsu))
+	mux.HandleFunc("GET /v1/hyojungo/pairs", s.hyojungoAccess(s.hyojungoPairs))
+	mux.HandleFunc("GET /v1/hyojungo/audio/{name}", s.hyojungoAccess(s.hyojungoAudio))
 
 	mux.HandleFunc("GET /v1/levels", s.levels)
 	mux.HandleFunc("GET /v1/users/{id}", s.profile)

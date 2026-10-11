@@ -272,7 +272,8 @@
       byKey[w.week] = w;
       (w.days || []).forEach(function (day, i) {
         var kv = w.kotu_days && w.kotu_days[i], yv = w.kyotsu_days && w.kyotsu_days[i];
-        byDay[day] = { kotu: num(kv) ? kv : null, kyotsu: num(yv) ? yv : null, src: w.kyotsu_source && w.kyotsu_source[i] };
+        byDay[day] = { kotu: num(kv) ? kv : null, kyotsu: num(yv) ? yv : null,
+          src: { kotu: w.kotu_source && w.kotu_source[i], kyotsu: w.kyotsu_source && w.kyotsu_source[i] } };   // "manual" / "auto" (Kyōtsu trainer) / null
         if ((num(kv) || num(yv)) && (!firstDay || day < firstDay)) firstDay = day;
         if (!lastDay || day > lastDay) lastDay = day;
       });
@@ -299,9 +300,9 @@
       if (daily) {
         var kot = dkeys.map(function (k) { return byDay[k] ? byDay[k].kotu : null; });
         var kyo = dkeys.map(function (k) { return byDay[k] ? byDay[k].kyotsu : null; });
-        if (kot.some(num)) ser.push({ label: "Kotu", color: "var(--tk-kotu)", values: kot });
-        if (kyo.some(num)) ser.push({ label: "Kyōtsu", color: "var(--tk-kyotsu)", values: kyo,
-          notes: dkeys.map(function (k) { return byDay[k] && num(byDay[k].kyotsu) && byDay[k].src === "auto" ? "(auto from trainer)" : null; }) });
+        var auto = function (f) { return dkeys.map(function (k) { return byDay[k] && num(byDay[k][f]) && byDay[k].src[f] === "auto" ? "(auto from trainer)" : null; }); };
+        if (kot.some(num)) ser.push({ label: "Kotu", color: "var(--tk-kotu)", values: kot, notes: auto("kotu") });
+        if (kyo.some(num)) ser.push({ label: "Kyōtsu", color: "var(--tk-kyotsu)", values: kyo, notes: auto("kyotsu") });
         o = { x: dkeys, xLabel: T.fmtKeyShort, xTitle: T.fmtDayLabel, ariaLabel: "Daily Kotu and Kyōtsu accuracy", minStep: 3 };
       } else {
         var multiYear = wkeys[0].slice(0, 4) !== wkeys[wkeys.length - 1].slice(0, 4) && wkeys.length > 20;

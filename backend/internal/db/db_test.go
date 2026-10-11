@@ -18,7 +18,7 @@ import (
 )
 
 // latestVersion is the number of the newest migration.
-const latestVersion = 10
+const latestVersion = 11
 
 func open(t *testing.T, path string) *sql.DB {
 	t.Helper()
@@ -816,8 +816,10 @@ func TestMigrateFromV9(t *testing.T) {
 	)
 	queries := []string{
 		`SELECT id, user_id, kind, actor_id, comment_id, created_at, read_at FROM notifications ORDER BY id`,
-		`SELECT * FROM users ORDER BY id`, `SELECT * FROM pages`, `SELECT * FROM comments ORDER BY id`, `SELECT * FROM comment_likes`,
-		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE tbl_name != 'notifications' ORDER BY name`,
+		// (users and kyotsu_sessions: as they were before 0011 added a column to each)
+		`SELECT id, email, name, is_admin, created_at, track_public, bio, role, muted_at, muted_by FROM users ORDER BY id`,
+		`SELECT * FROM pages`, `SELECT * FROM comments ORDER BY id`, `SELECT * FROM comment_likes`,
+		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE tbl_name != 'notifications' AND name NOT IN ('users', 'kyotsu_sessions') ORDER BY name`,
 		`SELECT type, name, sql FROM sqlite_master WHERE tbl_name = 'notifications' AND type = 'index' ORDER BY name`,
 	}
 	before := make([]string, len(queries))
@@ -918,5 +920,50 @@ func TestMigrateFromV9(t *testing.T) {
 		if got := dumpRows(t, d, q); got != "" && got != "ok\n" {
 			t.Fatalf("%s: %s", q, got)
 		}
+	}
+}
+
+// 0011 (Tokyo mode) only adds users.hyojungo (0) and kyotsu_sessions.mode ('keihan', the only
+// mode before it); every row and every other schema object stays as it was.
+func TestMigrateFromV10(t *testing.T) {
+	path := oldDB(t, 10,
+		`INSERT INTO users (id, email, name, role, is_admin, created_at) VALUES (1, 'admin@example.com', 'Admin', 'admin', 1, 0),
+			(2, 'a@example.com', 'A', 'user', 0, 1)`,
+		`INSERT INTO kyotsu_sessions (id, user_id, started_at, ended_at, layout, advanced, total, correct, answers_json, active_seconds, client_id)
+			VALUES (4, 2, 10, 20, 'kotu', 1, 3, 2, '[]', 9, 'abc12345'), (6, 1, 30, 40, 'classic', 0, 1, 1, '[]', 0, NULL)`,
+	)
+	queries := []string{
+		`SELECT id, email, name, is_admin, created_at, track_public, bio, role, muted_at, muted_by FROM users ORDER BY id`,
+		`SELECT id, user_id, started_at, ended_at, layout, advanced, total, correct, answers_json, active_seconds,
+			track_centihours, track_subcat, track_note, client_id FROM kyotsu_sessions ORDER BY id`,
+		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT IN ('users', 'kyotsu_sessions') ORDER BY name`,
+	}
+	before := make([]string, len(queries))
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, q := range queries {
+		before[i] = dumpRows(t, raw, q)
+	}
+	raw.Close()
+
+	d := open(t, path)
+	for i, q := range queries {
+		if after := dumpRows(t, d, q); after != before[i] {
+			t.Fatalf("%s changed:\nbefore:\n%safter:\n%s", q, before[i], after)
+		}
+	}
+	if got := dumpRows(t, d, `SELECT id, hyojungo FROM users ORDER BY id`); got != "1 0\n2 0\n" {
+		t.Fatalf("hyojungo:\n%s", got)
+	}
+	if got := dumpRows(t, d, `SELECT id, mode FROM kyotsu_sessions ORDER BY id`); got != "4 keihan\n6 keihan\n" {
+		t.Fatalf("mode:\n%s", got)
+	}
+	if _, err := d.Exec(`UPDATE kyotsu_sessions SET mode = 'osaka' WHERE id = 4`); err == nil {
+		t.Fatal("mode accepted a value outside keihan/tokyo")
+	}
+	if _, err := d.Exec(`UPDATE kyotsu_sessions SET mode = 'tokyo' WHERE id = 4`); err != nil {
+		t.Fatal(err)
 	}
 }

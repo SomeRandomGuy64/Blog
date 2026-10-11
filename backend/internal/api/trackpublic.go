@@ -88,7 +88,7 @@ func (s *Server) userTrack(w http.ResponseWriter, r *http.Request) {
 	for _, d := range m[id] {
 		item := d.listItem()
 		item.weekDays = d.days()
-		if firstScore == nil && (!d.kotu.empty() || !d.kyotsuEffective().empty()) {
+		if firstScore == nil && (!d.kotuEffective().empty() || !d.kyotsuEffective().empty()) {
 			firstScore = &item.Week
 		}
 		summary := d.summary
@@ -246,7 +246,7 @@ func (s *Server) leaderboard(w http.ResponseWriter, r *http.Request) {
 				e.cents[m] += c
 				e.Series[m][i] = new(float64(c) / 100)
 			}
-			if m := d.kotu.mean(); m != nil {
+			if m := d.kotuEffective().mean(); m != nil {
 				kotuSum += *m
 				kotuN++
 				e.Series["kotu"][i] = round1(m)
