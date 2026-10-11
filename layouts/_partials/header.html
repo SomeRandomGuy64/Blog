@@ -1,7 +1,23 @@
+{{/* Desktop/landscape: the header box is display:contents, so the title is centred and the
+     toggle group fixed top-right as before. Portrait/burger: one row — [☰ Fazon Nexus ...... group]
+     with the burger's nav opening underneath (style.css). */}}
+<header class="site-header">
 <div class="theme-toggle-wrapper">
   <div id="themeToggle" class="toggle-button">
     <img class="dark" src="{{ relURL "assets/images/full-moon.png" }}" alt="Dark Mode Icon"/>
     <img class="light" src="{{ relURL "assets/images/sunny.png" }}" alt="Light Mode Icon"/>
+  </div>
+  {{/* top-right group: theme toggle on top, and under it [bell (logged in)] [Log in pill | account button].
+       The row is filled in by js/fazon-api.js once /v1/me answers (stays hidden if the API is down). */}}
+  <div class="fz-cluster-row" id="fzClusterRow" hidden>
+    <div class="fz-menu-wrap fz-bell-wrap" id="fzBellWrap" hidden>
+      <button type="button" class="fz-bell" id="fzBell" aria-haspopup="true" aria-expanded="false" aria-controls="fzBellPanel" aria-label="Notifications">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="fz-bell-badge" id="fzBellBadge" hidden></span>
+      </button>
+      <div class="fz-panel fz-bell-panel" id="fzBellPanel" role="region" aria-label="Notifications" hidden></div>
+    </div>
+    <div class="fz-menu-wrap fz-acct-wrap" id="fzAcctWrap" hidden></div>
   </div>
 </div>
 <h1 class="site-title"><a href="{{ relURL "" }}">Fazon Nexus</a></h1>
@@ -13,3 +29,4 @@
   <a href="{{ .URL }}">{{ .Name }}</a>
   {{ end }}
 </nav>
+</header>

@@ -6,6 +6,9 @@ enableRobotsTXT = true
 [params]
   description = "Notes, logs, and tools from my Japanese language-learning journey — with the occasional WebGL experiment."
   author = "Faizan"
+  # Accounts / comments / notifications / Kyōtsu sessions API (backend/). On localhost the
+  # client uses http://localhost:8091 instead (static/js/fazon-api.js).
+  api = "https://api.fazon.nexus"
 
 # Allow raw HTML (e.g. <ruby> furigana) inside Markdown content.
 [markup]
@@ -32,6 +35,10 @@ enableRobotsTXT = true
     name = "Kyotsu"
     pageRef = "/kyotsu"
     weight = 15
+  [[menu.main]]
+    name = "Track"
+    pageRef = "/track"
+    weight = 16
   [[menu.main]]
     name = "Tools"
     pageRef = "/tools"

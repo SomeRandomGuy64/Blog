@@ -1,0 +1,196 @@
+{{ define "main" }}
+  <link rel="stylesheet" href="{{ relURL "css/kyotsu.css" }}">
+  <div class="kyotsu-wordmark jp">京ツ</div>
+  <h1>{{ .Title }}</h1>
+
+  <div class="kyotsu-quiz ks-page" id="ks">
+    <p class="ks-msg" id="ksMsg">Loading…</p>
+  </div>
+  <p class="kyotsu-note"><a href="{{ relURL "kyotsu/" }}">← Back to the trainer</a></p>
+
+  <script>
+  (function(){
+    const F=window.Fazon, el=F.el, esc=F.esc, root=document.getElementById("ks");
+
+    // same buckets/labels as the trainer (layouts/kyotsu/section.html)
+    const CATS=[
+      {id:"HM",jp:"高起無核",en:"High · flat",     eg:"HHHH"},
+      {id:"HA",jp:"高起頭核",en:"High · head drop",eg:"HLLL"},
+      {id:"HN",jp:"高起中核",en:"High · mid drop", eg:"HHLL"},
+      {id:"HO",jp:"高起尾核",en:"High · tail drop",eg:"HHH↘"},
+      {id:"LM",jp:"低起無核",en:"Low · rise",      eg:"LLLH"},
+      {id:"LA",jp:"低起頭核",en:"Low · flat",      eg:"LLLL"},
+      {id:"LN",jp:"低起中核",en:"Low · mid drop",  eg:"LHLL"},
+      {id:"LO",jp:"低起尾核",en:"Low · tail drop", eg:"LLH↘"},
+    ];
+    const SPEAKERS={yura:"彩森遊楽 (Kobe)",nagi:"月野ナギ (Kyoto)",otowa:"音羽咲夜 (Nara)",atsuzaki:"厚崎ゆうま (Shiga/Osaka)"};
+    const LAYOUTS={kotu:"Kotu-style",classic:"Pitch Graph"};
+
+    const SMALL=new Set([..."ャュョァィゥェォヮゃゅょぁぃぅぇぉゎ"]);
+    function moras(reading){
+      const out=[];
+      for(const ch of reading){ if(SMALL.has(ch)&&out.length) out[out.length-1]+=ch; else out.push(ch); }
+      return out;
+    }
+    // Kotu-style overline (as in the trainer), but every mora is escaped — readings come from the API
+    function overline(reading, pattern){
+      const ms=moras(String(reading||"")), hs=[], drop=new Set();
+      for(const c of String(pattern||"")){ if(c==="H"||c==="L") hs.push(c==="H"); else if(c==="↘"||c==="↓") drop.add(hs.length-1); }
+      return `<span class="kword jp">`+ms.map((m,i)=>{
+        const hi=hs[i], dn=hi&&(drop.has(i)||(i<hs.length-1&&!hs[i+1]));
+        return `<span class="m${hi?" hi":""}${dn?" dn":""}">${esc(m)}</span>`;
+      }).join("")+`</span>`;
+    }
+    const pct=(c,t)=>t?Math.round(c/t*100):0;
+    const fmtDate=iso=>{ const d=new Date(iso); return isNaN(d)?"—":d.toLocaleString(undefined,{weekday:"short",year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); };
+    const shortDate=iso=>{ const d=new Date(iso); return isNaN(d)?"":d.toLocaleDateString(undefined,{month:"short",day:"numeric"}); };
+    function duration(a,b){
+      const ms=new Date(b)-new Date(a); if(!(ms>=0)) return "—";
+      const m=Math.round(ms/60000); if(m<1) return "under a minute";
+      return m<60?`${m} min`:`${Math.floor(m/60)} h ${String(m%60).padStart(2,"0")} min`;
+    }
+    const panel=(title,...kids)=>el("section",{class:"panel"},el("div",{class:"panel-h",text:title}),...kids);
+    function html(tag,cls,markup){ const n=el(tag,{class:cls}); n.innerHTML=markup; return n; }  // markup built with esc()
+    function msg(...parts){ root.textContent=""; root.appendChild(el("p",{class:"ks-msg"},...parts)); }
+
+    function summary(s){
+      const big=el("div",{class:"ks-acc"},
+        el("div",{class:"ks-acc-n",text:s.total?pct(s.correct,s.total)+"%":"—"}),
+        el("div",{class:"ks-acc-f mono",text:`${s.correct} / ${s.total} correct`}));
+      const dl=el("dl",{class:"ks-facts"},
+        el("dt",{text:"Date"}),el("dd",{text:fmtDate(s.started)}),
+        el("dt",{text:"Duration"}),el("dd",{text:duration(s.started,s.ended)}),
+        el("dt",{text:"Layout"}),el("dd",{text:LAYOUTS[s.layout]||s.layout||"—"}),
+        el("dt",{text:"Advanced Mode"}),el("dd",{text:s.advanced?"On":"Off"}));
+      return panel("This session",el("div",{class:"ks-sum"},big,dl));
+    }
+
+    function patternStats(answers){
+      const by={}; answers.forEach(a=>{ const r=by[a.cat]||(by[a.cat]={c:0,t:0}); r.t++; if(a.ok) r.c++; });
+      const rows=CATS.filter(c=>by[c.id]).map(c=>{ const r=by[c.id];
+        return `<div class="pat-row"><div><div class="pat-k">${esc(c.en)} <span class="jp">${esc(c.jp)}</span></div>${overline("◯".repeat(c.eg.replace(/[↘↓]/g,"").length),c.eg)}</div>`+
+          `<span class="pat-n">${r.c} of ${r.t} (${pct(r.c,r.t)}%)</span></div>`; }).join("");
+      return panel("Pattern Stats",html("div","",rows||`<p class="ks-empty">No answers.</p>`));
+    }
+
+    function speakerStats(answers){
+      const by={}, order=[];
+      answers.forEach(a=>{ const k=String(a.speaker||"?"); if(!by[k]){ by[k]={c:0,t:0}; order.push(k); } by[k].t++; if(a.ok) by[k].c++; });
+      const ids=Object.keys(SPEAKERS).filter(k=>by[k]).concat(order.filter(k=>!(k in SPEAKERS)));
+      const rows=ids.map(k=>{ const r=by[k], p=pct(r.c,r.t);
+        return el("div",{class:"ks-spk"},
+          el("div",{class:"ks-spk-top"},el("span",{class:"jp",text:SPEAKERS[k]||k}),el("span",{class:"pat-n",text:`${r.c} of ${r.t} (${p}%)`})),
+          el("div",{class:"ks-bar"},el("span",{style:`width:${p}%`}))); });
+      return panel("By speaker",...(rows.length?rows:[el("p",{class:"ks-empty",text:"No answers."})]));
+    }
+
+    function missed(answers){
+      const groups=new Map();
+      answers.filter(a=>!a.ok).forEach(a=>{ const k=[a.reading,a.surface,a.pattern].join("\u0000");
+        const g=groups.get(k); if(g) g.n++; else groups.set(k,{a,n:1}); });
+      if(!groups.size) return panel("Missed words",el("p",{class:"ks-empty",text:"None — every answer was right."}));
+      const list=el("div",{class:"ks-missed"});
+      [...groups.values()].sort((x,y)=>y.n-x.n).forEach(({a,n})=>{
+        list.appendChild(html("div","ks-miss",
+          `<span class="ks-miss-w">${overline(a.reading,a.pattern)}</span>`+
+          `<span class="ks-miss-s jp">${esc(a.surface)}</span>`+
+          `<span class="ks-miss-p mono">${esc(a.reading)} · ${esc(a.pattern)}</span>`+
+          (n>1?`<span class="ks-miss-n mono">×${n}</span>`:"")));
+      });
+      const total=answers.filter(a=>!a.ok).length;
+      return panel(`Missed words (${total})`,list);
+    }
+
+    // ---- over time: accuracy per session, inline SVG sized to the panel ----
+    const SVGNS="http://www.w3.org/2000/svg";
+    function svg(tag,attrs,text){ const n=document.createElementNS(SVGNS,tag);
+      for(const k in attrs) n.setAttribute(k,attrs[k]); if(text!=null) n.textContent=text; return n; }
+    function drawChart(box,sessions,curId){
+      box.textContent="";
+      const W=Math.max(260,box.clientWidth), narrow=W<480, H=narrow?190:220;
+      const pad={l:38,r:14,t:12,b:28}, pw=W-pad.l-pad.r, ph=H-pad.t-pad.b;
+      const n=sessions.length, maxT=Math.max(1,...sessions.map(s=>s.total));
+      const x=i=>pad.l+(n===1?pw/2:i*pw/(n-1)), y=p=>pad.t+ph*(1-p/100);
+      const s=svg("svg",{width:W,height:H,viewBox:`0 0 ${W} ${H}`,class:"ks-chart",role:"img",
+        "aria-label":`Accuracy per session, ${n} session${n===1?"":"s"}`});
+      [0,25,50,75,100].forEach(v=>{
+        s.appendChild(svg("line",{x1:pad.l,x2:W-pad.r,y1:y(v),y2:y(v),class:"ks-gl"}));
+        s.appendChild(svg("text",{x:pad.l-6,y:y(v)+4,"text-anchor":"end",class:"ks-axis"},v+"%"));
+      });
+      // faint answer-count bars along the bottom (tallest = 25% of the plot)
+      const bw=Math.max(2,Math.min(14,pw/Math.max(n,1)*0.5));
+      sessions.forEach((r,i)=>{ const bh=ph*0.25*r.total/maxT;
+        const b=svg("rect",{x:x(i)-bw/2,y:pad.t+ph-bh,width:bw,height:bh,class:"ks-count"});
+        b.appendChild(svg("title",{},`${r.total} answers`)); s.appendChild(b); });
+      // x labels: as many dates as fit
+      const every=Math.max(1,Math.ceil(n/Math.max(1,Math.floor(pw/(narrow?62:78)))));
+      sessions.forEach((r,i)=>{ if(i%every===0||(i===n-1&&n>1&&(n-1)%every>=every/2))
+        s.appendChild(svg("text",{x:x(i),y:H-8,"text-anchor":n===1?"middle":i===0?"start":i===n-1?"end":"middle",class:"ks-axis"},shortDate(r.started))); });
+      if(n>1) s.appendChild(svg("polyline",{points:sessions.map((r,i)=>`${x(i)},${y(pct(r.correct,r.total))}`).join(" "),class:"ks-line"}));
+      sessions.forEach((r,i)=>{
+        const cur=r.id===curId, p=pct(r.correct,r.total);
+        const a=svg("a",{href:`?id=${r.id}`,class:"ks-pt"+(cur?" cur":"")});
+        if(cur) a.appendChild(svg("circle",{cx:x(i),cy:y(p),r:9,class:"ks-halo"}));
+        a.appendChild(svg("circle",{cx:x(i),cy:y(p),r:cur?5.5:3.5,class:"ks-dot"}));
+        a.appendChild(svg("circle",{cx:x(i),cy:y(p),r:12,class:"ks-hit"}));   // bigger tap target
+        a.appendChild(svg("title",{},`Session ${i+1} · ${fmtDate(r.started)}\n${p}% (${r.correct}/${r.total})${cur?" · this session":""}`));
+        s.appendChild(a);
+      });
+      box.appendChild(s);
+    }
+
+    function overTime(sessions,curId){
+      const tA=sessions.reduce((a,s)=>a+s.total,0), tC=sessions.reduce((a,s)=>a+s.correct,0);
+      const totals=el("div",{class:"ks-totals"},
+        ...[[sessions.length,"sessions"],[tA,"answers"],[tA?pct(tC,tA)+"%":"—","overall accuracy"]].map(([v,k])=>
+          el("div",{},el("b",{class:"mono",text:String(v)}),el("span",{text:k}))));
+      const chart=el("div",{class:"ks-chart-box"});
+      const list=el("ol",{class:"ks-list",reversed:true});
+      const rows=sessions.map((s,i)=>({s,i})).reverse();
+      const SHOW=15; let shown=0;
+      function more(){
+        rows.slice(shown,shown+=SHOW).forEach(({s,i})=>{
+          const cur=s.id===curId;
+          list.appendChild(el("li",{class:cur?"cur":""},
+            el("a",{href:`?id=${s.id}`},
+              el("span",{class:"ks-l-n mono",text:`#${i+1}`}),
+              el("span",{class:"ks-l-d",text:fmtDate(s.started)}),
+              el("span",{class:"ks-l-m",text:(LAYOUTS[s.layout]||s.layout||"")+(s.advanced?" · Advanced":"")}),
+              el("span",{class:"ks-l-p mono",text:`${s.correct}/${s.total} · ${pct(s.correct,s.total)}%`}))));
+        });
+        moreBtn.hidden=shown>=rows.length;
+      }
+      const moreBtn=el("button",{type:"button",class:"ks-more",text:"Show older sessions",onclick:more});
+      more();
+      const p=panel("Over time",totals,chart,el("div",{class:"panel-sep"}),list,moreBtn);
+      // draw once it's in the DOM (needs the width), and again on resize / theme switch
+      requestAnimationFrame(()=>drawChart(chart,sessions,curId));
+      let w=0; new ResizeObserver(()=>{ if(chart.clientWidth!==w){ w=chart.clientWidth; drawChart(chart,sessions,curId); } }).observe(chart);
+      return p;
+    }
+
+    F.me().then(m=>{
+      if(m.offline){ msg("Couldn't reach the server. Try again in a moment."); return; }
+      if(!m.user){ msg(el("a",{href:F.loginHref(),text:"Log in"})," to see your saved sessions."); return; }
+      const idq=new URLSearchParams(location.search).get("id");
+      const id=idq&&/^\d+$/.test(idq)?+idq:null;
+      return F.api("/v1/kyotsu/sessions").then(d=>{
+        const sessions=((d&&d.sessions)||[]).slice();
+        if(!sessions.length&&id==null){ msg("No saved sessions yet. Answer a few words in the trainer, then press “End session”."); return; }
+        const want=id!=null?id:sessions[sessions.length-1].id;
+        return F.api("/v1/kyotsu/sessions/"+want).then(s=>{
+          const answers=Array.isArray(s.answers)?s.answers:[];
+          root.textContent="";
+          const grid=el("div",{class:"ks-grid"},
+            el("div",{class:"ks-col"},summary(s),missed(answers)),
+            el("div",{class:"ks-col"},patternStats(answers),speakerStats(answers)));
+          root.append(grid,overTime(sessions,s.id));
+        },e=>{
+          if(e.status===404) msg("That session wasn't found. ",el("a",{href:"?",text:"Show your latest session"}),".");
+          else msg(e.message);
+        });
+      },e=>msg(e.status===401?"Your login has expired. ":e.message+" ",e.status===401?el("a",{href:F.loginHref(),text:"Log in again"}):""));
+    });
+  })();
+  </script>
+{{ end }}

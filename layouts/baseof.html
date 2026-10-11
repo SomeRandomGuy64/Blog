@@ -2,6 +2,8 @@
 <html lang="{{ or site.Language.Locale "en" }}">
   <head>
     {{ partial "head.html" . }}
+    <meta name="fazon-api" content="{{ site.Params.api }}">
+    <script src="{{ relURL "js/fazon-api.js" }}"></script>
   </head>
   <body>
     {{ partial "header.html" . }}

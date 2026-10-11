@@ -1,0 +1,32 @@
+{{ define "main" }}
+  <h1>{{ .Title }}</h1>
+  <div class="fz-account-page" id="verifyBox">
+    <p class="fz-muted">Logging you in…</p>
+  </div>
+  <script>
+  (function(){
+    const F=window.Fazon, el=F.el, box=document.getElementById("verifyBox");
+    // the token lives in the fragment (#t=…&next=…) so it never reaches a server log or a
+    // link scanner; read it, then wipe it from the address bar / history straight away
+    let h=new URLSearchParams(location.hash.replace(/^#/,""));
+    const token=h.get("t")||"", hashNext=h.get("next")||"";
+    if(location.hash) history.replaceState(null,"",location.pathname+location.search);
+
+    function fail(msg){
+      msg=String(msg||"Invalid or expired link."); msg=msg.charAt(0).toUpperCase()+msg.slice(1);
+      box.textContent="";
+      box.append(el("p",{class:"fz-error",role:"alert",text:msg}),
+        el("p",{},el("a",{href:"/account/login/"+(F.safePath(hashNext)?"?next="+encodeURIComponent(hashNext):""),
+          text:"Request a new login link →"})));
+    }
+    if(!token){ fail("This login link is incomplete or has already been used."); return; }
+    F.api("/v1/auth/verify",{method:"POST",body:{token}}).then(d=>{
+      let next=F.safePath((d&&d.next)||"")||F.safePath(hashNext)||"/";
+      if(next.indexOf("/account/login/")===0||next.indexOf("/account/verify/")===0) next="/";
+      box.textContent="";
+      box.append(el("p",{},"Logged in",d&&d.user?" as ":"",d&&d.user?el("b",{text:d.user.name}):null,". Taking you back…"));
+      location.replace(next);
+    },e=>fail(e.message));
+  })();
+  </script>
+{{ end }}

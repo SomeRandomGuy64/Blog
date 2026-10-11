@@ -57,6 +57,11 @@
         <div class="panel-sep"></div>
         <div class="pat-head"><b>Pattern Stats</b><span id="patTotal">0 of 0 (0%)</span></div>
         <div id="patRows"></div>
+        <div class="end-session" id="endSession" hidden>
+          <div class="panel-sep"></div>
+          <button type="button" class="endbtn" id="endBtn" disabled>End session</button>
+          <div class="end-note" id="endNote">Saves this session's answers to your account and shows its stats.</div>
+        </div>
       </section>
 
       <section class="panel">
@@ -166,6 +171,9 @@
     try{ const q=new URLSearchParams(location.search).get("layout"), saved=localStorage.getItem(LAYOUT_KEY);
       layout=(q==="kotu"||q==="classic")?q:(saved==="classic"?"classic":"kotu"); }catch(e){}
     const stats={correct:0,total:0,cats:{},hist:[]};
+    // full per-answer log for "End session" (hist only keeps the last 60, for the chips);
+    // restarted whenever the score is reset
+    const session={started:new Date().toISOString(),answers:[]};
 
     // Pattern Stats buckets: Keihan register 式 × kernel 核 (not Tokyo 平板/頭高/…).
     // Isolated words can't show 無核 vs 尾核 except an explicit word-final ↘.
@@ -314,6 +322,7 @@
           `<span class="pat-n">${r.c} of ${r.t} (${pct(r.c,r.t)}%)</span></div>`; }).join("");
       $("#hist").innerHTML=st.hist.map((h,i)=>`<button type="button" class="hchip ${h.ok?"good":"bad"}" data-i="${i}" title="${h.surface} · ${h.pat}">${overline(h.reading,h.pat)}</button>`).join("");
       $("#histEmpty").hidden=st.hist.length>0;
+      if(!saving) $("#endBtn").disabled=session.answers.length===0;
     }
     function setLayout(l){
       layout=l; try{ localStorage.setItem(LAYOUT_KEY,l); }catch(e){}
@@ -332,6 +341,7 @@
       const t=pair.members[target], tPat=patternFor(speaker,t), cat=category(tPat);
       const r=st.cats[cat]||(st.cats[cat]={c:0,t:0}); r.t++; if(ok) r.c++;
       st.hist.unshift({reading:pair.reading,pat:tPat,surface:t.surface,ok,url:clipUrl(speaker,t)});
+      session.answers.push({reading:pair.reading,surface:t.surface,pattern:tPat,cat,speaker:speaker.id,ok});
       if(st.hist.length>60) st.hist.pop();
       // the tapped option presses down for a short beat (input ignored meanwhile). Then:
       // pause off for this outcome → straight to the next word, no feedback;
@@ -365,7 +375,9 @@
         e.target.checked=advanced; return; }
       advanced=e.target.checked; padPending=advanced;
       $("#listenBar").classList.toggle("on",advanced);
-      Object.assign(stats,{correct:0,total:0,cats:{},hist:[]}); renderStats();
+      Object.assign(stats,{correct:0,total:0,cats:{},hist:[]});
+      session.started=new Date().toISOString(); session.answers=[]; $("#endNote").classList.remove("err");
+      renderStats();
       newQuestion(); });
     // Kotu-style: number keys pick (or, once answered, replay) the row with that badge
     document.addEventListener("keydown",e=>{
@@ -373,6 +385,22 @@
       const n=+e.key; if(n!==1&&n!==2) return;
       const mi=cur.order[n-1];
       if(!answered) choose(mi); else play(clipUrl(cur.speaker,cur.pair.members[mi]));
+    });
+    // End session (logged-in users only): save the run, then go to its stats page.
+    // On failure the run stays as it is, so it can be retried.
+    let saving=false;
+    const END_NOTE=$("#endNote").textContent;
+    if(window.Fazon) Fazon.me().then(m=>{ if(m.user) $("#endSession").hidden=false; });
+    $("#endBtn").addEventListener("click",()=>{
+      if(saving||!session.answers.length) return;
+      saving=true; const btn=$("#endBtn"), note=$("#endNote");
+      btn.disabled=true; btn.textContent="Saving…"; note.classList.remove("err"); note.textContent=END_NOTE;
+      Fazon.api("/v1/kyotsu/sessions",{method:"POST",body:{started:session.started,layout,advanced,
+        answers:session.answers.slice(-5000)}})
+        .then(d=>{ location.href="/kyotsu/session/?id="+encodeURIComponent(d.id); },
+          e=>{ saving=false; btn.textContent="End session"; btn.disabled=!session.answers.length;
+            note.classList.add("err");
+            note.textContent=(e.status===401?"You've been logged out — log in again in another tab, then retry. ":"Couldn't save the session: "+e.message+" ")+"Your answers are still here."; });
     });
     setLayout(layout);
     if(typeof QUIZ!=="undefined"){

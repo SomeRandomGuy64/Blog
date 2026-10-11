@@ -9,4 +9,7 @@
     <p class="tags">{{ range . }}<a href="{{ (printf "/tags/%s" (urlize .)) | relURL }}">#{{ . }}</a> {{ end }}</p>
     {{ end }}
   </article>
+  {{ if and (eq .Section "articles") (ne .Params.comments false) }}
+  {{ partial "comments.html" . }}
+  {{ end }}
 {{ end }}

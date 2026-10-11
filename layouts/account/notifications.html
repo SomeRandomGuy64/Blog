@@ -1,0 +1,77 @@
+{{ define "main" }}
+  <h1>{{ .Title }}</h1>
+  <div id="notifBox">
+    <p class="fz-muted" style="text-align:center">Loading…</p>
+  </div>
+  <script>
+  (function(){
+    const F=window.Fazon, el=F.el, box=document.getElementById("notifBox");
+    const LIMIT=30;
+    const VERB={reply:"replied to your comment on",like:"liked your comment on",comment:"commented on"};
+    let list, moreBtn, allBtn, lastId=null, unread=0;
+
+    function setUnread(n){ unread=n; F.setUnread(n); allBtn.disabled=n<=0; }
+    function href(n){
+      const p=F.safePath(n.page||"")||"/";
+      return p+(n.comment_id?"#comment-"+(n.comment_id|0):"");
+    }
+    function item(n){
+      const a=el("a",{class:"notif"+(n.read?"":" unread"),href:href(n)},
+        F.avatar(n.actor||null,36,{link:false}),
+        el("div",{class:"notif-main"},
+        el("div",{class:"notif-line"},
+          el("b",{text:(n.actor&&n.actor.name)||"Someone"})," ",VERB[n.kind]||"commented on"," ",
+          el("b",{text:n.page_title||n.page||"a page"})),
+        n.snippet?el("div",{class:"notif-snip",text:"“"+n.snippet+"”"}):null,
+        el("div",{class:"notif-meta"},F.timeEl(n.created),n.read?"":" · unread")));
+      a.addEventListener("click",e=>{
+        if(n.read||e.ctrlKey||e.metaKey||e.shiftKey||e.button!==0) return;
+        e.preventDefault();
+        n.read=true; a.classList.remove("unread");
+        const go=()=>{ location.href=a.href; };
+        F.api("/v1/notifications/read",{method:"POST",body:{ids:[n.id]},keepalive:true})
+          .then(d=>{ if(d&&typeof d.unread==="number") F.setUnread(d.unread); },()=>{}).then(go);
+      });
+      return el("li",{},a);
+    }
+    function load(){
+      moreBtn.disabled=true;
+      const q="/v1/notifications?limit="+LIMIT+(lastId?"&before="+lastId:"");
+      return F.api(q).then(d=>{
+        const ns=(d&&d.notifications)||[];
+        ns.forEach(n=>list.appendChild(item(n)));
+        if(ns.length) lastId=ns[ns.length-1].id;
+        if(!list.children.length) list.appendChild(el("li",{class:"cmt-empty",text:"No notifications yet."}));
+        if(d&&typeof d.unread==="number") setUnread(d.unread);
+        moreBtn.hidden=ns.length<LIMIT; moreBtn.disabled=false;
+      },e=>{
+        moreBtn.disabled=false;
+        box.appendChild(el("p",{class:"fz-error",role:"alert",text:e.message}));
+      });
+    }
+
+    F.me().then(m=>{
+      box.textContent="";
+      if(m.offline){ box.appendChild(el("p",{class:"fz-error",text:"Couldn't reach the server. Try again in a moment."})); return; }
+      if(!m.user){
+        box.appendChild(el("p",{style:"text-align:center"},el("a",{href:F.loginHref(),text:"Log in"})," to see your notifications."));
+        return;
+      }
+      allBtn=el("button",{class:"fz-btn",type:"button",text:"Mark all as read",disabled:true});
+      allBtn.addEventListener("click",()=>{
+        allBtn.disabled=true;
+        F.api("/v1/notifications/read",{method:"POST",body:{all:true}}).then(d=>{
+          list.querySelectorAll(".notif.unread").forEach(a=>{ a.classList.remove("unread");
+            const meta=a.querySelector(".notif-meta"); if(meta&&meta.lastChild&&meta.lastChild.nodeType===3) meta.lastChild.remove(); });
+          setUnread(d&&typeof d.unread==="number"?d.unread:0);
+        },()=>{ allBtn.disabled=false; });
+      });
+      list=el("ul",{class:"notif-list"});
+      moreBtn=el("button",{class:"fz-btn",type:"button",text:"Load more",hidden:true});
+      moreBtn.addEventListener("click",load);
+      box.append(el("div",{class:"notif-tools"},allBtn),list,el("div",{class:"notif-more"},moreBtn));
+      load();
+    });
+  })();
+  </script>
+{{ end }}

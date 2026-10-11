@@ -1,0 +1,273 @@
+{{ define "main" }}
+  {{/* /users/?id=N — public profile, rendered from GET /v1/users/{id}. Own profile adds name /
+       picture editing (client-side crop → ≤1024px JPEG → POST /v1/me/avatar). */}}
+  <div class="pf" id="pf"><p class="fz-muted pf-msg">Loading…</p></div>
+  <script>
+  (function(){
+    const F=window.Fazon, el=F.el, root=document.getElementById("pf");
+    const runes=s=>Array.from(s).length;
+    const fmtDate=iso=>{ const d=new Date(iso); return isNaN(d)?"":d.toLocaleDateString(undefined,{year:"numeric",month:"long",day:"numeric"}); };
+    let levelsP=null;
+    const levels=()=>levelsP||(levelsP=F.api("/v1/levels").then(d=>(d&&d.levels)||[]).catch(e=>{ levelsP=null; throw e; }));
+
+    function msg(...parts){ root.textContent=""; root.appendChild(el("p",{class:"pf-msg"},...parts)); }
+
+    const idq=new URLSearchParams(location.search).get("id");
+    const ID=idq&&/^\d+$/.test(idq)?+idq:null;
+
+    // ---- header card ----
+    function card(p,own){
+      const u=p.user;
+      const err=el("p",{class:"fz-error pf-err",role:"alert"});
+      const nameH=el("h1",{class:"pf-name"});
+      function paintName(){
+        nameH.textContent="";
+        nameH.append(el("span",{text:u.name}));
+        if(u.admin) nameH.append(el("span",{class:"cmt-tag",text:"author"}));
+      }
+      paintName();
+      document.title=u.name+" · Fazon Nexus";
+
+      const lvl=u.level||1, max=u.next_xp==null;
+      const within=max?1:Math.max(0,Math.min(1,(u.xp-u.level_xp)/((u.next_xp-u.level_xp)||1)));
+      const levelBox=el("div",{class:"pf-level"},
+        el("div",{class:"pf-level-row"},
+          el("b",{text:"Level "+lvl}),
+          el("span",{class:"fz-muted",text:max?"Max level":`${u.xp} / ${u.next_xp} points to level ${lvl+1}`})),
+        el("div",{class:"pf-bar",role:"progressbar","aria-valuemin":"0","aria-valuemax":"100","aria-valuenow":String(Math.round(within*100)),
+          "aria-label":"Progress to the next level"},el("span",{style:`width:${(within*100).toFixed(1)}%`})));
+
+      const stats=el("div",{class:"pf-stats"},
+        el("div",{},el("b",{text:String(p.comments||0)}),el("span",{text:p.comments===1?"comment":"comments"})),
+        el("div",{},el("b",{text:String(p.likes||0)}),el("span",{text:"likes received"})));
+
+      // about me (escaped via textContent; newlines kept by CSS pre-wrap)
+      let bio=typeof p.bio==="string"?p.bio:(u.bio||"");
+      const bioBox=el("div",{class:"pf-bio-wrap"});
+      let openBioEditor=null;
+      function paintBio(){
+        bioBox.textContent="";
+        if(bio) bioBox.append(el("div",{class:"pf-bio",text:bio}));
+        else if(own) bioBox.append(el("button",{type:"button",class:"fz-linkbtn pf-bio-empty",text:"Add a short description about yourself",
+          onclick:()=>openBioEditor&&openBioEditor()}));
+      }
+      paintBio();
+      const id=el("div",{class:"pf-id"},nameH,el("div",{class:"pf-joined fz-muted",text:"Joined "+fmtDate(p.joined)}),bioBox);
+      const top=el("div",{class:"pf-top"},el("div",{class:"pf-avwrap"},F.avatar(u,120,{link:false,card:false})),id);
+      const cropSlot=el("div");
+      const box=el("section",{class:"pf-card"},top,levelBox,stats,cropSlot,err);
+
+      if(own){
+        const file=el("input",{type:"file",accept:"image/jpeg,image/png,image/webp,image/gif",class:"pf-file",tabindex:"-1","aria-hidden":"true"});
+        const editBtn=el("button",{type:"button",class:"fz-btn",text:"Edit name"});
+        const picBtn=el("button",{type:"button",class:"fz-btn",text:u.avatar?"Change picture":"Upload picture"});
+        const rmBtn=u.avatar?el("button",{type:"button",class:"fz-btn",text:"Remove picture"}):null;
+        const bioBtn=el("button",{type:"button",class:"fz-btn",text:"Edit about me"});
+        const tools=el("div",{class:"pf-tools"},editBtn,bioBtn,picBtn,rmBtn,file);
+        id.appendChild(tools);
+
+        // "about me" editor: ≤300 characters, ≤6 lines; Esc cancels, Ctrl/Cmd+Enter saves
+        const BIO_MAX=300, BIO_LINES=6;
+        openBioEditor=()=>{
+          err.textContent="";
+          const ta=el("textarea",{class:"fz-textarea pf-bio-input",rows:"4","aria-label":"About me",placeholder:"A few words about yourself…"});
+          ta.value=bio;
+          const count=el("span",{class:"cmt-count"});
+          const save=el("button",{type:"button",class:"fz-btn primary",text:"Save"});
+          const cancel=el("button",{type:"button",class:"fz-btn",text:"Cancel"});
+          const form=el("div",{class:"pf-bio-edit"},ta,el("div",{class:"cmt-composer-foot"},count,cancel,save));
+          const upd=()=>{ const n=runes(ta.value), lines=ta.value.split("\n").length;
+            count.textContent=`${n} / ${BIO_MAX}`+(lines>BIO_LINES?` · max ${BIO_LINES} lines`:"");
+            count.classList.toggle("over",n>BIO_MAX||lines>BIO_LINES);
+            save.disabled=n>BIO_MAX||lines>BIO_LINES; };
+          bioBox.replaceWith(form); tools.hidden=true; upd(); ta.focus();
+          const close=()=>{ form.replaceWith(bioBox); paintBio(); tools.hidden=false; bioBtn.focus(); };
+          const submit=()=>{
+            const v=ta.value.replace(/\s+$/,"").replace(/^\s*\n/,"");
+            if(runes(v)>BIO_MAX||v.split("\n").length>BIO_LINES) return;
+            save.disabled=true; save.textContent="Saving…"; err.textContent="";
+            F.api("/v1/me/profile",{method:"POST",body:{bio:v}}).then(d=>{
+              bio=(d&&typeof d.bio==="string")?d.bio:(d&&d.user&&typeof d.user.bio==="string"?d.user.bio:v);
+              if(d&&d.user) F.updateUser(d.user); else F.invalidateCard(u.id);
+              close();
+            },e=>{ err.textContent=e.message; save.textContent="Save"; upd(); });
+          };
+          ta.addEventListener("input",upd);
+          ta.addEventListener("keydown",e=>{
+            if(e.key==="Escape"){ e.preventDefault(); close(); }
+            else if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); submit(); }
+            else if(e.key==="Enter"&&ta.value.split("\n").length>=BIO_LINES){ e.preventDefault(); }
+          });
+          save.addEventListener("click",submit); cancel.addEventListener("click",close);
+        };
+        bioBtn.addEventListener("click",()=>openBioEditor());
+        paintBio();
+
+        editBtn.addEventListener("click",()=>{
+          err.textContent="";
+          const inp=el("input",{class:"fz-input pf-name-input",type:"text",value:u.name,maxlength:"80","aria-label":"Display name",autocomplete:"nickname"});
+          const save=el("button",{type:"button",class:"fz-btn primary",text:"Save"});
+          const cancel=el("button",{type:"button",class:"fz-btn",text:"Cancel"});
+          const form=el("div",{class:"pf-name-edit"},inp,el("div",{class:"fz-row"},save,cancel));
+          nameH.replaceWith(form); tools.hidden=true; inp.focus(); inp.select();
+          const close=()=>{ form.replaceWith(nameH); tools.hidden=false; editBtn.focus(); };
+          const submit=()=>{
+            const v=inp.value.trim();
+            if(!v||runes(v)>40){ err.textContent="Names are 1–40 characters."; return; }
+            if(/[\u0000-\u001f\u007f]/.test(v)){ err.textContent="That name has characters that aren't allowed."; return; }
+            save.disabled=true; save.textContent="Saving…"; err.textContent="";
+            F.api("/v1/me/profile",{method:"POST",body:{name:v}}).then(d=>{
+              Object.assign(u,d.user); F.updateUser(d.user); paintName(); document.title=u.name+" · Fazon Nexus"; close();
+            },e=>{ err.textContent=e.message; save.disabled=false; save.textContent="Save"; });
+          };
+          save.addEventListener("click",submit); cancel.addEventListener("click",close);
+          inp.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); submit(); } else if(e.key==="Escape"){ e.preventDefault(); close(); } });
+        });
+
+        picBtn.addEventListener("click",()=>file.click());
+        file.addEventListener("change",()=>{
+          const f=file.files&&file.files[0]; file.value="";
+          if(f) openCropper(f,cropSlot,err,tools);
+        });
+        if(rmBtn) rmBtn.addEventListener("click",()=>{
+          if(!confirm("Remove your profile picture?")) return;
+          rmBtn.disabled=true; err.textContent="";
+          F.api("/v1/me/avatar",{method:"DELETE"}).then(d=>{ F.updateUser(d.user); load(); },
+            e=>{ rmBtn.disabled=false; err.textContent=e.message; });
+        });
+      }
+      return box;
+    }
+
+    // ---- crop UI: drag to pan, slider / wheel to zoom, circular preview ----
+    async function openCropper(file,slot,err,tools){
+      err.textContent="";
+      if(file.size>25*1024*1024){ err.textContent="That file is too big (25 MB max)."; return; }
+      let bmp;
+      try{ bmp=await createImageBitmap(file,{imageOrientation:"from-image"}); }
+      catch(e){ try{ bmp=await createImageBitmap(file); }catch(e2){ err.textContent="Couldn't read that image — try a JPEG or PNG."; return; } }
+      const W=bmp.width, H=bmp.height, base=Math.min(W,H);
+      const V=Math.min(280, Math.max(200, slot.clientWidth||280)), dpr=window.devicePixelRatio||1;
+      const cv=el("canvas",{class:"pf-crop-cv",width:String(Math.round(V*dpr)),height:String(Math.round(V*dpr)),tabindex:"0",
+        style:`width:${V}px;height:${V}px`,"aria-label":"Crop area: drag or use arrow keys to move, + and − to zoom"});
+      const ctx=cv.getContext("2d");
+      const zoom=el("input",{type:"range",min:"1",max:"6",step:"0.01",value:"1","aria-label":"Zoom",class:"pf-zoom"});
+      const save=el("button",{type:"button",class:"fz-btn primary",text:"Save picture"});
+      const cancel=el("button",{type:"button",class:"fz-btn",text:"Cancel"});
+      const panel=el("div",{class:"pf-crop"},
+        el("div",{class:"pf-crop-h",text:"Position your picture"}),
+        cv,
+        el("label",{class:"pf-zoom-row"},el("span",{class:"fz-muted",text:"Zoom"}),zoom),
+        el("div",{class:"fz-row pf-crop-btns"},save,cancel));
+      slot.textContent=""; slot.appendChild(panel); tools.hidden=true;
+
+      let z=1, side=base, cx=W/2, cy=H/2;
+      const clamp=()=>{ side=base/z; cx=Math.min(W-side/2,Math.max(side/2,cx)); cy=Math.min(H-side/2,Math.max(side/2,cy)); };
+      function draw(){
+        const n=cv.width;
+        ctx.clearRect(0,0,n,n);
+        ctx.imageSmoothingQuality="high";
+        ctx.drawImage(bmp,cx-side/2,cy-side/2,side,side,0,0,n,n);
+        ctx.save();                                   // dim everything outside the circle
+        ctx.fillStyle="rgba(0,0,0,0.55)";
+        ctx.beginPath(); ctx.rect(0,0,n,n); ctx.arc(n/2,n/2,n/2-1,0,Math.PI*2); ctx.fill("evenodd");
+        ctx.strokeStyle="rgba(255,255,255,0.9)"; ctx.lineWidth=2*dpr;
+        ctx.beginPath(); ctx.arc(n/2,n/2,n/2-dpr,0,Math.PI*2); ctx.stroke();
+        ctx.restore();
+      }
+      const setZoom=v=>{ z=Math.min(6,Math.max(1,v)); zoom.value=String(z); clamp(); draw(); };
+      clamp(); draw();
+      zoom.addEventListener("input",()=>setZoom(+zoom.value));
+      cv.addEventListener("wheel",e=>{ e.preventDefault(); setZoom(z*Math.exp(-e.deltaY*0.0015)); },{passive:false});
+      let drag=null;
+      cv.addEventListener("pointerdown",e=>{ drag={x:e.clientX,y:e.clientY}; cv.setPointerCapture(e.pointerId); cv.classList.add("grabbing"); });
+      cv.addEventListener("pointermove",e=>{ if(!drag) return;
+        const k=side/V; cx-=(e.clientX-drag.x)*k; cy-=(e.clientY-drag.y)*k; drag={x:e.clientX,y:e.clientY}; clamp(); draw(); });
+      const end=()=>{ drag=null; cv.classList.remove("grabbing"); };
+      cv.addEventListener("pointerup",end); cv.addEventListener("pointercancel",end);
+      cv.addEventListener("keydown",e=>{
+        const st=side*0.05, m={ArrowLeft:[-st,0],ArrowRight:[st,0],ArrowUp:[0,-st],ArrowDown:[0,st]}[e.key];
+        if(m){ e.preventDefault(); cx+=m[0]; cy+=m[1]; clamp(); draw(); }
+        else if(e.key==="+"||e.key==="="){ e.preventDefault(); setZoom(z*1.1); }
+        else if(e.key==="-"){ e.preventDefault(); setZoom(z/1.1); }
+      });
+      const close=()=>{ slot.textContent=""; tools.hidden=false; if(bmp.close) bmp.close(); };
+      cancel.addEventListener("click",close);
+      save.addEventListener("click",async()=>{
+        save.disabled=true; cancel.disabled=true; save.textContent="Uploading…"; err.textContent="";
+        try{
+          const out=Math.max(1,Math.min(1024,Math.round(side)));
+          const oc=document.createElement("canvas"); oc.width=out; oc.height=out;
+          const octx=oc.getContext("2d"); octx.imageSmoothingQuality="high";
+          octx.fillStyle="#fff"; octx.fillRect(0,0,out,out);      // transparent PNG/GIF areas → white, not black
+          octx.drawImage(bmp,cx-side/2,cy-side/2,side,side,0,0,out,out);
+          const toBlob=q=>new Promise((res,rej)=>oc.toBlob(b=>b?res(b):rej(new Error("Couldn't encode the picture.")),"image/jpeg",q));
+          let blob=await toBlob(0.9); if(blob.size>2*1024*1024) blob=await toBlob(0.75);
+          const d=await F.api("/v1/me/avatar",{method:"POST",raw:blob,type:"image/jpeg"});
+          F.updateUser(d.user); close(); load();
+        }catch(e){
+          err.textContent=e.message||"Upload failed."; save.disabled=false; cancel.disabled=false; save.textContent="Save picture";
+        }
+      });
+      cv.focus({preventScroll:true});
+      panel.scrollIntoView({block:"nearest",behavior:"smooth"});
+    }
+
+    // ---- recent comments ----
+    function recent(p){
+      const list=el("ul",{class:"pf-recent"});
+      (p.recent||[]).forEach(c=>{
+        const page=F.safePath(c.page||"")||"/";
+        list.appendChild(el("li",{},el("a",{href:page+"#comment-"+(c.id|0)},
+          el("div",{class:"pf-r-line"},"On ",el("b",{text:c.page_title||c.page||"a page"})),
+          c.snippet?el("div",{class:"pf-r-snip",text:"“"+c.snippet+"”"}):null,
+          el("div",{class:"pf-r-meta"},F.timeEl(c.created)," · ♥ "+(c.likes||0)))));
+      });
+      if(!list.children.length) list.appendChild(el("li",{class:"cmt-empty",text:"No comments yet."}));
+      return el("section",{class:"pf-sec"},el("h2",{text:"Recent comments"}),list);
+    }
+
+    // ---- how levels work (thresholds come from /v1/levels) ----
+    function levelsBox(u){
+      const body=el("div",{class:"pf-lv-body"},el("p",{class:"fz-muted",text:"Loading…"}));
+      const det=el("details",{class:"pf-levels"},el("summary",{text:"How levels work"}),body);
+      det.addEventListener("toggle",()=>{ if(!det.open||det.dataset.done) return;
+        levels().then(L=>{
+          det.dataset.done="1"; body.textContent="";
+          const n=L.length;
+          body.append(el("p",{},"Every like your comments get from someone else earns a point — likes on your own comments don't count, and an unlike takes the point back. Each level takes more points than the last: level 2 needs ",
+            el("b",{text:String(L[1]??"")})," points"+(n>=100?", level 100 needs ":""),n>=100?el("b",{text:L[99].toLocaleString()}):null,n>=100?" points.":"."));
+          const shown=new Set(); for(let i=1;i<=Math.min(20,n);i++) shown.add(i); for(let i=30;i<=n;i+=10) shown.add(i);
+          if(u.level) shown.add(u.level);
+          const tb=el("tbody");
+          [...shown].sort((a,b)=>a-b).forEach(l=>tb.appendChild(el("tr",{class:l===u.level?"cur":""},
+            el("td",{text:"Level "+l}),el("td",{text:L[l-1].toLocaleString()+" points"}),
+            el("td",{class:"pf-lv-you",text:l===u.level?"← "+(own?"you":"here"):""}))));
+          body.append(el("table",{class:"pf-lv-table"},el("thead",{},el("tr",{},el("th",{text:"Level"}),el("th",{text:"Total points"}),el("th"))),tb));
+        },e=>{ body.textContent=""; body.append(el("p",{class:"fz-error",text:e.message})); });
+      });
+      return det;
+    }
+
+    let own=false;
+    function load(){
+      return Promise.all([F.me(),F.api("/v1/users/"+ID)]).then(([m,p])=>{
+        own=!!(m.user&&p&&p.user&&m.user.id===p.user.id);
+        root.textContent="";
+        root.append(card(p,own),recent(p),levelsBox(p.user));
+      },e=>{
+        if(e.status===404) msg("There's no user with that id.");
+        else msg(e.message);
+      });
+    }
+
+    if(ID==null){
+      F.me().then(m=>{
+        if(m.user) location.replace("/users/?id="+m.user.id);
+        else if(m.offline) msg("Couldn't reach the server. Try again in a moment.");
+        else msg(el("a",{href:F.loginHref(),text:"Log in"})," to see your profile.");
+      });
+    } else load();
+  })();
+  </script>
+{{ end }}

@@ -1,0 +1,11 @@
+{{ define "main" }}
+  {{/* /track/leaderboard/ — rankings, graphs and the public summaries feed (js/fazon-track.js). */}}
+  <link rel="stylesheet" href="{{ relURL "css/track.css" }}">
+  <h1>{{ .Title }}</h1>
+  <p class="tk-small fz-muted" style="text-align:center;margin-top:-0.6em"><a href="{{ relURL "track/" }}">Log your week</a> · Leaderboard</p>
+  <div class="tk" id="lb"><p class="tk-msg">Loading…</p></div>
+  <script src="{{ relURL "js/fazon-charts.js" }}"></script>
+  <script src="{{ relURL "js/fazon-track-charts.js" }}"></script>
+  <script src="{{ relURL "js/fazon-track.js" }}"></script>
+  <script>FazonTrack.initLeaderboard(document.getElementById("lb"));</script>
+{{ end }}

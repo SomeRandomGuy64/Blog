@@ -1,0 +1,262 @@
+// Track core (week maths, categories, formatting, summary cards) + the profile-page module:
+//   FazonTrack.renderProfile(containerEl, userId) → Promise<boolean>  (true when something was shown)
+// Self-contained: needs only js/fazon-api.js (window.Fazon); it loads css/track.css and
+// js/fazon-charts.js itself if the page hasn't. js/fazon-track.js (logger + leaderboard) builds on it.
+(function () {
+  "use strict";
+  var T = window.FazonTrack = window.FazonTrack || {};
+  var SRC = (document.currentScript && document.currentScript.src) || "/js/fazon-track-charts.js";
+
+  var CATS = [
+    { id: "active", label: "Active immersion", short: "Active" },
+    { id: "passive", label: "Passive immersion", short: "Passive" },
+    { id: "phonetic", label: "Phonetic training", short: "Phonetic" },
+    { id: "output", label: "Output", short: "Output" },
+    { id: "soroban", label: "Soroban", short: "Soroban" }
+  ];
+  var CAT = {};
+  CATS.forEach(function (c) { CAT[c.id] = c; });
+  T.CATS = CATS;
+  T.CAT = CAT;
+  T.catColor = function (id) { return "var(--tk-" + id + ")"; };
+  T.slotColor = function (i) { return "var(--tk-s" + ((i % 8) + 1) + ")"; };
+
+  // ---- weeks: Sun 03:00 UTC → next Sun 03:00 UTC, keyed by the Saturday before (YYYY-MM-DD) ----
+  var DAY = 864e5;
+  function keyToMs(k) { return Date.UTC(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10)); }
+  function msToKey(ms) { return new Date(ms).toISOString().slice(0, 10); }
+  T.isKey = function (k) { return typeof k === "string" && /^\d{4}-\d{2}-\d{2}$/.test(k) && !isNaN(keyToMs(k)) && msToKey(keyToMs(k)) === k; };
+  T.addWeeks = function (k, n) { return msToKey(keyToMs(k) + n * 7 * DAY); };
+  T.addDays = function (k, n) { return msToKey(keyToMs(k) + n * DAY); };
+  T.weekOfDate = function (d) { var ms = keyToMs(d), dow = new Date(ms).getUTCDay(); return msToKey(ms - ((dow + 1) % 7) * DAY); };
+  T.currentWeekKey = function (now) {
+    var d = Math.floor(((now == null ? Date.now() : now) - 3 * 36e5) / DAY), dow = (d + 4) % 7;   // 1970-01-01 was a Thursday
+    return msToKey((d - dow - 1) * DAY);
+  };
+  T.weekStartMs = function (k) { return keyToMs(k) + DAY + 3 * 36e5; };
+  T.weeksBetween = function (a, b) { return Math.round((keyToMs(b) - keyToMs(a)) / (7 * DAY)); };
+  // fixed English formatting (Intl's en-GB output varies: "Sat, 10 Oct", "Sept")
+  var WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], MO = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function parts(ms) { var d = new Date(ms); return { wd: WD[d.getUTCDay()], d: d.getUTCDate(), m: MO[d.getUTCMonth()], y: d.getUTCFullYear() }; }
+  T.fmtKeyLong = function (k) { var p = parts(keyToMs(k)); return p.wd + " " + p.d + " " + p.m + " " + p.y; };    // Sat 10 Oct 2026
+  T.fmtKeyShort = function (k) { var p = parts(keyToMs(k)); return p.d + " " + p.m; };                            // 10 Oct
+  T.fmtKeyAxis = function (k, multiYear) { var p = parts(keyToMs(k)); return multiYear ? p.m + " " + String(p.y).slice(2) : p.d + " " + p.m; };
+  T.fmtDayLabel = function (k) { var p = parts(keyToMs(k)); return p.wd + " " + p.d + " " + p.m; };              // Sat 10 Oct
+  T.weekTitle = function (k) { return "Week of " + T.fmtKeyLong(k); };
+  T.utcRange = function (k) {
+    var a = T.weekStartMs(k);
+    var f = function (ms) { var p = parts(ms); return p.wd + " " + p.d + " " + p.m + " 03:00"; };
+    return f(a) + " → " + f(a + 7 * DAY) + " UTC";
+  };
+
+  // ---- numbers ----
+  function num(v) { return typeof v === "number" && isFinite(v); }
+  T.num = num;
+  T.fmtNum = function (v, d) { return num(v) ? (Math.round(v * 100) / 100).toLocaleString("en", { maximumFractionDigits: d == null ? 2 : d }) : "—"; };
+  T.fmtH = function (v) { return num(v) ? T.fmtNum(v) + " h" : "—"; };
+  T.fmtPct = function (v) { return num(v) ? T.fmtNum(v, 1) + "%" : "—"; };
+  T.sumTotals = function (t) { var a = 0; if (t) CATS.forEach(function (c) { if (num(t[c.id])) a += t[c.id]; }); return a; };
+  T.mean = function (arr) { var v = (arr || []).filter(num); return v.length ? v.reduce(function (a, b) { return a + b; }, 0) / v.length : null; };
+
+  // ---- loading css/track.css + js/fazon-charts.js on pages that don't include them ----
+  var depsP = null;
+  T.loadDeps = function () {
+    if (depsP) return depsP;
+    if (!document.querySelector('link[href$="css/track.css"]')) {
+      var l = document.createElement("link");
+      l.rel = "stylesheet"; l.href = new URL("../css/track.css", SRC).href;
+      document.head.appendChild(l);
+    }
+    depsP = window.FazonCharts ? Promise.resolve() : new Promise(function (res, rej) {
+      var sc = document.createElement("script");
+      sc.src = new URL("fazon-charts.js", SRC).href;
+      sc.onload = function () { res(); }; sc.onerror = function () { depsP = null; rej(new Error("Couldn't load the charts.")); };
+      document.head.appendChild(sc);
+    });
+    return depsP;
+  };
+
+  // ---- avatar + name link (hover card via data-user-card) ----
+  T.userLink = function (u, size, cls) {
+    var F = window.Fazon, el = F.el, href = F.profileHref ? F.profileHref(u) : "/users/?id=" + ((u && u.id) | 0);
+    var av = typeof F.avatar === "function" ? F.avatar(u, size || 32) :
+      el("span", { class: "tk-initial", style: "width:" + (size || 32) + "px;height:" + (size || 32) + "px", text: (Array.from(String((u && u.name) || "?"))[0] || "?").toUpperCase() });
+    return el("span", { class: cls || "lb-user" }, av,
+      el("a", { href: href, "data-user-card": String((u && u.id) | 0) }, el("span", { text: (u && u.name) || "Someone" })));
+  };
+
+  // ---- one summary card (leaderboard feed + profile list) ----
+  // item: {user?, week, summary, totals?, kotu?, kyotsu?, private?}
+  T.summaryCard = function (it, opts) {
+    var F = window.Fazon, el = F.el;
+    opts = opts || {};
+    var head = el("div", { class: "sm-head" },
+      opts.noUser ? null : T.userLink(it.user, 28, "sm-who"),
+      el("span", { class: "sm-week", text: T.weekTitle(it.week) }),
+      it.private ? el("span", { class: "sm-priv", title: "Only you can see this summary", text: "🔒 Private" }) : null);
+    var chips = el("div", { class: "sm-chips" });
+    CATS.forEach(function (c) {
+      var v = it.totals && it.totals[c.id];
+      if (num(v) && v > 0) {
+        var dot = el("span", { class: "tk-dotc" }); dot.style.background = T.catColor(c.id);
+        chips.appendChild(el("span", { class: "sm-chip", title: c.label }, dot, c.short + " " + T.fmtH(v)));
+      }
+    });
+    if (num(it.kotu)) chips.appendChild(el("span", { class: "sm-chip", text: "Kotu " + T.fmtPct(it.kotu) }));
+    if (num(it.kyotsu)) chips.appendChild(el("span", { class: "sm-chip", text: "Kyōtsu " + T.fmtPct(it.kyotsu) }));
+    var text = el("div", { class: "sm-text", text: it.summary || "" });
+    var card = el("article", { class: "sm-card" }, head, chips.children.length ? chips : null, text);
+    // collapse long ones (measured once it's laid out)
+    requestAnimationFrame(function () {
+      if (text.scrollHeight < 190) return;   // ~ 8 lines
+      text.classList.add("clamped");
+      var more = el("button", { type: "button", class: "fz-linkbtn sm-more", text: "Read more", "aria-expanded": "false" });
+      more.addEventListener("click", function () {
+        var open = text.classList.toggle("clamped") === false;
+        more.textContent = open ? "Show less" : "Read more";
+        more.setAttribute("aria-expanded", String(open));
+      });
+      card.appendChild(more);
+    });
+    return card;
+  };
+
+  // ---- profile charts ----
+  // GET /v1/users/{id}/track → {user, subcats:[{id,category,name}], weeks:[{week,totals,subtotals,kotu,kyotsu,summary,summary_private?}]}
+  T.renderProfile = function (container, userId) {
+    var F = window.Fazon;
+    if (!container || !F) return Promise.resolve(false);
+    container.hidden = true;
+    return Promise.all([F.api("/v1/users/" + (userId | 0) + "/track"), F.me(), T.loadDeps()]).then(function (r) {
+      var d = r[0] || {}, m = r[1] || {}, weeks = (d.weeks || []).slice();
+      var own = !!(m.user && m.user.id === (userId | 0));
+      weeks.sort(function (a, b) { return a.week < b.week ? -1 : a.week > b.week ? 1 : 0; });
+      var sums = weeks.filter(function (w) { return w.summary && String(w.summary).trim(); });
+      container.textContent = "";
+      container.classList.add("tkp");
+      if (weeks.length < 2 && !sums.length) {
+        if (own) {
+          container.append(F.el("h2", { text: "Immersion" }),
+            F.el("p", { class: "fz-muted tkp-link" }, "Log at least two weeks in ", F.el("a", { href: "/track/", text: "Track" }), " to see your charts here."));
+          container.hidden = false;
+          return true;
+        }
+        return false;
+      }
+      container.appendChild(F.el("h2", { text: "Immersion" }));
+      if (weeks.length >= 2) charts(container, d, weeks, own);
+      else if (own) container.appendChild(F.el("p", { class: "fz-muted tkp-link" }, "Charts appear once you've logged two weeks in ", F.el("a", { href: "/track/", text: "Track" }), "."));
+      if (sums.length) summaries(container, d, sums, own);
+      container.hidden = false;
+      return true;
+    }, function (e) {
+      container.hidden = true;
+      if (e && e.status !== 404) console.warn("Track charts:", e.message);
+      return false;
+    });
+  };
+
+  function charts(root, d, weeks, own) {
+    var F = window.Fazon, el = F.el;
+    // continuous week axis: first logged week → the current week (gaps = 0 h / no score)
+    var first = weeks[0].week, last = weeks[weeks.length - 1].week, cur = T.currentWeekKey();
+    if (cur > last && T.weeksBetween(last, cur) <= 104) last = cur;
+    var keys = [], byKey = {};
+    for (var k = first; k <= last; k = T.addWeeks(k, 1)) keys.push(k);
+    weeks.forEach(function (w) { byKey[w.week] = w; });
+    var multiYear = keys[0].slice(0, 4) !== keys[keys.length - 1].slice(0, 4) && keys.length > 20;
+    var xLabel = function (k) { return T.fmtKeyAxis(k, multiYear); };
+
+    // totals strip
+    var tot = {}, all = 0;
+    CATS.forEach(function (c) { tot[c.id] = 0; });
+    weeks.forEach(function (w) { CATS.forEach(function (c) { var v = w.totals && w.totals[c.id]; if (num(v)) { tot[c.id] += v; all += v; } }); });
+    var strip = el("div", { class: "tkp-totals" });
+    CATS.forEach(function (c) {
+      if (!tot[c.id]) return;
+      var dot = el("span", { class: "tk-dotc" }); dot.style.background = T.catColor(c.id);
+      strip.appendChild(el("div", {}, el("b", { text: T.fmtH(tot[c.id]) }), el("span", {}, dot, c.label)));
+    });
+    strip.appendChild(el("div", {}, el("b", { text: String(weeks.length) }), el("span", { text: weeks.length === 1 ? "week logged" : "weeks logged" })));
+    root.appendChild(strip);
+
+    // weekly hours: stacked by category, or one category by sub-category
+    var used = CATS.filter(function (c) { return tot[c.id] > 0; });
+    var seg = el("div", { class: "tk-seg", role: "group", "aria-label": "Break down" });
+    var box = el("div");
+    var block = el("div", { class: "tkp-block" }, el("div", { class: "tkp-block-h" }, el("h3", { text: "Weekly hours" }), seg), box);
+    root.appendChild(block);
+    var chart = null, mode = "all";
+    var subName = {};
+    (d.subcats || []).forEach(function (s) { subName[s.id] = s.name; });
+    function series() {
+      if (mode === "all") return used.map(function (c) {
+        return { label: c.label, color: T.catColor(c.id), values: keys.map(function (k) { var w = byKey[k]; return w && w.totals && num(w.totals[c.id]) ? w.totals[c.id] : 0; }) };
+      });
+      // one category → its sub-categories (top 7 by hours, the rest + unassigned folded into "Other")
+      var subT = {};
+      weeks.forEach(function (w) { var st = w.subtotals && w.subtotals[mode]; if (st) Object.keys(st).forEach(function (sid) { if (num(st[sid])) subT[sid] = (subT[sid] || 0) + st[sid]; }); });
+      var ids = Object.keys(subT).filter(function (sid) { return sid !== "none" && subT[sid] > 0; }).sort(function (a, b) { return subT[b] - subT[a]; });
+      var keep = ids.slice(0, 7), fold = ids.slice(7).concat(["none"]);
+      var out = keep.map(function (sid, i) {
+        return { label: subName[sid] || "Sub-category", color: T.slotColor(i), values: keys.map(function (k) { var st = byKey[k] && byKey[k].subtotals && byKey[k].subtotals[mode]; return st && num(st[sid]) ? st[sid] : 0; }) };
+      });
+      var other = keys.map(function (k) { var st = byKey[k] && byKey[k].subtotals && byKey[k].subtotals[mode]; return st ? fold.reduce(function (a, sid) { return a + (num(st[sid]) ? st[sid] : 0); }, 0) : 0; });
+      // weeks without a subtotal breakdown fall back to the category total
+      keys.forEach(function (k, i) {
+        var w = byKey[k]; if (!w || (w.subtotals && w.subtotals[mode])) return;
+        if (w.totals && num(w.totals[mode])) other[i] = w.totals[mode];
+      });
+      if (other.some(function (v) { return v > 0; })) out.push({ label: keep.length ? "Other / unassigned" : CAT[mode].label, color: keep.length ? "var(--tk-other)" : T.catColor(mode), values: other });
+      return out;
+    }
+    function draw() {
+      var o = { x: keys, xLabel: xLabel, xTitle: T.weekTitle, series: series(), fmt: function (v, tick) { return tick ? T.fmtNum(v) : T.fmtH(v); },
+        ariaLabel: "Hours per week" + (mode === "all" ? " by category" : " of " + CAT[mode].label + " by sub-category") };
+      if (chart) chart.update(o); else chart = FazonCharts.columns(box, o);
+    }
+    [{ id: "all", label: "All" }].concat(used.map(function (c) { return { id: c.id, label: c.short }; })).forEach(function (b) {
+      var btn = el("button", { type: "button", "aria-pressed": String(b.id === mode), text: b.label });
+      btn.addEventListener("click", function () {
+        mode = b.id;
+        seg.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === btn)); });
+        draw();
+      });
+      seg.appendChild(btn);
+    });
+    if (used.length < 2 && !used.some(function (c) { return weeks.some(function (w) { return w.subtotals && w.subtotals[c.id] && Object.keys(w.subtotals[c.id]).some(function (s) { return s !== "none"; }); }); })) seg.hidden = true;
+    draw();
+
+    // Kotu + Kyōtsu weekly scores
+    var hasScores = weeks.some(function (w) { return num(w.kotu) || num(w.kyotsu); });
+    if (hasScores) {
+      var sbox = el("div");
+      root.appendChild(el("div", { class: "tkp-block" }, el("div", { class: "tkp-block-h" }, el("h3", { text: "Kotu & Kyōtsu accuracy (weekly average)" })), sbox));
+      var ser = [];
+      if (weeks.some(function (w) { return num(w.kotu); })) ser.push({ label: "Kotu", color: "var(--tk-kotu)", values: keys.map(function (k) { return byKey[k] && num(byKey[k].kotu) ? byKey[k].kotu : null; }) });
+      if (weeks.some(function (w) { return num(w.kyotsu); })) ser.push({ label: "Kyōtsu", color: "var(--tk-kyotsu)", values: keys.map(function (k) { return byKey[k] && num(byKey[k].kyotsu) ? byKey[k].kyotsu : null; }) });
+      FazonCharts.lines(sbox, { x: keys, xLabel: xLabel, xTitle: T.weekTitle, series: ser, yMax: 100,
+        fmt: function (v, tick) { return tick ? v + "%" : T.fmtPct(v); }, ariaLabel: "Weekly Kotu and Kyōtsu accuracy" });
+    }
+    if (own) root.appendChild(el("p", { class: "tkp-link" }, el("a", { href: "/track/", text: "Log this week's hours →" })));
+  }
+
+  function summaries(root, d, sums, own) {
+    var F = window.Fazon, el = F.el;
+    var list = el("div", { class: "sm-list" });
+    var items = sums.slice().reverse();
+    var SHOW = 5, shown = 0;
+    var more = el("button", { type: "button", class: "fz-btn", text: "Show more" });
+    function page() {
+      items.slice(shown, shown += SHOW).forEach(function (w) {
+        list.appendChild(T.summaryCard({ user: d.user, week: w.week, summary: w.summary, totals: w.totals, kotu: w.kotu, kyotsu: w.kyotsu,
+          private: own && !!w.summary_private }, { noUser: true }));
+      });
+      more.hidden = shown >= items.length;
+    }
+    more.addEventListener("click", page);
+    page();
+    root.append(el("div", { class: "tkp-block" }, el("div", { class: "tkp-block-h" }, el("h3", { text: "Weekly summaries" })), list,
+      el("div", { class: "sm-foot" }, more)));
+  }
+})();

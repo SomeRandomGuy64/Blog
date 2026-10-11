@@ -1,0 +1,9 @@
+{{/* Comment thread for an article (js/fazon-comments.js talks to the API). Turn off per page
+     with `comments = false` in the front matter. */}}
+<section class="comments" id="comments" data-page="{{ .RelPermalink }}" data-title="{{ .Title }}">
+  <h2 class="comments-h" id="commentsH">Comments</h2>
+  <div class="cmt-composer" id="cmtComposer"></div>
+  <div class="cmt-list" id="cmtList"><p class="cmt-empty">Loading comments…</p></div>
+  <noscript><p class="cmt-empty">Comments need JavaScript.</p></noscript>
+</section>
+<script src="{{ relURL "js/fazon-comments.js" }}" defer></script>

@@ -1,0 +1,49 @@
+{{ define "main" }}
+  <h1>{{ .Title }}</h1>
+  <div class="fz-account-page" id="loginBox">
+    <p class="fz-muted" id="loginStatus">Loading…</p>
+  </div>
+  <script>
+  (function(){
+    const F=window.Fazon, el=F.el, box=document.getElementById("loginBox");
+    let next="/";
+    try{ next=F.safePath(new URLSearchParams(location.search).get("next")||"")||"/"; }catch(e){}
+    if(next.indexOf("/account/")===0) next="/";   // don't bounce back to login/verify pages
+
+    function form(){
+      const email=el("input",{class:"fz-input",type:"email",id:"loginEmail",name:"email",required:true,
+        autocomplete:"email",placeholder:"you@example.com"});
+      const btn=el("button",{class:"fz-btn primary",type:"submit",text:"Send login link"});
+      const err=el("p",{class:"fz-error",role:"alert"});
+      const f=el("form",{class:"fz-form"},
+        el("label",{for:"loginEmail",text:"Email"}), email, el("div",{class:"fz-row"},btn), err);
+      f.addEventListener("submit",e=>{
+        e.preventDefault();
+        const v=email.value.trim(); if(!v) return;
+        btn.disabled=true; btn.textContent="Sending…"; err.textContent="";
+        F.api("/v1/auth/request",{method:"POST",body:{email:v,next}}).then(()=>{
+          box.textContent="";
+          box.append(
+            el("p",{class:"fz-note",text:"If that email has an account, a login link is on its way (valid 15 minutes)."}),
+            el("p",{class:"fz-muted",text:"Open it on this device and you'll be logged in. Didn't get it? Check spam, or "},
+              el("a",{href:location.pathname+location.search,text:"try again"}),"."));
+        },e2=>{ err.textContent=e2.message; btn.disabled=false; btn.textContent="Send login link"; });
+      });
+      box.textContent="";
+      box.append(
+        el("p",{text:"Enter your email and I'll send you a one-time login link — no password needed."}),
+        el("p",{class:"fz-muted",text:"There's no sign-up yet: accounts are invite-only for now."}),
+        f);
+      email.focus();
+    }
+
+    F.me().then(m=>{
+      if(m.user){
+        box.textContent="";
+        box.append(el("p",{class:"fz-note"},"You're already logged in as ",el("b",{text:m.user.name}),"."),
+          el("p",{},el("a",{href:next,text:next==="/"?"← Back to the home page":"← Back to where you were"})));
+      } else form();
+    });
+  })();
+  </script>
+{{ end }}

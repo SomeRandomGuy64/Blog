@@ -1,0 +1,261 @@
+// Package api is the fazon.nexus HTTP API: magic-link accounts, article comments with likes
+// and notifications, and Kyōtsu trainer sessions.
+package api
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"mime"
+	"net"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"fazon.nexus/backend/internal/mail"
+)
+
+const (
+	maxBody       = 64 << 10
+	maxKyotsuBody = 1 << 20
+)
+
+// Config is what the API needs from the command line / environment.
+type Config struct {
+	Site         string   // base URL of the static site, for magic links
+	Origins      []string // allowed CORS/CSRF origins; "host:*" = any port
+	CookieSecure bool
+	Mailer       mail.Mailer
+	MailTimeout  time.Duration // per email; 0 = 1 minute
+}
+
+type Server struct {
+	db  *sql.DB
+	cfg Config
+	now func() time.Time // swapped in tests
+
+	ipLimit, emailLimit    *limiter // login-link requests
+	commentLimit, kyoLimit *limiter // per user
+	avatarLimit, nameLimit *limiter // per user
+	weekLimit, trackLimit  *limiter // per user: week saves; subcat/settings changes
+
+	mailWG sync.WaitGroup
+}
+
+func New(db *sql.DB, cfg Config) *Server {
+	if cfg.MailTimeout == 0 {
+		cfg.MailTimeout = time.Minute
+	}
+	return &Server{
+		db: db, cfg: cfg, now: time.Now,
+		ipLimit:      newLimiter(10, time.Hour),
+		emailLimit:   newLimiter(3, 15*time.Minute),
+		commentLimit: newLimiter(30, 10*time.Minute),
+		kyoLimit:     newLimiter(60, time.Hour),
+		avatarLimit:  newLimiter(20, time.Hour),
+		nameLimit:    newLimiter(20, time.Hour),
+		weekLimit:    newLimiter(120, time.Hour),
+		trackLimit:   newLimiter(120, time.Hour),
+	}
+}
+
+func (s *Server) Handler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Write([]byte("ok"))
+	})
+	mux.HandleFunc("POST /v1/auth/request", s.authRequest)
+	mux.HandleFunc("POST /v1/auth/verify", s.authVerify)
+	mux.HandleFunc("POST /v1/auth/logout", s.authLogout)
+	mux.HandleFunc("GET /v1/me", s.me)
+
+	mux.HandleFunc("GET /v1/comments", s.listComments)
+	mux.HandleFunc("POST /v1/comments", s.authed(s.postComment))
+	mux.HandleFunc("DELETE /v1/comments/{id}", s.authed(s.deleteComment))
+	mux.HandleFunc("POST /v1/comments/{id}/like", s.authed(s.likeComment))
+	mux.HandleFunc("DELETE /v1/comments/{id}/like", s.authed(s.unlikeComment))
+
+	mux.HandleFunc("GET /v1/notifications", s.authed(s.listNotifications))
+	mux.HandleFunc("POST /v1/notifications/read", s.authed(s.readNotifications))
+
+	mux.HandleFunc("POST /v1/kyotsu/sessions", s.authed(s.postKyotsu))
+	mux.HandleFunc("GET /v1/kyotsu/sessions", s.authed(s.listKyotsu))
+	mux.HandleFunc("GET /v1/kyotsu/sessions/{id}", s.authed(s.getKyotsu))
+
+	mux.HandleFunc("GET /v1/levels", s.levels)
+	mux.HandleFunc("GET /v1/users/{id}", s.profile)
+	mux.HandleFunc("GET /v1/users/{id}/avatar", s.getAvatar)
+	mux.HandleFunc("POST "+avatarUploadPath, s.authed(s.putAvatar))
+	mux.HandleFunc("DELETE "+avatarUploadPath, s.authed(s.deleteAvatar))
+	mux.HandleFunc("POST /v1/me/profile", s.authed(s.setProfile))
+
+	mux.HandleFunc("GET /v1/track/config", s.authed(s.trackConfig))
+	mux.HandleFunc("POST /v1/track/settings", s.authed(s.trackSettings))
+	mux.HandleFunc("POST /v1/track/subcats", s.authed(s.createSubcat))
+	mux.HandleFunc("POST /v1/track/subcats/{id}", s.authed(s.updateSubcat))
+	mux.HandleFunc("DELETE /v1/track/subcats/{id}", s.authed(s.deleteSubcat))
+	mux.HandleFunc("GET /v1/track/weeks", s.authed(s.listWeeks))
+	mux.HandleFunc("GET /v1/track/weeks/{key}", s.authed(s.getWeek))
+	mux.HandleFunc("POST /v1/track/weeks/{key}", s.authed(s.saveWeek))
+	mux.HandleFunc("GET /v1/track/leaderboard", s.leaderboard)
+	mux.HandleFunc("GET /v1/track/summaries", s.summaries)
+	mux.HandleFunc("GET /v1/users/{id}/track", s.userTrack)
+	mux.HandleFunc("GET /v1/users/{id}/card", s.card)
+
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { writeErr(w, http.StatusNotFound, "not found") })
+	return s.guard(mux)
+}
+
+// Wait blocks until in-flight emails are sent (or time out); call it on shutdown.
+func (s *Server) Wait() { s.mailWG.Wait() }
+
+// Sweep forgets rate-limit entries whose windows have passed.
+func (s *Server) Sweep() {
+	now := s.now()
+	for _, l := range []*limiter{s.ipLimit, s.emailLimit, s.commentLimit, s.kyoLimit, s.avatarLimit, s.nameLimit, s.weekLimit, s.trackLimit} {
+		l.sweep(now)
+	}
+}
+
+// guard applies CORS to everything, answers /v1/ preflights, and enforces the CSRF rules:
+// state-changing requests need an allowed Origin and, with a body, a JSON content type (a
+// cross-site form can't send either, and a JSON fetch from elsewhere needs a preflight we refuse).
+func (s *Server) guard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		allowed := origin != "" && originAllowed(s.cfg.Origins, origin)
+		w.Header().Add("Vary", "Origin")
+		if allowed {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
+		switch r.Method {
+		case http.MethodOptions:
+			if strings.HasPrefix(r.URL.Path, "/v1/") {
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+				w.Header().Set("Access-Control-Max-Age", "86400")
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+		case http.MethodGet, http.MethodHead:
+		default:
+			if !allowed {
+				writeErr(w, http.StatusForbidden, "origin not allowed")
+				return
+			}
+			if r.ContentLength != 0 {
+				mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+				// The avatar upload is the one raw-body route. image/* isn't a CORS-safelisted
+				// type either, so cross-site pages still can't send it without our preflight.
+				if r.Method == http.MethodPost && r.URL.Path == avatarUploadPath {
+					if !avatarTypes[mt] {
+						writeErr(w, http.StatusUnsupportedMediaType, "content type must be image/jpeg or image/png")
+						return
+					}
+				} else if mt != "application/json" {
+					writeErr(w, http.StatusUnsupportedMediaType, "content type must be application/json")
+					return
+				}
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// originAllowed matches an Origin against the configured list; an entry ending in ":*"
+// ("http://127.0.0.1:*") allows any port.
+func originAllowed(allowed []string, origin string) bool {
+	for _, a := range allowed {
+		if a == origin {
+			return true
+		}
+		if base, ok := strings.CutSuffix(a, ":*"); ok {
+			if port, ok := strings.CutPrefix(origin, base+":"); ok && port != "" && strings.Trim(port, "0123456789") == "" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// clientIP is the peer address, or the first X-Forwarded-For hop when the peer is loopback
+// (i.e. Caddy, which replaces any client-sent X-Forwarded-For unless told to trust it).
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			first, _, _ := strings.Cut(xff, ",")
+			if ip := net.ParseIP(strings.TrimSpace(first)); ip != nil {
+				return ip.String()
+			}
+		}
+	}
+	return host
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if w.Header().Get("Cache-Control") == "" {
+		w.Header().Set("Cache-Control", "no-store")
+	}
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(v)
+}
+
+func writeErr(w http.ResponseWriter, status int, msg string) {
+	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+func internalErr(w http.ResponseWriter, what string, err error) {
+	slog.Error(what, "err", err)
+	writeErr(w, http.StatusInternalServerError, "internal error")
+}
+
+// decode reads a JSON body of at most limit bytes into v, answering 413/400 itself on failure.
+func decode(w http.ResponseWriter, r *http.Request, limit int64, v any) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
+	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			writeErr(w, http.StatusRequestEntityTooLarge, "request body too large")
+		} else {
+			writeErr(w, http.StatusBadRequest, "invalid JSON body")
+		}
+		return false
+	}
+	return true
+}
+
+// pathID parses the {id} path segment; false (after a 404) if it isn't a positive integer.
+func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		writeErr(w, http.StatusNotFound, "not found")
+		return 0, false
+	}
+	return id, true
+}
+
+func rfc3339(unix int64) string { return time.Unix(unix, 0).UTC().Format(time.RFC3339) }
+
+// tx runs fn in a (write-locking, see db.Open) transaction.
+func (s *Server) tx(ctx context.Context, fn func(*sql.Tx) error) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	if err := fn(tx); err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit()
+}

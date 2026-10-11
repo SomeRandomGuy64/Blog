@@ -363,3 +363,72 @@ body.light-mode {
 .kyotsu-quiz .opt .kword .m::before, .kyotsu-quiz .opt .kword .m::after, .kyotsu-quiz .opt svg * { transition: var(--theme-fade); }
 .kyotsu-quiz .ring-fg { transition: var(--theme-fade), stroke-dasharray 0.3s ease; }
 .kyotsu-quiz .sw::after { transition: var(--theme-fade), left 0.15s ease; }
+
+/* "End session" (logged-in users) at the foot of the Statistics panel */
+.kyotsu-quiz .end-session[hidden] { display: none; }
+.kyotsu-quiz .endbtn {
+  width: 100%; cursor: pointer; font-family: inherit; font-size: 13.5px; font-weight: 700;
+  padding: 10px 14px; border-radius: 10px; border: 1px solid var(--k-accent);
+  background: var(--k-accent-soft); color: var(--k-accent-ink);
+  transition: var(--theme-fade), transform 0.12s ease;
+}
+.kyotsu-quiz .endbtn:hover:not(:disabled) { background: var(--k-accent); color: #fff; }
+.kyotsu-quiz .endbtn:active:not(:disabled) { transform: scale(0.98); }
+.kyotsu-quiz .endbtn:disabled { opacity: 0.4; cursor: default; }
+.kyotsu-quiz .end-note { color: var(--k-muted); font-size: 12px; line-height: 1.5; margin-top: 8px; }
+.kyotsu-quiz .end-note.err { color: var(--k-bad); }
+
+/* ---- session stats page (/kyotsu/session/) ---- */
+.kyotsu-quiz.ks-page { width: auto; margin-left: 0; display: flex; flex-direction: column; gap: 14px; }
+.kyotsu-quiz .ks-msg { text-align: center; color: var(--k-muted); }
+.kyotsu-quiz .ks-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 700px) { .kyotsu-quiz .ks-grid { grid-template-columns: minmax(0, 1fr); } }
+.kyotsu-quiz .ks-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.kyotsu-quiz .ks-empty { color: var(--k-muted); font-size: 12.5px; margin: 0; }
+
+.kyotsu-quiz .ks-sum { display: flex; flex-direction: column; gap: 14px; }
+.kyotsu-quiz .ks-acc { text-align: center; }
+.kyotsu-quiz .ks-acc-n { font-size: 56px; font-weight: 700; line-height: 1; color: var(--k-accent-ink); }
+.kyotsu-quiz .ks-acc-f { color: var(--k-muted); font-size: 13px; margin-top: 6px; }
+.kyotsu-quiz .ks-facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 13px; }
+.kyotsu-quiz .ks-facts dt { color: var(--k-muted); }
+.kyotsu-quiz .ks-facts dd { margin: 0; text-align: right; }
+
+.kyotsu-quiz .ks-spk + .ks-spk { margin-top: 10px; }
+.kyotsu-quiz .ks-spk-top { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+.kyotsu-quiz .ks-bar { height: 6px; border-radius: 3px; background: var(--k-surface2); margin-top: 5px; overflow: hidden; }
+.kyotsu-quiz .ks-bar span { display: block; height: 100%; background: var(--k-accent); border-radius: 3px; }
+
+.kyotsu-quiz .ks-missed { display: flex; flex-direction: column; }
+.kyotsu-quiz .ks-miss { display: flex; align-items: center; gap: 10px; padding: 8px 0; flex-wrap: wrap; }
+.kyotsu-quiz .ks-miss + .ks-miss { border-top: 1px solid var(--k-line); }
+.kyotsu-quiz .ks-miss-w .kword { font-size: 16px; color: var(--text-color); font-weight: 400; line-height: 1; padding-top: 7px; display: inline-block; }
+.kyotsu-quiz .ks-miss-s { font-size: 14px; }
+.kyotsu-quiz .ks-miss-p { color: var(--k-muted); font-size: 11.5px; margin-left: auto; }
+.kyotsu-quiz .ks-miss-n { color: var(--k-bad); font-size: 12px; font-weight: 700; }
+
+.kyotsu-quiz .ks-totals { display: flex; justify-content: space-around; gap: 10px; text-align: center; margin-bottom: 12px; }
+.kyotsu-quiz .ks-totals b { display: block; font-size: 22px; line-height: 1.2; }
+.kyotsu-quiz .ks-totals span { color: var(--k-muted); font-size: 12px; }
+.kyotsu-quiz .ks-chart-box { width: 100%; min-height: 190px; }
+.kyotsu-quiz .ks-chart { display: block; overflow: visible; }
+.kyotsu-quiz .ks-gl { stroke: var(--k-line); stroke-width: 1; }
+.kyotsu-quiz .ks-axis { fill: var(--k-muted); font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+.kyotsu-quiz .ks-count { fill: var(--text-color); opacity: 0.1; }
+.kyotsu-quiz .ks-line { fill: none; stroke: var(--k-accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.kyotsu-quiz .ks-dot { fill: var(--k-surface); stroke: var(--k-accent); stroke-width: 2; }
+.kyotsu-quiz .ks-pt.cur .ks-dot { fill: var(--k-accent); }
+.kyotsu-quiz .ks-halo { fill: var(--k-accent-soft); }
+.kyotsu-quiz .ks-hit { fill: transparent; }
+.kyotsu-quiz .ks-pt:hover .ks-dot { stroke-width: 3; }
+
+.kyotsu-quiz .ks-list { list-style: none; padding: 0; margin: 0; }
+.kyotsu-quiz .ks-list a { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 7px 8px; border-radius: 8px; color: var(--text-color); font-size: 13px; }
+.kyotsu-quiz .ks-list a:hover { background: var(--k-surface2); }
+.kyotsu-quiz .ks-list li.cur a { background: var(--k-accent-soft); }
+.kyotsu-quiz .ks-l-n { color: var(--k-muted); min-width: 3ch; }
+.kyotsu-quiz .ks-l-m { color: var(--k-muted); font-size: 12px; }
+.kyotsu-quiz .ks-l-p { margin-left: auto; }
+.kyotsu-quiz .ks-more { display: block; margin: 10px auto 0; border: 1px solid var(--k-line); background: var(--k-surface2); color: var(--text-color);
+  font-family: inherit; font-size: 12.5px; padding: 6px 14px; border-radius: 999px; cursor: pointer; }
+.kyotsu-quiz .ks-more[hidden] { display: none; }
