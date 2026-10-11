@@ -1001,7 +1001,7 @@
     var week = T.isKey(q.get("week")) ? T.weekOfDate(q.get("week")) : null;   // null = the latest published week
     var pub = T.addWeeks(cur, -1);   // published_through until the server says otherwise
     if (week && week >= pub) week = null;
-    var me = null, data = null, seq = 0, cache = {}, open = {};
+    var me = null, data = null, seq = 0, cache = {}, closed = {};   // rows start expanded; closed = the ones folded away
 
     var periodSeg = el("div", { class: "tk-seg", role: "group", "aria-label": "Period" });
     PERIODS.forEach(function (p) {
@@ -1143,19 +1143,19 @@
           if (r.v !== prevV) { rank = i + 1; prevV = r.v; }
           var u = r.u, uid = (u.user && u.user.id) | 0, mine = me && uid === me.id, name = (u.user && u.user.name) || "Someone";
           var detId = "lbd-" + uid;
-          var det = el("tr", { class: "lb-det-row" + (mine ? " me" : ""), id: detId, hidden: !open[uid] }, el("td", { colspan: String(ncol) }));
-          var btn = el("button", { type: "button", class: "lb-toggle", "aria-expanded": String(!!open[uid]), "aria-controls": detId, "aria-label": "Details for " + name, title: "Details" });
+          var det = el("tr", { class: "lb-det-row" + (mine ? " me" : ""), id: detId, hidden: !!closed[uid] }, el("td", { colspan: String(ncol) }));
+          var btn = el("button", { type: "button", class: "lb-toggle", "aria-expanded": String(!closed[uid]), "aria-controls": detId, "aria-label": "Details for " + name, title: "Details" });
           var fill = function () { if (!det.firstChild.firstChild) det.firstChild.appendChild(detail(u, isLast)); };
-          if (open[uid]) fill();
+          if (!closed[uid]) fill();
           btn.addEventListener("click", function () {
             var o = btn.getAttribute("aria-expanded") !== "true";
             if (o) fill();
             btn.setAttribute("aria-expanded", String(o));
             det.hidden = !o;
-            if (o) open[uid] = 1; else delete open[uid];
+            if (o) delete closed[uid]; else closed[uid] = 1;
             row.classList.toggle("open", o);
           });
-          var row = el("tr", { class: "lb-row" + (mine ? " me" : "") + (open[uid] ? " open" : "") },
+          var row = el("tr", { class: "lb-row" + (mine ? " me" : "") + (!closed[uid] ? " open" : "") },
             el("td", { class: "lb-rank num", text: String(rank) }),
             el("td", { class: "lb-name" }, T.userLink(u.user, 32)),
             M.pct ? null : el("td", { class: "num lb-sel", text: hm(r.v) }),
@@ -1270,7 +1270,7 @@
     }
     function goalItem(u, rank) {
       var uid = (u.user && u.user.id) | 0, id = "lbg-" + uid, name = (u.user && u.user.name) || "Someone";
-      var det = el("ul", { class: "lb-gd", id: id, hidden: true, "aria-label": "Goals" });
+      var det = el("ul", { class: "lb-gd", id: id, "aria-label": "Goals" });   // expanded by default
       catOrder(Object.keys(u.goals || {})).forEach(function (c) {
         var g = u.goals[c], l = u.logged && num(u.logged[c]) ? u.logged[c] : 0, met = num(g) && l >= g;
         var dot = el("span", { class: "tk-dotc", "aria-hidden": "true" }); dot.style.background = T.catColor(c);
@@ -1279,8 +1279,8 @@
           el("span", { class: "lb-gd-v" }, el("b", { text: hm(l) }), " logged / " + hm(g) + " goal"),
           el("span", { class: "lb-gd-m", role: "img", "aria-label": met ? "met" : "not met", title: met ? "Met" : "Not met", text: met ? "✓" : "✗" })));
       });
-      var btn = el("button", { type: "button", class: "lb-toggle", "aria-expanded": "false", "aria-controls": id, "aria-label": "Goal details for " + name, title: "Goal details" });
-      var li = el("li", { class: "lb-gi" + (me && uid === me.id ? " me" : "") },
+      var btn = el("button", { type: "button", class: "lb-toggle", "aria-expanded": "true", "aria-controls": id, "aria-label": "Goal details for " + name, title: "Goal details" });
+      var li = el("li", { class: "lb-gi open" + (me && uid === me.id ? " me" : "") },
         el("div", { class: "lb-gi-row" },
           el("span", { class: "lb-rank num", text: String(rank) }),
           el("span", { class: "lb-gi-name" }, T.userLink(u.user, 28)),
