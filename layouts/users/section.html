@@ -3,6 +3,7 @@
        picture editing (client-side crop → ≤1024px JPEG → POST /v1/me/avatar). */}}
   <div class="pf" id="pf"><p class="fz-muted pf-msg">Loading…</p></div>
   <script src="{{ relURL "js/fazon-track-charts.js" }}"></script>
+  <script src="{{ relURL "js/fazon-devkeys.js" }}"></script>
   <script>
   (function(){
     const F=window.Fazon, el=F.el, root=document.getElementById("pf");
@@ -259,6 +260,8 @@
         const track=el("section",{class:"pf-sec pf-track",hidden:true});
         root.append(card(p,own),track,recent(p),levelsBox(p.user));
         if(window.FazonTrack&&FazonTrack.renderProfile) FazonTrack.renderProfile(track,p.user.id);
+        // Developers: personal API keys (js/fazon-devkeys.js), on your own profile only
+        if(own&&window.FazonDevKeys){ const dev=el("section",{class:"pf-sec dk",id:"developers"}); root.append(dev); FazonDevKeys.render(dev); }
       },e=>{
         if(e.status===404) msg("There's no user with that id.");
         else msg(e.message);

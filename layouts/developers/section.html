@@ -1,0 +1,13 @@
+{{ define "main" }}
+  {{/* /developers/ — the personal API key docs (content/developers/_index.md). Not in the main
+       menu; linked from the Developers section of your own profile and from the footer. Keep it
+       in step with backend/internal/api/trackapi.go and apikeys.go. */}}
+  <article class="dev-docs">
+    <h1>{{ .Title }}</h1>
+    {{ with .Description }}<p class="dev-lead">{{ . }}</p>{{ end }}
+    <nav class="dev-toc" aria-label="On this page">
+      <details open><summary>On this page</summary>{{ .TableOfContents }}</details>
+    </nav>
+    {{ .Content }}
+  </article>
+{{ end }}

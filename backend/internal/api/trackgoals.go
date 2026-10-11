@@ -25,19 +25,36 @@ type querier interface {
 
 // goals loads a user's goals for week k as category → hours (unset categories absent).
 func (s *Server) goals(ctx context.Context, q querier, userID int64, k week.Key) (map[string]float64, error) {
-	rows, err := q.QueryContext(ctx, `SELECT category, centihours FROM track_goals WHERE user_id = ? AND week = ?`, userID, k.String())
+	m, err := goalsRange(ctx, q, userID, k, k)
+	if err != nil {
+		return nil, err
+	}
+	if g := m[k.String()]; g != nil {
+		return g, nil
+	}
+	return map[string]float64{}, nil
+}
+
+// goalsRange loads a user's goals for the weeks from..to as week key → category → hours (weeks
+// without goals absent).
+func goalsRange(ctx context.Context, q querier, userID int64, from, to week.Key) (map[string]map[string]float64, error) {
+	rows, err := q.QueryContext(ctx, `SELECT week, category, centihours FROM track_goals WHERE user_id = ? AND week BETWEEN ? AND ?`,
+		userID, from.String(), to.String())
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := map[string]float64{}
+	out := map[string]map[string]float64{}
 	for rows.Next() {
-		var cat string
+		var wk, cat string
 		var c int64
-		if err := rows.Scan(&cat, &c); err != nil {
+		if err := rows.Scan(&wk, &cat, &c); err != nil {
 			return nil, err
 		}
-		out[cat] = float64(c) / 100
+		if out[wk] == nil {
+			out[wk] = map[string]float64{}
+		}
+		out[wk][cat] = float64(c) / 100
 	}
 	return out, rows.Err()
 }
@@ -50,60 +67,15 @@ func (s *Server) setGoals(w http.ResponseWriter, r *http.Request, u *user) {
 	if !ok {
 		return
 	}
-	var in struct {
-		Goals map[string]*float64 `json:"goals"`
-	}
-	if !decode(w, r, maxBody, &in) {
-		return
-	}
-	if len(in.Goals) == 0 {
-		writeErr(w, http.StatusBadRequest, "send goals: {\"goals\":{\"category\":hours,…}}")
-		return
-	}
-	cents := map[string]int64{}
-	for cat, h := range in.Goals {
-		if catIndex(cat) < 0 {
-			writeErr(w, http.StatusBadRequest, fmt.Sprintf("goals: unknown category %q", cat))
-			return
-		}
-		if h == nil || *h <= 0 || *h > 168 || !hasDecimals(*h, 2) {
-			writeErr(w, http.StatusBadRequest, "a goal must be more than 0 and at most 168 hours, with at most 2 decimals (goals can't be cleared)")
-			return
-		}
-		cents[cat] = int64(math.Round(*h * 100))
-	}
-	if k != week.Of(s.now()) {
-		writeErr(w, http.StatusConflict, "goals can only be set for the current week")
+	cents, ok := s.goalsInput(w, r, k)
+	if !ok {
 		return
 	}
 	if !s.weekLimit.allow(strconv.FormatInt(u.ID, 10), s.now()) {
 		writeErr(w, http.StatusTooManyRequests, "too many saves, slow down")
 		return
 	}
-	err := s.tx(r.Context(), func(tx *sql.Tx) error {
-		have, err := s.goals(r.Context(), tx, u.ID, k)
-		if err != nil {
-			return err
-		}
-		for cat, c := range cents {
-			old, set := have[cat]
-			if !set {
-				continue
-			}
-			if int64(math.Round(old*100)) != c {
-				return errStatus{http.StatusConflict, fmt.Sprintf("your %s goal for this week is already set to %v hours and can't be changed", cat, old)}
-			}
-			delete(cents, cat)
-		}
-		for cat, c := range cents {
-			if _, err := tx.Exec(`INSERT INTO track_goals (user_id, week, category, centihours, created_at) VALUES (?, ?, ?, ?, ?)`,
-				u.ID, k.String(), cat, c, s.now().Unix()); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
+	if err := s.applyGoals(r.Context(), u.ID, k, cents); err != nil {
 		writeTxErr(w, "set goals", err)
 		return
 	}
@@ -113,6 +85,67 @@ func (s *Server) setGoals(w http.ResponseWriter, r *http.Request, u *user) {
 		return
 	}
 	writeJSON(w, http.StatusOK, doc)
+}
+
+// goalsInput decodes and validates a goals request for week k (which must be the current
+// week): category → hundredths. False after answering 400/409/413.
+func (s *Server) goalsInput(w http.ResponseWriter, r *http.Request, k week.Key) (map[string]int64, bool) {
+	var in struct {
+		Goals map[string]*float64 `json:"goals"`
+	}
+	if !decode(w, r, maxBody, &in) {
+		return nil, false
+	}
+	if len(in.Goals) == 0 {
+		writeErr(w, http.StatusBadRequest, "send goals: {\"goals\":{\"category\":hours,…}}")
+		return nil, false
+	}
+	cents := map[string]int64{}
+	for cat, h := range in.Goals {
+		if catIndex(cat) < 0 {
+			writeErr(w, http.StatusBadRequest, fmt.Sprintf("goals: unknown category %q", cat))
+			return nil, false
+		}
+		if h == nil || *h <= 0 || *h > 168 || !hasDecimals(*h, 2) {
+			writeErr(w, http.StatusBadRequest, "a goal must be more than 0 and at most 168 hours, with at most 2 decimals (goals can't be cleared)")
+			return nil, false
+		}
+		cents[cat] = int64(math.Round(*h * 100))
+	}
+	if k != week.Of(s.now()) {
+		writeErr(w, http.StatusConflict, "goals can only be set for the current week")
+		return nil, false
+	}
+	return cents, true
+}
+
+// applyGoals stores goals (category → hundredths) for week k, all or nothing: a category that
+// already has a different goal is an errStatus 409 and nothing is written.
+func (s *Server) applyGoals(ctx context.Context, userID int64, k week.Key, cents map[string]int64) error {
+	return s.tx(ctx, func(tx *sql.Tx) error {
+		have, err := s.goals(ctx, tx, userID, k)
+		if err != nil {
+			return err
+		}
+		todo := map[string]int64{}
+		for cat, c := range cents {
+			old, set := have[cat]
+			if !set {
+				todo[cat] = c
+				continue
+			}
+			if int64(math.Round(old*100)) != c {
+				return errStatus{http.StatusConflict, fmt.Sprintf("your %s goal for this week is already set to %v hours and can't be changed", cat, old)}
+			}
+		}
+		for cat, c := range todo {
+			if _, err := tx.Exec(`INSERT INTO track_goals (user_id, week, category, centihours, created_at) VALUES (?, ?, ?, ?, ?)`,
+				userID, k.String(), cat, c, s.now().Unix()); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 type goalAchiever struct {

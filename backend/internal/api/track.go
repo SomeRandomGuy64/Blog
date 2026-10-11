@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -43,8 +44,8 @@ type subcatJSON struct {
 }
 
 // userSubcats lists a user's sub-categories in display order (category, position, id).
-func (s *Server) userSubcats(r *http.Request, userID int64) ([]subcatJSON, error) {
-	rows, err := s.db.QueryContext(r.Context(),
+func (s *Server) userSubcats(ctx context.Context, userID int64) ([]subcatJSON, error) {
+	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, category, name, archived, position FROM track_subcats WHERE user_id = ? ORDER BY position, id`, userID)
 	if err != nil {
 		return nil, err
@@ -63,7 +64,7 @@ func (s *Server) userSubcats(r *http.Request, userID int64) ([]subcatJSON, error
 }
 
 func (s *Server) trackConfig(w http.ResponseWriter, r *http.Request, u *user) {
-	subcats, err := s.userSubcats(r, u.ID)
+	subcats, err := s.userSubcats(r.Context(), u.ID)
 	if err != nil {
 		internalErr(w, "list subcats", err)
 		return
@@ -137,33 +138,49 @@ func (s *Server) createSubcat(w http.ResponseWriter, r *http.Request, u *user) {
 	if !decode(w, r, maxBody, &in) {
 		return
 	}
-	if catIndex(in.Category) < 0 {
-		writeErr(w, http.StatusBadRequest, "unknown category")
-		return
-	}
-	name, err := db.NormalizeName(in.Name)
+	name, err := validSubcat(in.Category, in.Name)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
+		writeTxErr(w, "create subcat", err)
 		return
 	}
 	if !s.trackLimit.allow(strconv.FormatInt(u.ID, 10), s.now()) {
 		writeErr(w, http.StatusTooManyRequests, "too many changes, slow down")
 		return
 	}
-	c := subcatJSON{Category: in.Category, Name: name}
-	err = s.tx(r.Context(), func(tx *sql.Tx) error {
-		if err := subcatConflict(tx, u.ID, in.Category, name, 0, false); err != nil {
-			return err
-		}
-		return tx.QueryRow(`INSERT INTO track_subcats (user_id, category, name, position, created_at)
-			VALUES (?1, ?2, ?3, (SELECT IFNULL(MAX(position) + 1, 0) FROM track_subcats WHERE user_id = ?1 AND category = ?2), ?4)
-			RETURNING id, position`, u.ID, in.Category, name, s.now().Unix()).Scan(&c.ID, &c.Position)
-	})
+	c, err := s.insertSubcat(r.Context(), u.ID, in.Category, name)
 	if err != nil {
 		writeTxErr(w, "create subcat", err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, c)
+}
+
+// validSubcat checks a new sub-category's category and name, returning the normalized name or
+// a 400 errStatus.
+func validSubcat(category, name string) (string, error) {
+	if catIndex(category) < 0 {
+		return "", errStatus{http.StatusBadRequest, "unknown category"}
+	}
+	name, err := db.NormalizeName(name)
+	if err != nil {
+		return "", errStatus{http.StatusBadRequest, err.Error()}
+	}
+	return name, nil
+}
+
+// insertSubcat creates a (validated) sub-category at the end of its category; errStatus 409 on
+// a name clash or the per-category limits.
+func (s *Server) insertSubcat(ctx context.Context, userID int64, category, name string) (subcatJSON, error) {
+	c := subcatJSON{Category: category, Name: name}
+	err := s.tx(ctx, func(tx *sql.Tx) error {
+		if err := subcatConflict(tx, userID, category, name, 0, false); err != nil {
+			return err
+		}
+		return tx.QueryRow(`INSERT INTO track_subcats (user_id, category, name, position, created_at)
+			VALUES (?1, ?2, ?3, (SELECT IFNULL(MAX(position) + 1, 0) FROM track_subcats WHERE user_id = ?1 AND category = ?2), ?4)
+			RETURNING id, position`, userID, category, name, s.now().Unix()).Scan(&c.ID, &c.Position)
+	})
+	return c, err
 }
 
 func (s *Server) updateSubcat(w http.ResponseWriter, r *http.Request, u *user) {

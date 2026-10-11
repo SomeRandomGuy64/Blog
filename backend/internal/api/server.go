@@ -44,6 +44,9 @@ type Server struct {
 	commentLimit, kyoLimit *limiter // per user
 	avatarLimit, nameLimit *limiter // per user
 	weekLimit, trackLimit  *limiter // per user: week saves; subcat/settings changes
+	keyMgmtLimit           *limiter // per user: API key creation
+	keyReadLimit           *limiter // per API key: /v1/api/ reads
+	keyWriteLimit          *limiter // per API key: /v1/api/ writes
 
 	pages pageIndex // commentable pages and their titles, from the site
 
@@ -68,6 +71,10 @@ func New(db *sql.DB, cfg Config) *Server {
 		nameLimit:    newLimiter(20, time.Hour),
 		weekLimit:    newLimiter(120, time.Hour),
 		trackLimit:   newLimiter(120, time.Hour),
+		keyMgmtLimit: newLimiter(20, time.Hour),
+		// per key; 429 with Retry-After (see keyAuthed)
+		keyReadLimit:  newLimiter(120, time.Minute),
+		keyWriteLimit: newLimiter(30, time.Minute),
 	}
 }
 
@@ -119,6 +126,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/users/{id}/track", s.userTrack)
 	mux.HandleFunc("GET /v1/users/{id}/card", s.card)
 
+	// Personal API keys: managed with the session cookie, used (only) on /v1/api/.
+	mux.HandleFunc("GET "+apiKeysPath, s.authed(s.listAPIKeys))
+	mux.HandleFunc("POST "+apiKeysPath, s.authed(s.createAPIKey))
+	mux.HandleFunc("DELETE "+apiKeysPath+"/{id}", s.authed(s.revokeAPIKey))
+	mux.HandleFunc("GET /v1/api/track/weeks", s.keyAuthed(s.apiListWeeks))
+	mux.HandleFunc("GET /v1/api/track/weeks/{key}", s.keyAuthed(s.apiGetWeek))
+	mux.HandleFunc("PATCH /v1/api/track/weeks/{key}/hours", s.keyAuthed(s.apiPatchHours))
+	mux.HandleFunc("PUT /v1/api/track/weeks/{key}/summary", s.keyAuthed(s.apiPutSummary))
+	mux.HandleFunc("POST /v1/api/track/weeks/{key}/goals", s.keyAuthed(s.apiSetGoals))
+	mux.HandleFunc("GET /v1/api/track/subcats", s.keyAuthed(s.apiListSubcats))
+	mux.HandleFunc("POST /v1/api/track/subcats", s.keyAuthed(s.apiCreateSubcat))
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { writeErr(w, http.StatusNotFound, "not found") })
 	return s.guard(mux)
 }
@@ -129,7 +148,8 @@ func (s *Server) Wait() { s.mailWG.Wait() }
 // Sweep forgets rate-limit entries whose windows have passed.
 func (s *Server) Sweep() {
 	now := s.now()
-	for _, l := range []*limiter{s.ipLimit, s.emailLimit, s.commentLimit, s.kyoLimit, s.avatarLimit, s.nameLimit, s.weekLimit, s.trackLimit} {
+	for _, l := range []*limiter{s.ipLimit, s.emailLimit, s.commentLimit, s.kyoLimit, s.avatarLimit, s.nameLimit, s.weekLimit, s.trackLimit,
+		s.keyMgmtLimit, s.keyReadLimit, s.keyWriteLimit} {
 		l.sweep(now)
 	}
 }
@@ -137,6 +157,12 @@ func (s *Server) Sweep() {
 // guard applies CORS to everything, answers /v1/ preflights, and enforces the CSRF rules:
 // state-changing requests need an allowed Origin and, with a body, a JSON content type (a
 // cross-site form can't send either, and a JSON fetch from elsewhere needs a preflight we refuse).
+//
+// The key API (/v1/api/…) is the exception: it ignores cookies and takes only an API key in the
+// Authorization header, which a cross-site page can't attach for someone else, so there is
+// nothing to forge — it needs no Origin (scripts send none) and takes any content type. It gets
+// no CORS headers at all and its preflights are refused, so browsers on other sites can neither
+// send it keys nor read its answers.
 func (s *Server) guard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
@@ -146,6 +172,14 @@ func (s *Server) guard(next http.Handler) http.Handler {
 		// page that could run script, even if opened directly.
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; sandbox")
+		if isKeyAPI(r) {
+			if r.Method == http.MethodOptions {
+				writeErr(w, http.StatusForbidden, "the /v1/api/ endpoints are for scripts and can't be called from web pages")
+				return
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
 		if allowed {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")

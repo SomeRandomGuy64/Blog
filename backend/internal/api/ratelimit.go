@@ -22,15 +22,22 @@ func newLimiter(n int, window time.Duration) *limiter {
 // allow records an event for key and reports whether it is within the limit. Refused events
 // are not recorded, so a client hammering away regains access once its window passes.
 func (l *limiter) allow(key string, now time.Time) bool {
+	ok, _ := l.allowWait(key, now)
+	return ok
+}
+
+// allowWait is allow that also says, when it refuses, how long until the oldest event in the
+// window expires and the next one would be allowed (for Retry-After).
+func (l *limiter) allowWait(key string, now time.Time) (bool, time.Duration) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	h := live(l.hits[key], now.Add(-l.window))
 	if len(h) >= l.n {
 		l.hits[key] = h
-		return false
+		return false, h[0].Add(l.window).Sub(now)
 	}
 	l.hits[key] = append(h, now)
-	return true
+	return true, 0
 }
 
 func (l *limiter) sweep(now time.Time) {

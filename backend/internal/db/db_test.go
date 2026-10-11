@@ -37,7 +37,7 @@ func TestOpenMigratePragmas(t *testing.T) {
 	d.QueryRow("PRAGMA foreign_keys").Scan(&fk)
 	d.QueryRow("PRAGMA busy_timeout").Scan(&busy)
 	d.QueryRow("PRAGMA journal_mode").Scan(&journal)
-	if version != 5 || fk != 1 || busy != 5000 || journal != "wal" {
+	if version != 6 || fk != 1 || busy != 5000 || journal != "wal" {
 		t.Fatalf("user_version=%d foreign_keys=%d busy_timeout=%d journal=%s", version, fk, busy, journal)
 	}
 	if _, err := d.Exec(`INSERT INTO sessions (hash, user_id, created_at, expires_at, last_seen) VALUES (x'00', 999, 0, 0, 0)`); err == nil {
@@ -76,7 +76,7 @@ func TestMigrateFromV1(t *testing.T) {
 	var version, users int
 	d.QueryRow("PRAGMA user_version").Scan(&version)
 	d.QueryRow("SELECT COUNT(*) FROM users").Scan(&users)
-	if version != 5 || users != 1 {
+	if version != 6 || users != 1 {
 		t.Fatalf("user_version=%d users=%d", version, users)
 	}
 	if _, err := d.Exec(`INSERT INTO avatars (user_id, data, updated_at) VALUES (1, x'ff', 1)`); err != nil {
@@ -103,7 +103,7 @@ func TestMigrateFromV2(t *testing.T) {
 	d.QueryRow("SELECT COUNT(*) FROM comment_likes").Scan(&likes)
 	d.QueryRow("SELECT COUNT(*) FROM avatars").Scan(&avatars)
 	d.QueryRow("SELECT COUNT(*) FROM kyotsu_sessions").Scan(&kyotsu)
-	if version != 5 || public != 2 || comments != 1 || likes != 1 || avatars != 1 || kyotsu != 1 {
+	if version != 6 || public != 2 || comments != 1 || likes != 1 || avatars != 1 || kyotsu != 1 {
 		t.Fatalf("version=%d public=%d comments=%d likes=%d avatars=%d kyotsu=%d", version, public, comments, likes, avatars, kyotsu)
 	}
 	for _, q := range []string{
@@ -206,7 +206,7 @@ func TestMigrateFromV3(t *testing.T) {
 	d := open(t, path)
 	var version int
 	d.QueryRow("PRAGMA user_version").Scan(&version)
-	if version != 5 {
+	if version != 6 {
 		t.Fatalf("user_version=%d", version)
 	}
 	for i, q := range queries {
@@ -426,7 +426,7 @@ func TestMigrateFromV4(t *testing.T) {
 	d := open(t, path)
 	var version int
 	d.QueryRow("PRAGMA user_version").Scan(&version)
-	if version != 5 {
+	if version != 6 {
 		t.Fatalf("user_version=%d", version)
 	}
 	for i, q := range queries[:4] {
@@ -491,5 +491,93 @@ func TestMigrateFromV4(t *testing.T) {
 	d.QueryRow(`SELECT (SELECT COUNT(*) FROM track_ratings) + (SELECT COUNT(*) FROM track_goals)`).Scan(&ratings)
 	if ratings != 0 {
 		t.Fatal("ratings or goals survived deleting the user")
+	}
+}
+
+// Production is at version 5 with real data; 0006 only adds the api_keys table, so every
+// existing row and schema object must come through untouched.
+func TestMigrateFromV5(t *testing.T) {
+	path := oldDB(t, 5,
+		`INSERT INTO users (email, name, is_admin, created_at) VALUES ('a@example.com', 'A', 1, 0), ('b@example.com', 'B', 0, 0)`,
+		`INSERT INTO sessions (hash, user_id, created_at, expires_at, last_seen) VALUES (x'01', 2, 0, 9999999999, 0)`,
+		`INSERT INTO track_subcats (id, user_id, category, name, created_at) VALUES (5, 2, 'anki', 'Core', 1), (6, 2, 'active', 'YouTube', 2)`,
+		`INSERT INTO track_weeks (user_id, week, kotu, summary, summary_private, updated_at) VALUES
+			(2, '2026-10-03', '[90,null,null,null,null,null,95.5]', 'first', 0, 100), (2, '2026-10-10', '[null,null,null,null,null,null,null]', 's', 1, 200)`,
+		`INSERT INTO track_hours (user_id, week, category, subcat_id, centihours) VALUES
+			(2, '2026-10-03', 'anki', 5, 150), (2, '2026-10-03', 'active', 6, 450), (2, '2026-10-10', 'passive', NULL, 1000)`,
+		`INSERT INTO track_ratings (user_id, week, category, rating) VALUES (2, '2026-10-03', 'active', 3)`,
+		`INSERT INTO track_goals (user_id, week, category, centihours, created_at) VALUES (2, '2026-10-10', 'active', 3500, 0)`,
+		`INSERT INTO settings (key, value) VALUES ('track_ended_week', '2026-10-10')`,
+	)
+	queries := []string{
+		`SELECT id, email, name, is_admin, track_public, bio FROM users ORDER BY id`,
+		`SELECT * FROM sessions`,
+		`SELECT * FROM track_subcats ORDER BY id`,
+		`SELECT rowid, * FROM track_hours ORDER BY rowid`,
+		`SELECT * FROM track_weeks ORDER BY user_id, week`,
+		`SELECT * FROM track_ratings`,
+		`SELECT * FROM track_goals`,
+		`SELECT * FROM settings`,
+		`SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY name`,
+	}
+	last := len(queries) - 1
+	before := make([]string, len(queries))
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, q := range queries {
+		before[i] = dumpRows(t, raw, q)
+	}
+	raw.Close()
+
+	d := open(t, path)
+	var version int
+	d.QueryRow("PRAGMA user_version").Scan(&version)
+	if version != 6 {
+		t.Fatalf("user_version=%d", version)
+	}
+	for i, q := range queries[:last] {
+		if after := dumpRows(t, d, q); after != before[i] {
+			t.Fatalf("%s changed:\nbefore:\n%safter:\n%s", q, before[i], after)
+		}
+	}
+	after := dumpRows(t, d, queries[last])
+	for _, line := range strings.SplitAfter(before[last], "\n") {
+		if !strings.Contains(after, line) {
+			t.Fatalf("schema object changed or lost: %s", line)
+		}
+	}
+	if !strings.Contains(after, "table api_keys api_keys") || !strings.Contains(after, "index api_keys_user api_keys") {
+		t.Fatalf("no api_keys table/index:\n%s", after)
+	}
+	for _, q := range []string{`PRAGMA foreign_key_check`, `PRAGMA integrity_check`} {
+		if got := dumpRows(t, d, q); got != "" && got != "ok\n" {
+			t.Fatalf("%s: %s", q, got)
+		}
+	}
+
+	if _, err := d.Exec(`INSERT INTO api_keys (user_id, name, prefix, hash, scope, created_at) VALUES
+		(2, 'k1', 'fz_aaaa', x'aa', 'read', 0), (2, 'k2', 'fz_bbbb', x'bb', 'write', 0), (1, 'k3', 'fz_cccc', x'cc', 'write', 0)`); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{
+		`INSERT INTO api_keys (user_id, name, prefix, hash, scope, created_at) VALUES (2, 'x', 'fz_x', x'aa', 'read', 0)`,  // dup hash
+		`INSERT INTO api_keys (user_id, name, prefix, hash, scope, created_at) VALUES (2, 'x', 'fz_x', x'dd', 'admin', 0)`, // scope
+		`INSERT INTO api_keys (user_id, name, prefix, hash, scope, created_at) VALUES (99, 'x', 'fz_x', x'ee', 'read', 0)`, // no user
+		`INSERT INTO api_keys (user_id, name, prefix, scope, created_at) VALUES (2, 'x', 'fz_x', 'read', 0)`,               // no hash
+	} {
+		if _, err := d.Exec(bad); err == nil {
+			t.Fatalf("accepted: %s", bad)
+		}
+	}
+	// Deleting the user takes their keys (and only theirs).
+	if _, err := d.Exec(`DELETE FROM users WHERE id = 2`); err != nil {
+		t.Fatal(err)
+	}
+	var mine, others int
+	d.QueryRow(`SELECT COUNT(*) FILTER (WHERE user_id = 2), COUNT(*) FILTER (WHERE user_id = 1) FROM api_keys`).Scan(&mine, &others)
+	if mine != 0 || others != 1 {
+		t.Fatalf("after deleting the user: %d of their keys, %d others", mine, others)
 	}
 }

@@ -55,7 +55,7 @@ func (s *Server) userTrack(w http.ResponseWriter, r *http.Request) {
 		internalErr(w, "load user", err)
 		return
 	}
-	all, err := s.userSubcats(r, id)
+	all, err := s.userSubcats(r.Context(), id)
 	if err != nil {
 		internalErr(w, "list subcats", err)
 		return

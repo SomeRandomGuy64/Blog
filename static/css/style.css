@@ -631,3 +631,106 @@ a.notif { display: flex; gap: 12px; align-items: flex-start; }
 .fz-np-snip, .notif-snip, .pf-r-snip, .lb-user a, .sm-who a, .tk-row-name, .tk-arch-row span, .fc-li, .fc-tip-r span, .fc-tip-t {
     unicode-bidi: isolate;
 }
+
+/* ==== personal API keys: profile "Developers" section (js/fazon-devkeys.js) and the /developers/
+   docs page (layouts/developers/section.html). Owned by the API-keys feature; keep it in one block. ==== */
+.dk-intro { font-size: 0.92em; }
+.dk-err:empty { display: none; }
+.dk-list { list-style: none; padding: 0; margin: 1em 0 0; display: flex; flex-direction: column; gap: 8px; }
+.dk-item {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+    border: 1px solid var(--fz-line); border-radius: 8px; background: var(--fz-surface);
+}
+.dk-item.confirming { border-color: var(--fz-bad); }
+.dk-info { flex: 1; min-width: 0; }
+.dk-line1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dk-name { overflow-wrap: anywhere; unicode-bidi: isolate; }
+.dk-scope { font-size: 0.75em; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--fz-line); color: var(--fz-muted); white-space: nowrap; }
+.dk-scope-write { border-color: var(--fz-accent); color: var(--fz-accent); background: var(--fz-accent-soft); }
+.dk-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 2px; font-size: 0.8em; color: var(--fz-muted); }
+.dk-prefix { color: var(--text-color); }
+.dk-revoke { flex: none; }
+.dk-confirm { flex: 1; min-width: 0; }
+.dk-confirm p { margin: 0 0 8px; font-size: 0.9em; }
+.fz-btn.dk-danger { border-color: var(--fz-bad); color: var(--fz-bad); }
+.fz-btn.dk-danger:hover:not(:disabled) { background: var(--fz-bad); color: #fff; }
+.dk-empty { color: var(--fz-muted); font-size: 0.9em; padding: 4px 2px; }
+.dk-form {
+    margin-top: 16px; padding: 14px; border: 1px dashed var(--fz-line); border-radius: 8px;
+    display: flex; flex-direction: column; gap: 8px;
+}
+.dk-form-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.dk-count { font-size: 0.85em; }
+.dk-label { font-size: 0.85em; color: var(--fz-muted); padding: 0; }
+.dk-name-input { max-width: 24em; }
+.dk-scopes { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.dk-radio { display: flex; align-items: baseline; gap: 8px; font-size: 0.9em; cursor: pointer; }
+.dk-radio input { accent-color: var(--fz-accent); }
+.dk-full { margin: 0; font-size: 0.85em; }
+.dk-reveal {
+    margin-top: 12px; padding: 14px; border: 1px solid var(--fz-accent); border-left-width: 4px;
+    border-radius: 8px; background: var(--fz-accent-soft);
+}
+.dk-reveal-h { font-size: 0.95em; }
+.dk-warn { margin: 6px 0 10px; font-size: 0.85em; }
+.dk-keyrow { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+.dk-key {
+    flex: 1 1 18em; min-width: 0; padding: 0.45em 0.7em; border-radius: 6px; font-size: 0.85em;
+    background: var(--bg-color); border: 1px solid var(--fz-line); overflow-wrap: anywhere; word-break: break-all;
+    user-select: all;
+}
+.dk-copied { display: block; margin-top: 4px; font-size: 0.8em; color: var(--fz-bad); }
+.dk-copied:empty { margin: 0; }
+.dk-reveal-foot { padding-top: 6px; }
+.dk-copybuf { position: fixed; top: 0; left: -9999px; opacity: 0; }
+@media (max-width: 480px) {
+    .dk-item { flex-wrap: wrap; }
+    .dk-revoke { margin-left: auto; }
+}
+
+/* /developers/ docs page */
+.dev-docs { min-width: 0; }
+.dev-docs h1 { margin-bottom: 0.3em; }
+.dev-lead { text-align: center; color: var(--fz-muted); margin-top: 0; }
+.dev-docs h2 { text-align: left; margin-top: 2.2em; padding-top: 0.4em; border-top: 1px solid var(--fz-line); }
+.dev-docs h3 { margin-top: 1.8em; overflow-wrap: anywhere; }
+.dev-docs h3 code { font-size: 0.95em; }
+.dev-docs :not(pre) > code {
+    font-size: 0.9em; padding: 0.05em 0.35em; border-radius: 4px;
+    background: var(--fz-surface); border: 1px solid var(--fz-line); overflow-wrap: anywhere;
+}
+.dev-docs pre {
+    max-width: 100%; overflow-x: auto; margin: 0.8em 0 1.2em; padding: 12px 14px; box-sizing: border-box;
+    border: 1px solid var(--fz-line); border-radius: 8px; background: var(--fz-surface);
+    font-size: 0.82em; line-height: 1.5; tab-size: 4;
+}
+.dev-docs pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+.dev-docs .highlight { max-width: 100%; }
+.dev-docs table {
+    display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 0.8em 0 1.2em; font-size: 0.85em;
+}
+.dev-docs th, .dev-docs td { text-align: left; vertical-align: top; padding: 6px 10px; border-bottom: 1px solid var(--fz-line); }
+.dev-docs th { color: var(--fz-muted); font-weight: 400; white-space: nowrap; }
+.dev-docs td:first-child { white-space: nowrap; }
+.dev-docs blockquote { margin: 1em 0; padding: 0.6em 1em; border-left: 3px solid var(--fz-accent); background: var(--fz-surface); border-radius: 0 6px 6px 0; }
+.dev-docs blockquote p { margin: 0.3em 0; }
+.dev-toc { margin: 1.5em 0 0; border: 1px solid var(--fz-line); border-radius: 8px; padding: 8px 14px; font-size: 0.88em; }
+.dev-toc summary { cursor: pointer; font-weight: 700; }
+.dev-toc ul { margin: 0.4em 0; padding-left: 1.2em; }
+.dev-toc li { margin: 0.15em 0; }
+.dev-toc a, .dev-toc a:visited, .light-mode .dev-toc a, .light-mode .dev-toc a:visited { color: var(--text-color); }
+.dev-toc a:hover { color: var(--fz-accent); }
+/* syntax colours (Hugo/Chroma classes), one palette per theme */
+.dev-docs .chroma .c, .dev-docs .chroma .c1, .dev-docs .chroma .cm, .dev-docs .chroma .ch { color: var(--fz-muted); font-style: italic; }
+.dev-docs .chroma .s, .dev-docs .chroma .s1, .dev-docs .chroma .s2, .dev-docs .chroma .sa, .dev-docs .chroma .sd, .dev-docs .chroma .se, .dev-docs .chroma .si { color: #9ccc65; }
+.dev-docs .chroma .k, .dev-docs .chroma .kn, .dev-docs .chroma .kd, .dev-docs .chroma .kc, .dev-docs .chroma .ow { color: #f0954a; }
+.dev-docs .chroma .m, .dev-docs .chroma .mi, .dev-docs .chroma .mf, .dev-docs .chroma .nb, .dev-docs .chroma .bp { color: #7fb8e6; }
+.dev-docs .chroma .nt, .dev-docs .chroma .nf, .dev-docs .chroma .nv { color: #d7a6f0; }
+.light-mode .dev-docs .chroma .s, .light-mode .dev-docs .chroma .s1, .light-mode .dev-docs .chroma .s2, .light-mode .dev-docs .chroma .sa,
+.light-mode .dev-docs .chroma .sd, .light-mode .dev-docs .chroma .se, .light-mode .dev-docs .chroma .si { color: #2e7d32; }
+.light-mode .dev-docs .chroma .k, .light-mode .dev-docs .chroma .kn, .light-mode .dev-docs .chroma .kd, .light-mode .dev-docs .chroma .kc,
+.light-mode .dev-docs .chroma .ow { color: #b5470a; }
+.light-mode .dev-docs .chroma .m, .light-mode .dev-docs .chroma .mi, .light-mode .dev-docs .chroma .mf, .light-mode .dev-docs .chroma .nb,
+.light-mode .dev-docs .chroma .bp { color: #1f5f99; }
+.light-mode .dev-docs .chroma .nt, .light-mode .dev-docs .chroma .nf, .light-mode .dev-docs .chroma .nv { color: #7b3fa0; }
+/* ==== end personal API keys ==== */

@@ -1,7 +1,8 @@
 # backend (fazond)
 
 Go API for fazon.nexus at `https://api.fazon.nexus`: magic-link accounts (no signup), threaded
-comments with likes on every article, in-site notifications, and Kyōtsu trainer session history.
+comments with likes on every article, in-site notifications, Kyōtsu trainer session history, the
+Track immersion log, and personal API keys for scripting your own Track data.
 One binary, one SQLite file (`modernc.org/sqlite`, pure Go, so it cross-compiles with
 `CGO_ENABLED=0`). The site itself stays static on GitHub Pages; `fazon.nexus` and
 `api.fazon.nexus` are same-site, so the API's host-only `SameSite=Lax` cookie rides along on
@@ -11,7 +12,8 @@ One binary, one SQLite file (`modernc.org/sqlite`, pure Go, so it cross-compiles
 cmd/fazond         main: config (flags / FAZOND_* env), serve, CLI, hourly maintenance (comment-pages reload, purge, backup)
 internal/api       handlers, session auth, CORS/CSRF, rate limits; api_test.go covers the spec
 internal/db        open + pragmas, embedded migrations (PRAGMA user_version; 0001 init, 0002 avatars,
-                   0003 track + bio, 0004 track 'anki' category, 0005 track ratings/goals + settings),
+                   0003 track + bio, 0004 track 'anki' category, 0005 track ratings/goals + settings,
+                   0006 api_keys),
                    users/tokens, backup, purge
 internal/week      Track week calendar (Sun 03:00 UTC weeks, Saturday keys)
 internal/mail      resend (HTTP API), smtp (STARTTLS) and log mailers; RFC 5322 message builder
@@ -54,6 +56,14 @@ All JSON; errors are `{"error":"msg"}` with 400/401/403/404/409/413/415/429/500.
 | `GET /v1/track/leaderboard/goals?week=` | goal achievers of one published week |
 | `GET /v1/track/summaries?limit=&before=&user=` | public feed of weekly summaries up to `published_through`, newest week first |
 | `POST`/`DELETE /v1/track/admin/end-week` | admin: end the current week early (last 2 hours only) / undo |
+| `GET /v1/me/api-keys` | your API keys `{keys:[{id,name,scope,prefix,created,last_used}],max:5}` (never the keys themselves) |
+| `POST /v1/me/api-keys` `{name,scope}` | 201 `{"key":"fz_…","api_key":{…}}`; `scope` `read` or `write`; the key is shown only here; at most 5 (409) |
+| `DELETE /v1/me/api-keys/{id}` | revoke (deletes it; works no more from the next request) |
+| `GET /v1/api/track/weeks?from=&to=&days=1`, `GET /v1/api/track/weeks/{key}?days=1` | **API key only** (see API keys): your weeks with sub-category hours, totals, ratings, goals, summary, Kotu/Kyōtsu |
+| `PATCH /v1/api/track/weeks/{key}/hours` `{entries:[…]}` | API key (write): set or add hours per category / sub-category, atomically |
+| `PUT /v1/api/track/weeks/{key}/summary` `{summary,private}` | API key (write): the summary and its private flag only |
+| `POST /v1/api/track/weeks/{key}/goals` `{goals:{…}}` | API key (write): the site's goals rules (current week, write-once) |
+| `GET`/`POST /v1/api/track/subcats` | API key: list / create sub-categories (the site's rules) |
 | `GET /healthz` | `ok` |
 
 Every user object carries `avatar` (path relative to the API base, or null), `level`, `xp`,
@@ -172,11 +182,65 @@ longer listed (comments stay; the UI shows its path). If no index has loaded sin
 unreachable), posting answers 503 — fail closed — while reading comments, notifications and
 profiles carries on as normal.
 
-CSRF: every non-GET request needs an `Origin` in `FAZOND_ORIGINS` (403 otherwise) and, with a
-body, `Content-Type: application/json` (415); the avatar upload alone takes `image/jpeg`/`image/png`
+CSRF: every non-GET request (outside `/v1/api/`, see API keys) needs an `Origin` in
+`FAZOND_ORIGINS` (403 otherwise) and, with a body, `Content-Type: application/json` (415); the avatar upload alone takes `image/jpeg`/`image/png`
 instead (still not a CORS-safelisted type, so it still needs our preflight). Bodies are capped at 64 KB (Kyōtsu sessions 1 MB).
 Comments are limited to 30 per user per 10 minutes; Kyōtsu sessions, avatar uploads, profile
 edits, week saves and other Track changes to 60, 20, 20, 120 and 120 per hour (429).
+
+## API keys
+
+Any user can create up to 5 personal API keys in the Developers section of their own profile
+(`/users/?id=<own id>`) to script their own Track data; the user-facing docs are the site's
+`/developers/` page (`content/developers/_index.md`, `layouts/developers/section.html`), which
+must stay in step with `internal/api/trackapi.go`.
+
+- **Format and storage.** `fz_` + 32 random bytes in base64url (46 characters). Only the
+  SHA-256 is stored (`api_keys.hash`, unique), plus a display prefix (`fz_` + 4 characters); the
+  full key is in the creation response only. Lookup is by hash (its timing reveals nothing about
+  the key) followed by a constant-time compare. Revoking deletes the row, so the key fails from
+  the next request; deleting a user cascades to their keys. `last_used_at` is written at most
+  once a minute per key. Key usage is logged at debug level only (key id, user, method, path;
+  never key material).
+- **Scope of a key.** Keys work only on `/v1/api/…` and only for the key owner's own Track data;
+  everything else (comments, accounts, notifications, key management, admin) ignores the
+  `Authorization` header and answers 401 without a session. `/v1/api/…` in turn ignores the
+  session cookie: `Authorization: Bearer fz_…` or 401 (with `WWW-Authenticate: Bearer`).
+  `read` keys get 403 on anything but GET/HEAD.
+- **No CSRF/CORS there.** With no ambient credential there is nothing for another site to forge,
+  so `/v1/api/…` needs no `Origin` (scripts send none) and takes any `Content-Type` (the body is
+  parsed as JSON regardless). It sends **no** CORS headers and answers preflights with 403, so web
+  pages elsewhere can't send it keys or read its answers. The path is cleaned before this check,
+  so `/v1/api/../x` gets the normal rules.
+- **Rate limits**, per key (in-memory sliding windows like the rest): 120 reads and 30 writes a
+  minute; 429 with `Retry-After` (seconds). Creating keys: 20 an hour per user.
+  `POST /v1/api/track/subcats` and `…/goals` reuse the site's code but not its per-user hourly
+  limits.
+
+Key-API week object (`GET …/weeks` returns `{from,to,current_week,weeks:[…]}`, every week of
+the range oldest first, logged or not; default the last 12 weeks through the current one, at most
+260; every write answers the updated week, and `?days=1` works on all of them):
+
+```json
+{"week":"2026-10-03","start":"2026-10-04T03:00:00Z","end":"2026-10-11T03:00:00Z","current":false,"logged":true,
+ "totals":{"active":13.75,"passive":4,"phonetic":0,"output":0,"soroban":0,"anki":1,"all":18.75,"nopassive":14.75},
+ "hours":{"active":{"unassigned":2,"subcats":[{"id":3,"name":"Anime","archived":false,"hours":10.5}]},"passive":{…},…},
+ "ratings":{"active":4},"goals":{},"summary":"…","private":true,"kotu":85,"kyotsu":80,"updated":"2026-10-04T12:00:00Z",
+ "days":["2026-10-03",…],"kotu_days":[80,null,…],"kyotsu_days":[null,70,…],"kyotsu_source":[null,"manual",…]}
+```
+
+`PATCH …/hours` entries are `{"category", "subcat" (name) | "subcat_id" | neither (the
+unassigned bucket), "set" | "add"}`. Names match the category's non-archived sub-categories
+ignoring case (an exact match wins if folding makes two equal; still ambiguous → 400); ids may
+name archived ones (for old weeks). Values are JSON numbers or strings `"1.5"`, `"1:30"`,
+`"-0:45"`, rounded to the nearest hundredth; `set` ≥ 0, `|value|` ≤ 168. Entries apply in order in
+one transaction; any failure (unknown sub-category, a row below 0 or above 168, a category above
+168, …) is a 400 naming the entry and nothing is written. A row at 0 is deleted. Only the named
+rows change. Week rows follow the site's save: a write to a week with no row creates one (empty
+scores/summary, public), `updated_at` is bumped, and the row is deleted again if nothing is left
+in it (no hours, Kotu/Kyōtsu, summary or ratings), so ratings are never lost; goals live outside
+the row. `PUT …/summary` takes `summary` (required; `""` clears; site limits: cleaned, ≤ 10,000
+characters) and optional `private` (omitted = unchanged; public for a new week).
 
 ## Build
 
