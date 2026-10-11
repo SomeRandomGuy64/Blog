@@ -476,7 +476,7 @@
       root.textContent = "";
       root.appendChild(el("div", { class: "tk-intro" },
         expired ? el("p", { class: "fz-error", text: "Your login has expired." }) : null,
-        el("p", { text: "Track is a weekly log of your Japanese study: hours of active and passive immersion, Anki, phonetic training, output and soroban — split into your own sub-categories — plus your daily Kotu and Kyōtsu accuracy and a short summary of the week." }),
+        el("p", { text: "Track is a weekly log of your Japanese study: hours of active and passive immersion, phonetic training, output, soroban and Anki — split into your own sub-categories — plus your daily Kotu and Kyōtsu accuracy and a short summary of the week." }),
         el("p", { text: "Your weeks add up to charts on your profile, and (if you like) a place on the leaderboard." }),
         el("p", {}, el("a", { href: F.loginHref(), class: "fz-login-pill", text: "Log in" })),
         el("p", {}, el("a", { href: "/track/leaderboard/", text: "See the leaderboard →" }))));

@@ -10,10 +10,10 @@
   var CATS = [
     { id: "active", label: "Active immersion", short: "Active" },
     { id: "passive", label: "Passive immersion", short: "Passive" },
-    { id: "anki", label: "Anki", short: "Anki", proper: true },   // proper: a name, never lower-cased in prose
     { id: "phonetic", label: "Phonetic training", short: "Phonetic" },
     { id: "output", label: "Output", short: "Output" },
-    { id: "soroban", label: "Soroban", short: "Soroban" }
+    { id: "soroban", label: "Soroban", short: "Soroban" },
+    { id: "anki", label: "Anki", short: "Anki", proper: true }    // proper: a name, never lower-cased in prose
   ];
   var CAT = {};
   CATS.forEach(function (c) { CAT[c.id] = c; });

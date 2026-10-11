@@ -37,8 +37,9 @@ func (s *Server) trackVisible(w http.ResponseWriter, r *http.Request, userID int
 	return owner, true
 }
 
-// userTrack is a profile's track history: all weeks, oldest first. Summaries are included
-// unless private; the owner always gets theirs, with the private flag.
+// userTrack is a profile's track history: all weeks, oldest first, with day-by-day scores.
+// Others see weeks up to published-through only; the owner also gets the current week.
+// Summaries are included unless private; the owner always gets theirs, with the private flag.
 func (s *Server) userTrack(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(w, r)
 	if !ok {
@@ -68,14 +69,28 @@ func (s *Server) userTrack(w http.ResponseWriter, r *http.Request) {
 	for _, c := range all { // archived ones too: their hours still show in past weeks
 		subcats = append(subcats, sub{c.ID, c.Category, c.Name})
 	}
-	m, err := s.loadWeeks(ctx, []int64{id}, week.Earliest, week.Of(s.now()))
+	pt, err := s.publishedThrough(ctx)
+	if err != nil {
+		internalErr(w, "load publication", err)
+		return
+	}
+	to := pt
+	if owner {
+		to = week.Of(s.now())
+	}
+	m, err := s.loadWeeks(ctx, []int64{id}, week.Earliest, to)
 	if err != nil {
 		internalErr(w, "load weeks", err)
 		return
 	}
 	weeks := []weekSummary{}
+	var firstScore *string
 	for _, d := range m[id] {
 		item := d.listItem()
+		item.weekDays = d.days()
+		if firstScore == nil && (!d.kotu.empty() || !d.kyotsuEffective().empty()) {
+			firstScore = &item.Week
+		}
 		summary := d.summary
 		if d.summaryPrivate && !owner {
 			summary = ""
@@ -86,10 +101,18 @@ func (s *Server) userTrack(w http.ResponseWriter, r *http.Request) {
 		}
 		weeks = append(weeks, item)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"user": u, "subcats": subcats, "weeks": weeks})
+	writeJSON(w, http.StatusOK, map[string]any{"user": u, "subcats": subcats, "weeks": weeks,
+		"published_through": pt.String(), "first_score_week": firstScore})
 }
 
-var leaderboardWeeks = map[string]int{"week": 1, "4w": 4, "12w": 12, "52w": 52, "all": 0}
+// leaderboardWeeks is each period's length in weeks, ending at published-through (0 = all
+// time). "week" is the old name of "last", kept for cached frontends.
+var leaderboardWeeks = map[string]int{"last": 1, "week": 1, "4w": 4, "12w": 12, "52w": 52, "all": 0}
+
+// leaderboardMetrics are the hour metrics besides the categories: "all" is every category,
+// "nopassive" all but passive. "immersion" (active + passive) is the old default, still sent for
+// cached frontends but no longer a documented metric.
+var leaderboardMetrics = []string{"all", "nopassive", "immersion"}
 
 type leaderboardEntry struct {
 	User        *publicUser           `json:"user"`
@@ -98,9 +121,26 @@ type leaderboardEntry struct {
 	Kyotsu      *float64              `json:"kyotsu"`
 	WeeksLogged int                   `json:"weeks_logged"`
 	Series      map[string][]*float64 `json:"series"`
+	Ratings     map[string]int        `json:"ratings,omitzero"` // period=last only (an empty map then)
+	Summary     *string               `json:"summary"`          // latest public summary in the period
+	SummaryWeek *string               `json:"summary_week"`
 	cents       map[string]int64      // exact totals, for sorting
 }
 
+// metricCents is a week's hundredths of an hour per metric: categories and leaderboardMetrics.
+func (d *weekData) metricCents() map[string]int64 {
+	out := make(map[string]int64, len(trackCategories)+len(leaderboardMetrics))
+	for _, c := range trackCategories {
+		out[c.ID] = d.total(c.ID)
+	}
+	out["all"] = d.allCents()
+	out["nopassive"] = out["all"] - out["passive"]
+	out["immersion"] = out["active"] + out["passive"]
+	return out
+}
+
+// leaderboard ranks public users over a period ending at published-through (the week param,
+// if given, is clamped to it): the current week never shows until it's over or ended early.
 func (s *Server) leaderboard(w http.ResponseWriter, r *http.Request) {
 	period := r.URL.Query().Get("period")
 	if period == "" {
@@ -108,14 +148,30 @@ func (s *Server) leaderboard(w http.ResponseWriter, r *http.Request) {
 	}
 	n, ok := leaderboardWeeks[period]
 	if !ok {
-		writeErr(w, http.StatusBadRequest, "period must be week, 4w, 12w, 52w or all")
+		writeErr(w, http.StatusBadRequest, "period must be last, 4w, 12w, 52w or all")
 		return
 	}
-	to, ok := s.queryWeek(w, r, "week", week.Of(s.now()))
+	if period == "week" {
+		period = "last"
+	}
+	ctx := r.Context()
+	pub, err := s.publication(ctx, false)
+	if err != nil {
+		internalErr(w, "load publication", err)
+		return
+	}
+	pt, err := week.Parse(pub.PublishedThrough, s.now())
+	if err != nil {
+		internalErr(w, "published-through", err)
+		return
+	}
+	to, ok := s.queryWeek(w, r, "week", pt)
 	if !ok {
 		return
 	}
-	ctx := r.Context()
+	if pt.Before(to) {
+		to = pt
+	}
 	from := to.Add(1 - n)
 	if period == "all" {
 		from = to
@@ -166,29 +222,30 @@ func (s *Server) leaderboard(w http.ResponseWriter, r *http.Request) {
 		pos[k] = i
 		weekNames[i] = k.String()
 	}
-	metrics := []string{"immersion", "kotu", "kyotsu"}
+	hourMetrics := slices.Clone(leaderboardMetrics)
 	for _, c := range trackCategories {
-		metrics = append(metrics, c.ID)
+		hourMetrics = append(hourMetrics, c.ID)
 	}
+	seriesKeys := append(slices.Clone(hourMetrics), "kotu", "kyotsu")
 	entries := []leaderboardEntry{}
 	for _, id := range ids {
 		e := leaderboardEntry{User: users[id], Totals: map[string]float64{}, Series: map[string][]*float64{},
 			cents: map[string]int64{}}
-		for _, m := range metrics {
+		for _, m := range seriesKeys {
 			e.Series[m] = make([]*float64, len(keys))
+		}
+		if period == "last" {
+			e.Ratings = map[string]int{}
 		}
 		var kotuSum, kyotsuSum float64
 		var kotuN, kyotsuN int
 		for _, d := range data[id] {
 			i := pos[d.key]
 			e.WeeksLogged++
-			for _, c := range trackCategories {
-				t := d.total(c.ID)
-				e.cents[c.ID] += t
-				e.Series[c.ID][i] = new(float64(t) / 100)
+			for m, c := range d.metricCents() {
+				e.cents[m] += c
+				e.Series[m][i] = new(float64(c) / 100)
 			}
-			imm := d.total("active") + d.total("passive")
-			e.Series["immersion"][i] = new(float64(imm) / 100)
 			if m := d.kotu.mean(); m != nil {
 				kotuSum += *m
 				kotuN++
@@ -199,12 +256,16 @@ func (s *Server) leaderboard(w http.ResponseWriter, r *http.Request) {
 				kyotsuN++
 				e.Series["kyotsu"][i] = round1(m)
 			}
+			if period == "last" {
+				e.Ratings = d.ratingsOut()
+			}
+			if d.summary != "" && !d.summaryPrivate { // weeks are oldest first: the last one wins
+				e.Summary, e.SummaryWeek = &d.summary, new(d.key.String())
+			}
 		}
-		for _, c := range trackCategories {
-			e.Totals[c.ID] = float64(e.cents[c.ID]) / 100
+		for _, m := range hourMetrics {
+			e.Totals[m] = float64(e.cents[m]) / 100
 		}
-		e.cents["immersion"] = e.cents["active"] + e.cents["passive"]
-		e.Totals["immersion"] = float64(e.cents["immersion"]) / 100
 		if kotuN > 0 {
 			e.Kotu = round1(new(kotuSum / float64(kotuN)))
 		}
@@ -213,12 +274,14 @@ func (s *Server) leaderboard(w http.ResponseWriter, r *http.Request) {
 		}
 		entries = append(entries, e)
 	}
+	// Active immersion is the default ranking; the frontend re-sorts by whatever metric is shown.
 	slices.SortFunc(entries, func(a, b leaderboardEntry) int {
-		return cmp.Or(cmp.Compare(b.cents["immersion"], a.cents["immersion"]), cmp.Compare(b.WeeksLogged, a.WeeksLogged),
-			cmp.Compare(a.User.ID, b.User.ID))
+		return cmp.Or(cmp.Compare(b.cents["active"], a.cents["active"]), cmp.Compare(b.cents["all"], a.cents["all"]),
+			cmp.Compare(b.WeeksLogged, a.WeeksLogged), cmp.Compare(a.User.ID, b.User.ID))
 	})
 	writeJSON(w, http.StatusOK, map[string]any{"period": period, "from": from.String(), "to": to.String(),
-		"weeks": weekNames, "users": entries})
+		"weeks": weekNames, "users": entries, "published_through": pub.PublishedThrough, "current_week": pub.CurrentWeek,
+		"current_week_end": pub.CurrentWeekEnd, "ended_early": pub.EndedEarly})
 }
 
 type summaryItem struct {
@@ -228,12 +291,13 @@ type summaryItem struct {
 	Totals  map[string]float64 `json:"totals"`
 	Kotu    *float64           `json:"kotu"`
 	Kyotsu  *float64           `json:"kyotsu"`
+	Ratings map[string]int     `json:"ratings"`
 	Updated string             `json:"updated"`
 }
 
-// summaries is the public feed of weekly summaries, newest week first. A page never splits a
-// week: if the limit lands inside one, the rest of that week comes too, so paging with
-// before=<last week> loses nothing.
+// summaries is the public feed of weekly summaries, newest week first, up to published-through.
+// A page never splits a week: if the limit lands inside one, the rest of that week comes too, so
+// paging with before=<last week> loses nothing.
 func (s *Server) summaries(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	limit := 20
@@ -265,6 +329,14 @@ func (s *Server) summaries(w http.ResponseWriter, r *http.Request) {
 		before = k.String()
 	}
 	ctx := r.Context()
+	pt, err := s.publishedThrough(ctx)
+	if err != nil {
+		internalErr(w, "load publication", err)
+		return
+	}
+	if before == "" || pt.String() < before {
+		before = pt.Add(1).String()
+	}
 	const base = `SELECT w.user_id, w.week FROM track_weeks w JOIN users u ON u.id = w.user_id
 		WHERE u.track_public = 1 AND w.summary != '' AND w.summary_private = 0 AND (?1 = 0 OR w.user_id = ?1)`
 	type uw struct {
@@ -286,7 +358,7 @@ func (s *Server) summaries(w http.ResponseWriter, r *http.Request) {
 		}
 		return out, rows.Err()
 	}
-	page, err := scan(s.db.QueryContext(ctx, base+` AND (?2 = '' OR w.week < ?2)
+	page, err := scan(s.db.QueryContext(ctx, base+` AND w.week < ?2
 		ORDER BY w.week DESC, w.updated_at DESC, w.user_id LIMIT ?3`, userID, before, limit))
 	if err == nil && len(page) == limit {
 		last := page[len(page)-1].week
@@ -342,7 +414,7 @@ func (s *Server) summaries(w http.ResponseWriter, r *http.Request) {
 			}
 			it := d.listItem()
 			out = append(out, summaryItem{User: users[x.user], Week: x.week, Summary: d.summary, Totals: it.Totals,
-				Kotu: it.Kotu, Kyotsu: it.Kyotsu, Updated: rfc3339(d.updated)})
+				Kotu: it.Kotu, Kyotsu: it.Kyotsu, Ratings: it.Ratings, Updated: rfc3339(d.updated)})
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"summaries": out})

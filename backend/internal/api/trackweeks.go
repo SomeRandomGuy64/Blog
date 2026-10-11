@@ -58,6 +58,7 @@ type weekData struct {
 	kotu, kyotsu   scores                     // manual entries
 	auto           scores                     // from kyotsu_sessions
 	autoAnswers    [week.Days]int
+	ratings        map[string]int // category → 1–4 (😞 😐 👌 🔥); unrated categories absent
 	summary        string
 	summaryPrivate bool
 	updated        int64
@@ -74,10 +75,45 @@ func (d *weekData) kyotsuEffective() scores {
 	return out
 }
 
+// kyotsuSource says where each effective Kyōtsu day value comes from: "manual", "auto" (the
+// trainer) or nil (no value).
+func (d *weekData) kyotsuSource() [week.Days]*string {
+	var out [week.Days]*string
+	manual, auto := "manual", "auto"
+	for i := range out {
+		switch {
+		case d.kyotsu[i] != nil:
+			out[i] = &manual
+		case d.auto[i] != nil:
+			out[i] = &auto
+		}
+	}
+	return out
+}
+
+// ratingsOut is a copy of the ratings for a response: never nil, unrated categories absent.
+func (d *weekData) ratingsOut() map[string]int {
+	out := make(map[string]int, len(d.ratings))
+	for c, v := range d.ratings {
+		out[c] = v
+	}
+	return out
+}
+
 func (d *weekData) total(cat string) int64 {
 	var t int64
 	for _, c := range d.cents[cat] {
 		t += c
+	}
+	return t
+}
+
+// allCents is every category's hours together; the "all" metric. "nopassive" is this minus
+// passive.
+func (d *weekData) allCents() int64 {
+	var t int64
+	for _, c := range trackCategories {
+		t += d.total(c.ID)
 	}
 	return t
 }
@@ -107,21 +143,35 @@ func (d *weekData) subtotals() map[string]map[string]float64 {
 	return out
 }
 
-// weekSummary is a week in the list endpoints. Summary fields are set per endpoint.
+// weekSummary is a week in the list endpoints. Summary and day fields are set per endpoint.
 type weekSummary struct {
 	Week           string                        `json:"week"`
 	Totals         map[string]float64            `json:"totals"`
 	Subtotals      map[string]map[string]float64 `json:"subtotals"`
 	Kotu           *float64                      `json:"kotu"`
 	Kyotsu         *float64                      `json:"kyotsu"`
+	Ratings        map[string]int                `json:"ratings"`
 	HasSummary     *bool                         `json:"has_summary,omitempty"`
 	Summary        *string                       `json:"summary,omitempty"`
 	SummaryPrivate *bool                         `json:"summary_private,omitempty"`
+	*weekDays
+}
+
+// weekDays is a week's day-by-day Kotu and (effective) Kyōtsu scores, for profile charts.
+type weekDays struct {
+	Days         []string           `json:"days"` // label dates, as in week.DayLabels
+	KotuDays     scores             `json:"kotu_days"`
+	KyotsuDays   scores             `json:"kyotsu_days"`
+	KyotsuSource [week.Days]*string `json:"kyotsu_source"`
 }
 
 func (d *weekData) listItem() weekSummary {
 	return weekSummary{Week: d.key.String(), Totals: d.totals(), Subtotals: d.subtotals(),
-		Kotu: round1(d.kotu.mean()), Kyotsu: round1(d.kyotsuEffective().mean())}
+		Kotu: round1(d.kotu.mean()), Kyotsu: round1(d.kyotsuEffective().mean()), Ratings: d.ratingsOut()}
+}
+
+func (d *weekData) days() *weekDays {
+	return &weekDays{Days: d.key.DayLabels(), KotuDays: d.kotu, KyotsuDays: d.kyotsuEffective(), KyotsuSource: d.kyotsuSource()}
 }
 
 func idsJSON(ids []int64) string {
@@ -138,8 +188,8 @@ func parseScores(raw string) (sc scores, err error) {
 	return sc, nil
 }
 
-// loadWeeks returns the logged weeks in from..to for each user, oldest first, with hours and
-// Kyōtsu auto scores filled in. Three queries, whatever the number of users.
+// loadWeeks returns the logged weeks in from..to for each user, oldest first, with hours,
+// ratings and Kyōtsu auto scores filled in. Four queries, whatever the number of users.
 func (s *Server) loadWeeks(ctx context.Context, userIDs []int64, from, to week.Key) (map[int64][]*weekData, error) {
 	out := map[int64][]*weekData{}
 	if len(userIDs) == 0 {
@@ -161,7 +211,7 @@ func (s *Server) loadWeeks(ctx context.Context, userIDs []int64, from, to week.K
 	for rows.Next() {
 		var user int64
 		var key, kotu, kyotsu string
-		d := &weekData{cents: map[string]map[int64]int64{}}
+		d := &weekData{cents: map[string]map[int64]int64{}, ratings: map[string]int{}}
 		if err := rows.Scan(&user, &key, &kotu, &kyotsu, &d.summary, &d.summaryPrivate, &d.updated); err != nil {
 			return nil, err
 		}
@@ -199,6 +249,28 @@ func (s *Server) loadWeeks(ctx context.Context, userIDs []int64, from, to week.K
 				d.cents[cat] = map[int64]int64{}
 			}
 			d.cents[cat][sub] = cents
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+
+	rows, err = s.db.QueryContext(ctx, `SELECT user_id, week, category, rating
+		FROM track_ratings WHERE user_id IN (SELECT value FROM json_each(?)) AND week BETWEEN ? AND ?`, ids, f, t)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var user int64
+		var key, cat string
+		var rating int
+		if err := rows.Scan(&user, &key, &cat, &rating); err != nil {
+			return nil, err
+		}
+		if d := index[uw{user, key}]; d != nil {
+			d.ratings[cat] = rating
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -264,18 +336,21 @@ type hourJSON struct {
 }
 
 type weekDoc struct {
-	Week              string         `json:"week"`
-	Start             string         `json:"start"`
-	End               string         `json:"end"`
-	Days              []string       `json:"days"`
-	Hours             []hourJSON     `json:"hours"`
-	Kotu              scores         `json:"kotu"`
-	Kyotsu            scores         `json:"kyotsu"`
-	KyotsuAuto        scores         `json:"kyotsu_auto"`
-	KyotsuAutoAnswers [week.Days]int `json:"kyotsu_auto_answers"`
-	Summary           string         `json:"summary"`
-	SummaryPrivate    bool           `json:"summary_private"`
-	Updated           *string        `json:"updated"`
+	Week              string             `json:"week"`
+	Start             string             `json:"start"`
+	End               string             `json:"end"`
+	Days              []string           `json:"days"`
+	Hours             []hourJSON         `json:"hours"`
+	Kotu              scores             `json:"kotu"`
+	Kyotsu            scores             `json:"kyotsu"`
+	KyotsuAuto        scores             `json:"kyotsu_auto"`
+	KyotsuAutoAnswers [week.Days]int     `json:"kyotsu_auto_answers"`
+	Ratings           map[string]int     `json:"ratings"`
+	Goals             map[string]float64 `json:"goals"`      // owner only; write-once, see setGoals
+	GoalsOpen         bool               `json:"goals_open"` // goals can be set: this is the current week
+	Summary           string             `json:"summary"`
+	SummaryPrivate    bool               `json:"summary_private"`
+	Updated           *string            `json:"updated"`
 }
 
 // weekDoc is the full week for its owner; an unlogged week still gets its Kyōtsu auto scores.
@@ -318,6 +393,11 @@ func (s *Server) weekDoc(ctx context.Context, userID int64, k week.Key) (weekDoc
 		return cmp.Compare(ai, bi)
 	})
 	doc.Kotu, doc.Kyotsu, doc.KyotsuAuto, doc.KyotsuAutoAnswers = d.kotu, d.kyotsu, d.auto, d.autoAnswers
+	doc.Ratings = d.ratingsOut()
+	doc.GoalsOpen = k == week.Of(s.now())
+	if doc.Goals, err = s.goals(ctx, s.db, userID, k); err != nil {
+		return weekDoc{}, err
+	}
 	doc.Summary, doc.SummaryPrivate = d.summary, d.summaryPrivate
 	return doc, nil
 }
@@ -376,14 +456,30 @@ func (s *Server) saveWeek(w http.ResponseWriter, r *http.Request, u *user) {
 		return
 	}
 	var in struct {
-		Hours          []hourJSON `json:"hours"`
-		Kotu           []*float64 `json:"kotu"`
-		Kyotsu         []*float64 `json:"kyotsu"`
-		Summary        string     `json:"summary"`
-		SummaryPrivate bool       `json:"summary_private"`
+		Hours          []hourJSON      `json:"hours"`
+		Kotu           []*float64      `json:"kotu"`
+		Kyotsu         []*float64      `json:"kyotsu"`
+		Ratings        map[string]*int `json:"ratings"`
+		Summary        string          `json:"summary"`
+		SummaryPrivate bool            `json:"summary_private"`
 	}
 	if !decode(w, r, maxBody, &in) {
 		return
+	}
+	ratings := map[string]int{}
+	for cat, v := range in.Ratings {
+		if catIndex(cat) < 0 {
+			writeErr(w, http.StatusBadRequest, fmt.Sprintf("ratings: unknown category %q", cat))
+			return
+		}
+		if v == nil {
+			continue // null = not rated
+		}
+		if *v < 1 || *v > 4 {
+			writeErr(w, http.StatusBadRequest, "ratings must be 1-4 (1 = 😞, 2 = 😐, 3 = 👌, 4 = 🔥) or null")
+			return
+		}
+		ratings[cat] = *v
 	}
 	kotu, ok1 := validScores(in.Kotu)
 	kyotsu, ok2 := validScores(in.Kyotsu)
@@ -396,7 +492,7 @@ func (s *Server) saveWeek(w http.ResponseWriter, r *http.Request, u *user) {
 		writeErr(w, http.StatusBadRequest, "summary must be at most 10,000 characters")
 		return
 	}
-	if len(in.Hours) > 5*(maxAllSubcats+1) {
+	if len(in.Hours) > len(trackCategories)*(maxAllSubcats+1) {
 		writeErr(w, http.StatusBadRequest, "too many hour entries")
 		return
 	}
@@ -462,7 +558,7 @@ func (s *Server) saveWeek(w http.ResponseWriter, r *http.Request, u *user) {
 			}
 			hasHours = hasHours || c > 0
 		}
-		if !hasHours && kotu.empty() && kyotsu.empty() && summary == "" {
+		if !hasHours && kotu.empty() && kyotsu.empty() && summary == "" && len(ratings) == 0 {
 			_, err := tx.Exec(`DELETE FROM track_weeks WHERE user_id = ? AND week = ?`, u.ID, key)
 			return err
 		}
@@ -477,6 +573,15 @@ func (s *Server) saveWeek(w http.ResponseWriter, r *http.Request, u *user) {
 		}
 		if _, err := tx.Exec(`DELETE FROM track_hours WHERE user_id = ? AND week = ?`, u.ID, key); err != nil {
 			return err
+		}
+		if _, err := tx.Exec(`DELETE FROM track_ratings WHERE user_id = ? AND week = ?`, u.ID, key); err != nil {
+			return err
+		}
+		for cat, v := range ratings {
+			if _, err := tx.Exec(`INSERT INTO track_ratings (user_id, week, category, rating) VALUES (?, ?, ?, ?)`,
+				u.ID, key, cat, v); err != nil {
+				return err
+			}
 		}
 		for sl, c := range cents {
 			if c == 0 {

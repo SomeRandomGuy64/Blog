@@ -37,7 +37,7 @@ func TestOpenMigratePragmas(t *testing.T) {
 	d.QueryRow("PRAGMA foreign_keys").Scan(&fk)
 	d.QueryRow("PRAGMA busy_timeout").Scan(&busy)
 	d.QueryRow("PRAGMA journal_mode").Scan(&journal)
-	if version != 4 || fk != 1 || busy != 5000 || journal != "wal" {
+	if version != 5 || fk != 1 || busy != 5000 || journal != "wal" {
 		t.Fatalf("user_version=%d foreign_keys=%d busy_timeout=%d journal=%s", version, fk, busy, journal)
 	}
 	if _, err := d.Exec(`INSERT INTO sessions (hash, user_id, created_at, expires_at, last_seen) VALUES (x'00', 999, 0, 0, 0)`); err == nil {
@@ -76,7 +76,7 @@ func TestMigrateFromV1(t *testing.T) {
 	var version, users int
 	d.QueryRow("PRAGMA user_version").Scan(&version)
 	d.QueryRow("SELECT COUNT(*) FROM users").Scan(&users)
-	if version != 4 || users != 1 {
+	if version != 5 || users != 1 {
 		t.Fatalf("user_version=%d users=%d", version, users)
 	}
 	if _, err := d.Exec(`INSERT INTO avatars (user_id, data, updated_at) VALUES (1, x'ff', 1)`); err != nil {
@@ -103,7 +103,7 @@ func TestMigrateFromV2(t *testing.T) {
 	d.QueryRow("SELECT COUNT(*) FROM comment_likes").Scan(&likes)
 	d.QueryRow("SELECT COUNT(*) FROM avatars").Scan(&avatars)
 	d.QueryRow("SELECT COUNT(*) FROM kyotsu_sessions").Scan(&kyotsu)
-	if version != 4 || public != 2 || comments != 1 || likes != 1 || avatars != 1 || kyotsu != 1 {
+	if version != 5 || public != 2 || comments != 1 || likes != 1 || avatars != 1 || kyotsu != 1 {
 		t.Fatalf("version=%d public=%d comments=%d likes=%d avatars=%d kyotsu=%d", version, public, comments, likes, avatars, kyotsu)
 	}
 	for _, q := range []string{
@@ -206,7 +206,7 @@ func TestMigrateFromV3(t *testing.T) {
 	d := open(t, path)
 	var version int
 	d.QueryRow("PRAGMA user_version").Scan(&version)
-	if version != 4 {
+	if version != 5 {
 		t.Fatalf("user_version=%d", version)
 	}
 	for i, q := range queries {
@@ -392,5 +392,104 @@ func TestBackup(t *testing.T) {
 	var n int
 	if err := b.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("backup users %d %v", n, err)
+	}
+}
+
+// Production is at version 4 with real Track data; 0005 only adds tables (ratings, goals,
+// settings), so every existing row and schema object must come through untouched.
+func TestMigrateFromV4(t *testing.T) {
+	path := oldDB(t, 4,
+		`INSERT INTO users (email, name, is_admin, created_at) VALUES ('a@example.com', 'A', 1, 0), ('b@example.com', 'B', 0, 0)`,
+		`INSERT INTO track_subcats (id, user_id, category, name, created_at) VALUES (5, 2, 'anki', 'Core', 1), (6, 2, 'active', 'YouTube', 2)`,
+		`INSERT INTO track_weeks (user_id, week, kotu, summary, summary_private, updated_at) VALUES
+			(2, '2026-10-03', '[90,null,null,null,null,null,95.5]', 'first', 0, 100), (2, '2026-10-10', '[null,null,null,null,null,null,null]', 's', 1, 200)`,
+		`INSERT INTO track_hours (user_id, week, category, subcat_id, centihours) VALUES
+			(2, '2026-10-03', 'anki', 5, 150), (2, '2026-10-03', 'active', 6, 450), (2, '2026-10-10', 'passive', NULL, 1000)`,
+	)
+	queries := []string{
+		`SELECT id, user_id, category, name, archived, position, created_at FROM track_subcats ORDER BY id`,
+		`SELECT rowid, user_id, week, category, subcat_id, centihours FROM track_hours ORDER BY rowid`,
+		`SELECT * FROM track_weeks ORDER BY user_id, week`,
+		`SELECT id, email, track_public, bio FROM users ORDER BY id`,
+		`SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY name`,
+	}
+	before := make([]string, len(queries))
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, q := range queries {
+		before[i] = dumpRows(t, raw, q)
+	}
+	raw.Close()
+
+	d := open(t, path)
+	var version int
+	d.QueryRow("PRAGMA user_version").Scan(&version)
+	if version != 5 {
+		t.Fatalf("user_version=%d", version)
+	}
+	for i, q := range queries[:4] {
+		if after := dumpRows(t, d, q); after != before[i] {
+			t.Fatalf("%s changed:\nbefore:\n%safter:\n%s", q, before[i], after)
+		}
+	}
+	// The old schema objects are all still there, unchanged; only new tables were added.
+	after := dumpRows(t, d, queries[4])
+	for _, line := range strings.SplitAfter(before[4], "\n") {
+		if !strings.Contains(after, line) {
+			t.Fatalf("schema object changed or lost: %s", line)
+		}
+	}
+	for _, tbl := range []string{"track_ratings", "track_goals", "settings"} {
+		if !strings.Contains(after, "table "+tbl+" "+tbl) {
+			t.Fatalf("no %s table:\n%s", tbl, after)
+		}
+	}
+	for _, q := range []string{`PRAGMA foreign_key_check`, `PRAGMA integrity_check`} {
+		if got := dumpRows(t, d, q); got != "" && got != "ok\n" {
+			t.Fatalf("%s: %s", q, got)
+		}
+	}
+
+	for _, q := range []string{
+		`INSERT INTO track_ratings (user_id, week, category, rating) VALUES (2, '2026-10-03', 'active', 1), (2, '2026-10-03', 'anki', 4), (2, '2026-10-10', 'passive', 3)`,
+		`INSERT INTO track_goals (user_id, week, category, centihours, created_at) VALUES (2, '2026-10-10', 'active', 3500, 0), (2, '2026-10-17', 'anki', 16800, 0)`,
+		`INSERT INTO settings (key, value) VALUES ('track_ended_week', '2026-10-10')`,
+	} {
+		if _, err := d.Exec(q); err != nil {
+			t.Fatal(q, err)
+		}
+	}
+	for _, bad := range []string{
+		`INSERT INTO track_ratings (user_id, week, category, rating) VALUES (2, '2026-10-03', 'passive', 0)`,
+		`INSERT INTO track_ratings (user_id, week, category, rating) VALUES (2, '2026-10-03', 'passive', 5)`,
+		`INSERT INTO track_ratings (user_id, week, category, rating) VALUES (2, '2026-10-03', 'gaming', 2)`,
+		`INSERT INTO track_ratings (user_id, week, category, rating) VALUES (2, '2026-10-03', 'active', 2)`,                    // dup
+		`INSERT INTO track_ratings (user_id, week, category, rating) VALUES (2, '2026-09-26', 'active', 2)`,                    // no week row
+		`INSERT INTO track_goals (user_id, week, category, centihours, created_at) VALUES (2, '2026-10-10', 'active', 100, 0)`, // dup
+		`INSERT INTO track_goals (user_id, week, category, centihours, created_at) VALUES (2, '2026-10-10', 'output', 0, 0)`,
+		`INSERT INTO track_goals (user_id, week, category, centihours, created_at) VALUES (2, '2026-10-10', 'output', 16801, 0)`,
+		`INSERT INTO track_goals (user_id, week, category, centihours, created_at) VALUES (2, '2026-10-10', 'gaming', 10, 0)`,
+		`INSERT INTO track_goals (user_id, week, category, centihours, created_at) VALUES (99, '2026-10-10', 'output', 10, 0)`, // no user
+		`INSERT INTO settings (key, value) VALUES ('track_ended_week', 'x')`,                                                   // dup key
+	} {
+		if _, err := d.Exec(bad); err == nil {
+			t.Fatalf("accepted: %s", bad)
+		}
+	}
+	// Deleting a week takes its ratings but not its goals (write-once); deleting the user takes all.
+	d.Exec(`DELETE FROM track_weeks WHERE user_id = 2 AND week = '2026-10-10'`)
+	var ratings, goals int
+	d.QueryRow(`SELECT (SELECT COUNT(*) FROM track_ratings WHERE user_id = 2), (SELECT COUNT(*) FROM track_goals WHERE user_id = 2)`).Scan(&ratings, &goals)
+	if ratings != 2 || goals != 2 {
+		t.Fatalf("after deleting a week: %d ratings, %d goals", ratings, goals)
+	}
+	if _, err := d.Exec(`DELETE FROM users WHERE id = 2`); err != nil {
+		t.Fatal(err)
+	}
+	d.QueryRow(`SELECT (SELECT COUNT(*) FROM track_ratings) + (SELECT COUNT(*) FROM track_goals)`).Scan(&ratings)
+	if ratings != 0 {
+		t.Fatal("ratings or goals survived deleting the user")
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"fazon.nexus/backend/internal/db"
-	"fazon.nexus/backend/internal/week"
 )
 
 const (
@@ -24,10 +23,10 @@ type trackCategory struct {
 var trackCategories = []trackCategory{
 	{"active", "Active immersion"},
 	{"passive", "Passive immersion"},
-	{"anki", "Anki"},
 	{"phonetic", "Phonetic training"},
 	{"output", "Output"},
 	{"soroban", "Soroban"},
+	{"anki", "Anki"},
 }
 
 // catIndex is the category's position in trackCategories, or -1.
@@ -74,8 +73,18 @@ func (s *Server) trackConfig(w http.ResponseWriter, r *http.Request, u *user) {
 		internalErr(w, "load track settings", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"categories": trackCategories, "subcats": subcats, "public": public,
-		"current_week": week.Of(s.now()).String()})
+	p, err := s.publication(r.Context(), u.Admin)
+	if err != nil {
+		internalErr(w, "load publication", err)
+		return
+	}
+	out := map[string]any{"categories": trackCategories, "subcats": subcats, "public": public,
+		"current_week": p.CurrentWeek, "current_week_end": p.CurrentWeekEnd, "published_through": p.PublishedThrough,
+		"ended_early": p.EndedEarly}
+	if p.EndWeek != nil {
+		out["end_week"] = p.EndWeek // admins only
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) trackSettings(w http.ResponseWriter, r *http.Request, u *user) {

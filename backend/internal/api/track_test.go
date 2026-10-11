@@ -10,6 +10,9 @@ import (
 // The env clock is Sun 2026-10-11 12:00 UTC: current week 2026-10-10 (from Sun 03:00 UTC).
 const thisWeek = "2026-10-10"
 
+// nextWeek moves the clock on a week, so what was thisWeek is over and public.
+func (e *env) nextWeek() { e.clock = e.clock.Add(7 * 24 * time.Hour) }
+
 func (c *client) subcat(cat, name string) int64 {
 	c.e.t.Helper()
 	return int64(c.mustStatus(201, "POST", "/v1/track/subcats", map[string]any{"category": cat, "name": name})["id"].(float64))
@@ -37,8 +40,8 @@ func TestTrackSubcats(t *testing.T) {
 	for _, c := range cfg["categories"].([]any) {
 		cats = append(cats, c.(map[string]any)["id"].(string))
 	}
-	eqStrings(t, "categories", cats, []string{"active", "passive", "anki", "phonetic", "output", "soroban"})
-	eq(t, "anki label", cfg["categories"].([]any)[2].(map[string]any)["label"], any("Anki"))
+	eqStrings(t, "categories", cats, []string{"active", "passive", "phonetic", "output", "soroban", "anki"})
+	eq(t, "anki label", cfg["categories"].([]any)[5].(map[string]any)["label"], any("Anki"))
 	eq(t, "label", cfg["categories"].([]any)[0].(map[string]any)["label"], any("Active immersion"))
 	eq(t, "public", cfg["public"], any(true))
 	eq(t, "current_week", cfg["current_week"], any(thisWeek))
@@ -49,8 +52,9 @@ func TestTrackSubcats(t *testing.T) {
 	anime := e.alice.subcat("active", " Anime ")
 	podcast := e.alice.subcat("passive", "YouTube") // same name, other category
 	e.alice.subcat("phonetic", "Pitch")
-	deck := e.alice.subcat("anki", "Core 2k") // created after phonetic, listed before it
-	e.bob.subcat("active", "YouTube")         // same name, other user
+	deck := e.alice.subcat("anki", "Core 2k")
+	e.alice.subcat("soroban", "Drills") // created after anki, listed before it
+	e.bob.subcat("active", "YouTube")   // same name, other user
 	create := func(c *client, cat, name string) int {
 		return c.do("POST", "/v1/track/subcats", map[string]any{"category": cat, "name": name}).Code
 	}
@@ -86,7 +90,7 @@ func TestTrackSubcats(t *testing.T) {
 		got = append(got, fmt.Sprintf("%s:%s:%v", m["category"], m["name"], m["archived"]))
 	}
 	eqStrings(t, "config subcats", got, []string{"active:YouTube (old):false", "active:Anime (JP):false", "active:YouTube:false", "passive:YouTube:false",
-		"anki:Core 2k:false", "phonetic:Pitch:false"}) // by category order, then position: 0, 7, 8
+		"phonetic:Pitch:false", "soroban:Drills:false", "anki:Core 2k:false"}) // by category order, then position: 0, 7, 8
 	_ = yt2
 	eq(t, "anki rename", upd(e.alice, deck, map[string]any{"name": "Core 2k/6k"}), 200)
 
@@ -153,7 +157,7 @@ func TestTrackWeekSave(t *testing.T) {
 		got = append(got, fmt.Sprintf("%s/%v=%v", m["category"], m["subcat"], m["hours"]))
 	}
 	eqStrings(t, "hours (sorted, zero dropped)", got, []string{fmt.Sprintf("active/%d=2.5", yt), "active/<nil>=1.25", "passive/<nil>=10",
-		fmt.Sprintf("anki/%d=0.75", deck), "anki/<nil>=0.5", "phonetic/<nil>=1"})
+		"phonetic/<nil>=1", fmt.Sprintf("anki/%d=0.75", deck), "anki/<nil>=0.5"})
 	eq(t, "kotu", fmt.Sprint(saved["kotu"]), "[80 <nil> 90.5 <nil> <nil> <nil> <nil>]")
 	eq(t, "summary cleaned", saved["summary"], any("Good week\nlots of YouTube"))
 	eq(t, "private", saved["summary_private"], any(true))
@@ -257,10 +261,15 @@ func TestKyotsuAuto(t *testing.T) {
 	w0 := e.alice.mustStatus(200, "GET", "/v1/track/weeks", nil)["weeks"].([]any)[0].(map[string]any)
 	eq(t, "kyotsu = mean(85, 90, 60)", w0["kyotsu"], any(78.3))
 	eq(t, "kotu = mean(80, 90.5)", w0["kotu"], any(85.3))
-	lb := e.anon().mustStatus(200, "GET", "/v1/track/leaderboard?period=week", nil)["users"].([]any)[0].(map[string]any)
+	e.nextWeek()
+	lb := e.anon().mustStatus(200, "GET", "/v1/track/leaderboard?period=last", nil)["users"].([]any)[0].(map[string]any)
 	eq(t, "leaderboard kyotsu", lb["kyotsu"], any(78.3))
 	tr := e.anon().mustStatus(200, "GET", fmt.Sprint("/v1/users/", e.alice.id, "/track"), nil)["weeks"].([]any)[0].(map[string]any)
 	eq(t, "profile kyotsu", tr["kyotsu"], any(78.3))
+
+	eq(t, "profile kyotsu days", fmt.Sprint(tr["kyotsu_days"]), "[85 90 60 <nil> <nil> <nil> <nil>]")
+	eq(t, "profile kyotsu source", fmt.Sprint(tr["kyotsu_source"]), "[auto manual manual <nil> <nil> <nil> <nil>]")
+	eq(t, "profile kotu days", fmt.Sprint(tr["kotu_days"]), "[80 <nil> 90.5 <nil> <nil> <nil> <nil>]")
 
 	// Auto alone fills the weekly score when nothing manual is entered.
 	e.alice.saveWeek(thisWeek, map[string]any{"summary": "x"})
@@ -302,6 +311,7 @@ func TestTrackVisibility(t *testing.T) {
 	e.alice.saveWeek("2026-10-03", map[string]any{"hours": []any{hrs("active", sub, 3)}, "summary": "public summary"})
 	e.alice.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 1)}, "summary": "secret summary", "summary_private": true})
 	e.bob.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("passive", nil, 2)}, "summary": "bob's week"})
+	e.nextWeek() // thisWeek is over: everything above is published
 	trackPath := fmt.Sprint("/v1/users/", e.alice.id, "/track")
 	publicBodies := func() string {
 		var b strings.Builder
@@ -361,6 +371,7 @@ func TestLeaderboard(t *testing.T) {
 	e.alice.saveWeek("2026-09-05", map[string]any{"hours": []any{hrs("passive", nil, 1)}})
 	e.bob.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 20.5)}, "kyotsu": nums(50)})
 	e.admin.saveWeek("2026-10-03", map[string]any{"summary": "words only"}) // logged, zero hours
+	e.nextWeek()                                                            // thisWeek is the last published week
 	type row struct {
 		name   string
 		imm    float64
@@ -371,7 +382,7 @@ func TestLeaderboard(t *testing.T) {
 		var rows []row
 		for _, u := range out["users"].([]any) {
 			m := u.(map[string]any)
-			rows = append(rows, row{m["user"].(map[string]any)["name"].(string), m["totals"].(map[string]any)["immersion"].(float64), int(m["weeks_logged"].(float64))})
+			rows = append(rows, row{m["user"].(map[string]any)["name"].(string), m["totals"].(map[string]any)["all"].(float64), int(m["weeks_logged"].(float64))})
 			for k, s := range m["series"].(map[string]any) {
 				if len(s.([]any)) != len(out["weeks"].([]any)) {
 					t.Fatalf("%s: series %s has %d points for %d weeks", q, k, len(s.([]any)), len(out["weeks"].([]any)))
@@ -381,32 +392,36 @@ func TestLeaderboard(t *testing.T) {
 		return out, rows
 	}
 
-	out, rows := board("?period=week")
+	out, rows := board("?period=last")
+	eq(t, "period", out["period"], any("last"))
 	eq(t, "weeks", fmt.Sprint(out["weeks"]), "["+thisWeek+"]")
 	eq(t, "from/to", fmt.Sprint(out["from"], " ", out["to"]), thisWeek+" "+thisWeek)
-	eq(t, "week ranking", fmt.Sprint(rows), "[{Bob 20.5 1} {Alice 10 1}]")
+	eq(t, "last ranking (by active)", fmt.Sprint(rows), "[{Bob 20.5 1} {Alice 14 1}]")
+	alias, aliasRows := board("?period=week")
+	eq(t, "week is an alias of last", alias["period"], any("last"))
+	eq(t, "alias rows", fmt.Sprint(aliasRows), fmt.Sprint(rows))
 
 	out, rows = board("?period=4w")
 	eq(t, "4w", fmt.Sprint(out["weeks"]), "[2026-09-19 2026-09-26 2026-10-03 2026-10-10]")
-	eq(t, "4w ranking", fmt.Sprint(rows), "[{Alice 22 2} {Bob 20.5 1} {Admin 0 1}]")
-	alice := out["users"].([]any)[0].(map[string]any)
-	// Anki has its own metric but isn't immersion (active + passive).
-	eq(t, "totals", fmt.Sprint(alice["totals"]), "map[active:17 anki:3 immersion:22 output:1 passive:5 phonetic:0 soroban:0]")
+	eq(t, "4w ranking", fmt.Sprint(rows), "[{Bob 20.5 1} {Alice 26 2} {Admin 0 1}]") // active 20.5 > 17
+	alice := out["users"].([]any)[1].(map[string]any)
+	eq(t, "totals", fmt.Sprint(alice["totals"]), "map[active:17 all:26 anki:3 immersion:22 nopassive:21 output:1 passive:5 phonetic:0 soroban:0]")
 	eq(t, "kotu avg of weekly means", alice["kotu"], any(72.5)) // mean(80, 65)
 	eq(t, "no kyotsu", alice["kyotsu"], any(nil))
 	series := alice["series"].(map[string]any)
 	eq(t, "active series", fmt.Sprint(series["active"]), "[<nil> <nil> 12 5]")
-	eq(t, "immersion series", fmt.Sprint(series["immersion"]), "[<nil> <nil> 12 10]")
+	eq(t, "all series", fmt.Sprint(series["all"]), "[<nil> <nil> 12 14]")
+	eq(t, "nopassive series", fmt.Sprint(series["nopassive"]), "[<nil> <nil> 12 9]")
 	eq(t, "anki series", fmt.Sprint(series["anki"]), "[<nil> <nil> 0 3]")
 	eq(t, "kotu series", fmt.Sprint(series["kotu"]), "[<nil> <nil> 65 80]")
-	eq(t, "bob kyotsu", out["users"].([]any)[1].(map[string]any)["kyotsu"], any(50.0))
+	eq(t, "bob kyotsu", out["users"].([]any)[0].(map[string]any)["kyotsu"], any(50.0))
 
 	_, rows = board("?period=12w")
-	eq(t, "12w", fmt.Sprint(rows), "[{Alice 23 3} {Bob 20.5 1} {Admin 0 1}]")
+	eq(t, "12w", fmt.Sprint(rows), "[{Bob 20.5 1} {Alice 27 3} {Admin 0 1}]")
 	out, _ = board("?period=all")
 	eq(t, "all starts at first logged week", out["from"], any("2026-09-05"))
 	eq(t, "all weeks", len(out["weeks"].([]any)), 6)
-	out, rows = board("?period=week&week=2026-10-03")
+	out, rows = board("?period=last&week=2026-10-03")
 	eq(t, "past week", fmt.Sprint(rows), "[{Alice 12 1} {Admin 0 1}]")
 	out, rows = board("?period=4w&week=2026-08-01")
 	eq(t, "empty range", len(rows), 0)
@@ -414,8 +429,10 @@ func TestLeaderboard(t *testing.T) {
 	_, rows = board("")
 	eq(t, "default period 4w", len(rows), 3)
 	eq(t, "bad period", e.anon().do("GET", "/v1/track/leaderboard?period=2w", nil).Code, 400)
-	eq(t, "future week", e.anon().do("GET", "/v1/track/leaderboard?week=2026-10-17", nil).Code, 400)
+	eq(t, "future week", e.anon().do("GET", "/v1/track/leaderboard?week=2026-10-24", nil).Code, 400)
 	eq(t, "non-saturday", e.anon().do("GET", "/v1/track/leaderboard?week=2026-10-11", nil).Code, 400)
+	out, _ = board("?period=last&week=2026-10-17") // the current week: clamped to published-through
+	eq(t, "clamped", fmt.Sprint(out["to"], " ", out["published_through"]), thisWeek+" "+thisWeek)
 }
 
 func TestSummariesFeed(t *testing.T) {
@@ -430,6 +447,7 @@ func TestSummariesFeed(t *testing.T) {
 	save(e.admin, "2026-10-03", "", false)   // no summary
 	save(e.bob, thisWeek, "b3 secret", true)
 	save(e.alice, thisWeek, "a3", false)
+	e.nextWeek()
 	feed := func(q string) []string {
 		var out []string
 		for _, s := range e.anon().mustStatus(200, "GET", "/v1/track/summaries"+q, nil)["summaries"].([]any) {
@@ -454,7 +472,7 @@ func TestSummariesFeed(t *testing.T) {
 	if _, err := time.Parse(time.RFC3339, item["updated"].(string)); err != nil {
 		t.Fatal(err)
 	}
-	for _, q := range []string{"?limit=0", "?limit=x", "?user=x", "?before=2026-10-11", "?before=2026-10-24"} {
+	for _, q := range []string{"?limit=0", "?limit=x", "?user=x", "?before=2026-10-11", "?before=2026-10-31"} {
 		eq(t, "bad "+q, e.anon().do("GET", "/v1/track/summaries"+q, nil).Code, 400)
 	}
 }

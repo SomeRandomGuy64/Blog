@@ -11,7 +11,8 @@ One binary, one SQLite file (`modernc.org/sqlite`, pure Go, so it cross-compiles
 cmd/fazond         main: config (flags / FAZOND_* env), serve, CLI, hourly maintenance (comment-pages reload, purge, backup)
 internal/api       handlers, session auth, CORS/CSRF, rate limits; api_test.go covers the spec
 internal/db        open + pragmas, embedded migrations (PRAGMA user_version; 0001 init, 0002 avatars,
-                   0003 track + bio, 0004 track 'anki' category), users/tokens, backup, purge
+                   0003 track + bio, 0004 track 'anki' category, 0005 track ratings/goals + settings),
+                   users/tokens, backup, purge
 internal/week      Track week calendar (Sun 03:00 UTC weeks, Saturday keys)
 internal/mail      resend (HTTP API), smtp (STARTTLS) and log mailers; RFC 5322 message builder
 deploy/            systemd unit, env example, Caddy snippet
@@ -42,14 +43,17 @@ All JSON; errors are `{"error":"msg"}` with 400/401/403/404/409/413/415/429/500.
 | `DELETE /v1/me/avatar` | remove the picture → `{"user":…}` |
 | `GET /v1/users/{id}/avatar?v=T` | the JPEG; immutable caching when `v` is current, else `no-cache` + ETag |
 | `GET /v1/users/{id}/card` | hover card: `{user,bio,joined,comments,likes}`, `Cache-Control: private, max-age=60` |
-| `GET /v1/track/config` | categories (in display order: `active`, `passive`, `anki`, `phonetic`, `output`, `soroban`), your sub-categories, `public`, `current_week` |
+| `GET /v1/track/config` | categories (in display order: `active`, `passive`, `phonetic`, `output`, `soroban`, `anki`), your sub-categories, `public`, `current_week`, `current_week_end`, `published_through`, `ended_early`; admins also get `end_week` (see Track) |
 | `POST /v1/track/subcats` `{category,name}`; `POST`/`DELETE /v1/track/subcats/{id}` | sub-categories: rename/archive/reorder; delete only if unused (else 409) |
 | `POST /v1/track/settings` `{public}` | show/hide yourself on the leaderboard and others' view of your track |
-| `GET`/`POST /v1/track/weeks/{key}` | your week (hours, Kotu/Kyōtsu daily %, auto Kyōtsu from trainer sessions, summary); POST replaces it |
-| `GET /v1/track/weeks?from=&to=` | your logged weeks (default last 52), totals/subtotals/scores |
-| `GET /v1/users/{id}/track` | someone's track history (404 if they hid it); non-private summaries |
-| `GET /v1/track/leaderboard?period=week\|4w\|12w\|52w\|all&week=` | ranked by immersion (active+passive), with per-week series |
-| `GET /v1/track/summaries?limit=&before=&user=` | public feed of weekly summaries, newest week first |
+| `GET`/`POST /v1/track/weeks/{key}` | your week (hours, Kotu/Kyōtsu daily %, auto Kyōtsu from trainer sessions, `ratings`, summary, plus read-only `goals`/`goals_open`); POST replaces it (goals excepted) |
+| `POST /v1/track/weeks/{key}/goals` `{goals:{category:hours}}` | set goals for the current week; write-once (see Track) → the week |
+| `GET /v1/track/weeks?from=&to=` | your logged weeks (default last 52), totals/subtotals/scores/ratings |
+| `GET /v1/users/{id}/track` | someone's track history up to `published_through` (the owner: up to now; 404 if they hid it); non-private summaries, ratings, day-by-day scores |
+| `GET /v1/track/leaderboard?period=last\|4w\|12w\|52w\|all&week=` | published weeks only; per-user totals, series, scores, latest public summary; ranked by active immersion |
+| `GET /v1/track/leaderboard/goals?week=` | goal achievers of one published week |
+| `GET /v1/track/summaries?limit=&before=&user=` | public feed of weekly summaries up to `published_through`, newest week first |
+| `POST`/`DELETE /v1/track/admin/end-week` | admin: end the current week early (last 2 hours only) / undo |
 | `GET /healthz` | `ok` |
 
 Every user object carries `avatar` (path relative to the API base, or null), `level`, `xp`,
@@ -59,7 +63,97 @@ user's comments, counted live, so unlikes and deleted comments take it back.
 Track weeks run Sunday 03:00 UTC → Sunday 03:00 UTC and are keyed by the Saturday before
 (`internal/week`). Hours are stored in hundredths; a day's Kyōtsu score is the manual value, else
 the trainer sessions that ended that day. Summaries are public unless marked private; users with
-`track_public` off expose nothing.
+`track_public` off expose nothing. Track details below.
+
+## Track
+
+**Categories**, in display order: `active`, `passive`, `phonetic`, `output`, `soroban`, `anki`.
+Hours in JSON are decimal hours built from exact hundredths (`1.17` = 1 h 10.2 min), so
+`Math.round(h * 60)` minutes is exact.
+
+**Publication.** Other people only ever see weeks up to `published_through`: normally the
+previous week (`current_week` − 7 days); the current week too once the admin has ended it early.
+This applies to the leaderboard (every period, totals and series), the goal achievers, the
+summaries feed and `GET /v1/users/{id}/track` for anyone but its owner (hover cards and profiles
+carry no Track data). The owner still sees their current week in their own week views and on
+their own profile. Logging is unaffected: the calendar is time-based, so an ended week stays
+editable until it naturally rolls over at `current_week_end`, and those edits show publicly at
+once. The early end is stored in `settings` (`track_ended_week` = the week's key) and is simply
+ignored once that week is over.
+
+`POST /v1/track/admin/end-week` (admin only, 403 otherwise; usual Origin/CSRF rules; no body)
+is allowed from `current_week_end` − 2 h until the natural end; earlier it answers 409 with the
+time it opens. It is idempotent; `DELETE` undoes it (also idempotent). Both answer:
+
+```json
+{"published_through":"2026-10-10","current_week":"2026-10-10","current_week_end":"2026-10-18T03:00:00Z",
+ "ended_early":true,"end_week":{"allowed":true,"allowed_from":"2026-10-18T01:00:00Z"}}
+```
+
+`GET /v1/track/config` carries the same fields (`end_week` for admins only).
+
+**Ratings**: an optional self-rating per category per week, `1` 😞, `2` 😐, `3` 👌, `4` 🔥.
+Week documents, list items, profile weeks and feed items have `"ratings":{"active":3,"anki":4}`
+(rated categories only; `{}` when none). `POST /v1/track/weeks/{key}` takes the same object; an
+unknown category or a value other than 1–4/null is a 400; null or absent clears (the save is
+wholesale, like everything else in it). A week with only ratings is still a logged week. Ratings
+are public wherever the week's hours are.
+
+**Goals**: hours a user aims for per category in the current week. `POST
+/v1/track/weeks/{key}/goals` `{"goals":{"active":35,"anki":3.5}}` (only the categories being set):
+each > 0 and ≤ 168 with ≤ 2 decimals (null can't clear: 400); `{key}` must be the current week
+(past: 409, future: 400). Write-once: re-sending a goal's current value is a no-op, a different
+value is a 409 and nothing in the request is applied; categories without a goal can still be set
+until the week ends. Answers the full week document. Week documents carry `"goals":{"active":35}`
+(set ones only) and `"goals_open"` (true for the current week). The week save never touches
+goals, and emptying a week keeps them. While a week runs its goals are private; once published,
+the goal achievers board shows them for users who met at least one.
+
+**Leaderboard** `GET /v1/track/leaderboard?period=&week=`: `period` is `last` (the single
+published-through week; `week` is an alias for old frontends), `4w`, `12w`, `52w` or `all`
+(default `4w`); every period ends at `week` (default and maximum: `published_through`; later
+weeks are clamped, future ones are a 400).
+
+```json
+{"period":"last","from":"2026-10-03","to":"2026-10-03","weeks":["2026-10-03"],
+ "published_through":"2026-10-03","current_week":"2026-10-10","current_week_end":"2026-10-18T03:00:00Z","ended_early":false,
+ "users":[{"user":{"id":2,"name":"Alice",…},
+   "totals":{"active":12,"passive":5,"phonetic":0,"output":1,"soroban":0,"anki":3,"all":21,"nopassive":16},
+   "series":{"active":[12],…,"all":[21],"nopassive":[16],"kotu":[65],"kyotsu":[null]},
+   "kotu":65,"kyotsu":null,"weeks_logged":1,
+   "ratings":{"active":3},
+   "summary":"Good week","summary_week":"2026-10-03"}]}
+```
+
+`totals` and `series` (one value per entry of `weeks`, null where the user logged nothing) have
+every category plus `all` (every category) and `nopassive` (all − passive); series also have
+`kotu`/`kyotsu` weekly averages. `kotu`/`kyotsu` are the period's averages of weekly averages.
+`ratings` is present only for `period=last`. `summary`/`summary_week` are the latest non-empty,
+non-private summary in the period (null if none; private summaries never appear here). Users are
+sorted by active hours, then all, weeks logged, id (the frontend re-sorts per metric). Responses
+also still carry an `immersion` (active + passive) total/series for cached old frontends; it is
+not a metric any more.
+
+**Goal achievers** `GET /v1/track/leaderboard/goals?week=` (default and maximum:
+`published_through`): public users who met at least one of their goals that week. A goal is met
+when the category's logged hours ≥ the goal. `percent` = (hours logged in the goal categories ÷
+the sum of those goals − 1) × 100, one decimal (negative possible). Tier 1 (`all_met`) ranks above
+tier 2 (met some) whatever the percentages; within a tier by exact percentage, then name.
+
+```json
+{"week":"2026-10-03","published_through":"2026-10-03",
+ "users":[{"user":{…},"tier":1,"all_met":true,"goals_set":2,"goals_met":2,"percent":10,
+   "goals":{"active":10,"passive":10},"logged":{"active":12,"passive":10}}]}
+```
+
+**Profiles** `GET /v1/users/{id}/track`: `{user, subcats, weeks, published_through,
+first_score_week}`; each week has `week, totals, subtotals, kotu, kyotsu` (weekly averages),
+`ratings`, `summary` (`""` if private, unless you're the owner, who also gets `summary_private`),
+and day-by-day scores: `days` (the 7 label dates, Saturday … Friday as in the week view),
+`kotu_days` (7 values or null), `kyotsu_days` (7 effective values: manual, else the trainer's)
+and `kyotsu_source` (`"manual"`, `"auto"` or null per day). `first_score_week` is the first
+returned week with any Kotu or Kyōtsu value (null if none). Only logged weeks are listed, so
+trainer sessions in a week with nothing logged don't appear here.
 
 Notifications: `reply` to the parent's author, `like` to the liked comment's author, and `comment`
 to admins for every new comment by someone else — never two for one comment, never to yourself.
