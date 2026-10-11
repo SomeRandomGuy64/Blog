@@ -510,6 +510,7 @@ func refs(t *testing.T, e *env, id int64, email string) map[string]int {
 		"signup_tokens":   "email = ?2",
 		"comments":        "user_id = ?1",
 		"comment_likes":   "user_id = ?1",
+		"page_likes":      "user_id = ?1",
 		"notifications":   "user_id = ?1 OR actor_id = ?1",
 		"kyotsu_sessions": "user_id = ?1",
 		"avatars":         "user_id = ?1",
@@ -583,6 +584,11 @@ func TestDeleteAccount(t *testing.T) {
 	e.db.Exec(`UPDATE users SET muted_at = 1 WHERE id = ?`, e.bob.id)
 	vic.mustStatus(200, "POST", "/v1/comments/"+itoa(a3)+"/like", nil)
 	vic.mustStatus(200, "POST", "/v1/comments/"+itoa(r2)+"/like", nil)
+	// Article likes: Vic's go (and with them the author's points), Alice's stay.
+	vic.mustStatus(200, "POST", "/v1/pages/likes?page="+page, nil)
+	vic.mustStatus(200, "POST", "/v1/pages/likes?page=/articles/other/", nil)
+	e.alice.mustStatus(200, "POST", "/v1/pages/likes?page="+page, nil)
+	adminXP := e.xp(e.admin.id)
 	_ = c1
 	_ = v3
 	_ = c5
@@ -631,6 +637,8 @@ func TestDeleteAccount(t *testing.T) {
 	eq(t, "Bob still muted", e.count(`SELECT muted_at IS NOT NULL AND muted_by IS NULL FROM users WHERE id = ?`, e.bob.id), 1)
 	eq(t, "others' comments kept", e.count(`SELECT COUNT(*) FROM comments WHERE user_id NOT IN (?, 0)`, vic.id), others)
 	eq(t, "Alice's like on c2 gone, others kept", e.count(`SELECT COUNT(*) FROM comment_likes WHERE user_id = ?`, e.alice.id), aliceLikes-1)
+	eq(t, "article likes", e.anon().mustStatus(200, "GET", "/v1/pages/likes?page="+page, nil)["count"], any(1.0))
+	eq(t, "author XP back", e.xp(e.admin.id), adminXP-2)
 
 	// Threads: c2 is a placeholder holding Alice's reply; c6 (only a tombstone under it) and
 	// everything without replies are gone from the database.
@@ -712,6 +720,11 @@ func TestExport(t *testing.T) {
 	a.mustStatus(200, "DELETE", "/v1/comments/"+itoa(gone), nil)
 	a.mustStatus(200, "POST", "/v1/comments/"+itoa(bobs)+"/like", nil)
 	e.bob.mustStatus(200, "POST", "/v1/comments/"+itoa(top)+"/like", nil)
+	a.mustStatus(200, "POST", "/v1/pages/likes?page=/articles/other/", nil)
+	e.clock = e.clock.Add(time.Minute)
+	a.mustStatus(200, "POST", "/v1/pages/likes?page="+page, nil)
+	e.clock = e.clock.Add(-time.Minute)
+	e.bob.mustStatus(200, "POST", "/v1/pages/likes?page="+page, nil) // not Alice's
 	a.mustStatus(200, "POST", "/v1/me/profile", map[string]any{"bio": "Learning Kansai-ben"})
 	sub := a.subcat("anki", "Mining")
 	a.saveWeek(lastWeek, map[string]any{"hours": []any{hrs("anki", sub, 1.5), hrs("active", nil, 3)},
@@ -744,6 +757,7 @@ func TestExport(t *testing.T) {
 		}
 		Comments      []exportComment
 		Likes         []exportLike
+		ArticleLikes  []exportPageLike `json:"article_likes"`
 		Notifications []exportNotification
 		Track         struct {
 			Public  bool
@@ -781,6 +795,7 @@ func TestExport(t *testing.T) {
 	eq(t, "reply parent", *x.Comments[1].Parent, bobs)
 	eq(t, "reply id", x.Comments[1].ID, reply)
 	eq(t, "likes", fmt.Sprint(len(x.Likes), x.Likes[0].CommentID, x.Likes[0].PageTitle), fmt.Sprint(1, bobs, "Hello post"))
+	eq(t, "article likes", fmt.Sprint(x.ArticleLikes), "[{/articles/other/ Other post 2026-10-11T12:00:00Z} {"+page+" Hello post 2026-10-11T12:01:00Z}]")
 	kinds := []string{}
 	for _, n := range x.Notifications {
 		kinds = append(kinds, n.Kind+":"+n.Actor)

@@ -13,7 +13,7 @@ type notificationJSON struct {
 	Actor     *publicUser `json:"actor"`
 	Page      string      `json:"page"`
 	PageTitle string      `json:"page_title"`
-	CommentID int64       `json:"comment_id"`
+	CommentID int64       `json:"comment_id"` // 0 for an article like
 	Snippet   string      `json:"snippet"`
 	Created   string      `json:"created"`
 	Read      bool        `json:"read"`
@@ -42,12 +42,14 @@ func (s *Server) listNotifications(w http.ResponseWriter, r *http.Request, u *us
 		}
 	}
 	limit = min(limit, 100)
+	// A comment notification points at its comment (and shows a snippet of it); an article
+	// like ('page_like') has no comment, only the page (comment_id 0, snippet "").
 	rows, err := s.db.QueryContext(r.Context(), `
-		SELECT n.id, n.kind, n.actor_id, c.page, COALESCE(p.title, ''), n.comment_id, c.body,
-			n.created_at, n.read_at IS NOT NULL
+		SELECT n.id, n.kind, n.actor_id, COALESCE(c.page, n.page, ''), COALESCE(p.title, ''),
+			COALESCE(n.comment_id, 0), COALESCE(c.body, ''), n.created_at, n.read_at IS NOT NULL
 		FROM notifications n
-		JOIN comments c ON c.id = n.comment_id
-		LEFT JOIN pages p ON p.path = c.page
+		LEFT JOIN comments c ON c.id = n.comment_id
+		LEFT JOIN pages p ON p.path = COALESCE(c.page, n.page)
 		WHERE n.user_id = ? AND (? = 0 OR n.id < ?)
 		ORDER BY n.id DESC LIMIT ?`, u.ID, before, before, limit)
 	if err != nil {

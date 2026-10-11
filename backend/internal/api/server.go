@@ -1,6 +1,6 @@
 // Package api is the fazon.nexus HTTP API: magic-link accounts with open sign-up, roles and
-// moderation, article comments with likes and notifications, Kyōtsu trainer sessions, Track and
-// personal API keys.
+// moderation, article comments with likes and notifications, article likes, Kyōtsu trainer
+// sessions, Track and personal API keys.
 package api
 
 import (
@@ -34,6 +34,9 @@ type Config struct {
 	MailTimeout  time.Duration // per email; 0 = 1 minute
 	// Pages fetches the site's comment-pages index; nil = HTTPPageFetcher(Site).
 	Pages PageFetcher
+	// AuthorEmail is the account that writes every article (FAZOND_ADMIN_EMAIL): article likes
+	// are its XP and notify it. "" = no author (article likes count but give nobody XP).
+	AuthorEmail string
 }
 
 type Server struct {
@@ -43,6 +46,7 @@ type Server struct {
 
 	ipLimit, emailLimit    *limiter // login-link requests
 	commentLimit, kyoLimit *limiter // per user
+	pageLikeLimit          *limiter // per user: article like/unlike
 	avatarLimit, nameLimit *limiter // per user
 	weekLimit, trackLimit  *limiter // per user: week saves; subcat/settings changes
 	keyMgmtLimit           *limiter // per user: API key creation
@@ -75,6 +79,8 @@ func New(db *sql.DB, cfg Config) *Server {
 		trackLimit:   newLimiter(120, time.Hour),
 		keyMgmtLimit: newLimiter(20, time.Hour),
 		exportLimit:  newLimiter(10, time.Hour),
+		// per user: article like/unlike, generous for toggling but not a notification fire hose
+		pageLikeLimit: newLimiter(60, 10*time.Minute),
 		// per key; 429 with Retry-After (see keyAuthed)
 		keyReadLimit:  newLimiter(120, time.Minute),
 		keyWriteLimit: newLimiter(30, time.Minute),
@@ -108,6 +114,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /v1/comments/{id}", s.authed(s.deleteComment))
 	mux.HandleFunc("POST /v1/comments/{id}/like", s.authed(s.likeComment))
 	mux.HandleFunc("DELETE /v1/comments/{id}/like", s.authed(s.unlikeComment))
+
+	mux.HandleFunc("GET /v1/pages/likes", s.pageLikes)
+	mux.HandleFunc("POST /v1/pages/likes", s.authed(s.likePage))
+	mux.HandleFunc("DELETE /v1/pages/likes", s.authed(s.unlikePage))
 
 	mux.HandleFunc("GET /v1/notifications", s.authed(s.listNotifications))
 	mux.HandleFunc("POST /v1/notifications/read", s.authed(s.readNotifications))
@@ -162,7 +172,7 @@ func (s *Server) Wait() { s.mailWG.Wait() }
 // Sweep forgets rate-limit entries whose windows have passed.
 func (s *Server) Sweep() {
 	now := s.now()
-	for _, l := range []*limiter{s.ipLimit, s.emailLimit, s.commentLimit, s.kyoLimit, s.avatarLimit, s.nameLimit, s.weekLimit, s.trackLimit,
+	for _, l := range []*limiter{s.ipLimit, s.emailLimit, s.commentLimit, s.pageLikeLimit, s.kyoLimit, s.avatarLimit, s.nameLimit, s.weekLimit, s.trackLimit,
 		s.keyMgmtLimit, s.keyReadLimit, s.keyWriteLimit, s.exportLimit} {
 		l.sweep(now)
 	}

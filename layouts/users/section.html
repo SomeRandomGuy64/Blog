@@ -238,7 +238,7 @@
         levels().then(L=>{
           det.dataset.done="1"; body.textContent="";
           const n=L.length;
-          body.append(el("p",{},"Every like your comments get from someone else earns a point — likes on your own comments don't count, and an unlike takes the point back. Each level takes more points than the last: level 2 needs ",
+          body.append(el("p",{},"Every like your comments get from someone else earns a point (and every like on an article earns its author one) — likes on your own comments and articles don't count, and an unlike takes the point back. Each level takes more points than the last: level 2 needs ",
             el("b",{text:String(L[1]??"")})," points"+(n>=100?", level 100 needs ":""),n>=100?el("b",{text:L[99].toLocaleString()}):null,n>=100?" points.":"."));
           const shown=new Set(); for(let i=1;i<=Math.min(20,n);i++) shown.add(i); for(let i=30;i<=n;i+=10) shown.add(i);
           if(u.level) shown.add(u.level);

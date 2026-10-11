@@ -314,7 +314,7 @@
   window.addEventListener("resize", function () { if (uc.el && !uc.el.hidden) ucPlace(); });
 
   // ---- header: Log in / Log out nav links + notifications bell (next to the theme toggle) ----
-  var VERB = { reply: "replied to your comment on", like: "liked your comment on", comment: "commented on" };
+  var VERB = { reply: "replied to your comment on", like: "liked your comment on", comment: "commented on", page_like: "liked your article" };
   var unreadListeners = [];
   function setUnread(n) {
     n = Math.max(0, n | 0);
@@ -333,7 +333,7 @@
     return api("/v1/auth/logout", { method: "POST" }).catch(function () {}).then(function () { location.reload(); });
   }
 
-  // where a notification points: "/articles/x/#comment-12"
+  // where a notification points: "/articles/x/#comment-12" (an article like: just "/articles/x/")
   function notifHref(n) {
     var p = safePath(n.page || "") || "/";
     return p + (n.comment_id ? "#comment-" + (n.comment_id | 0) : "");

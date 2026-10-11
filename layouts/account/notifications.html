@@ -7,7 +7,7 @@
   (function(){
     const F=window.Fazon, el=F.el, box=document.getElementById("notifBox");
     const LIMIT=30;
-    const VERB={reply:"replied to your comment on",like:"liked your comment on",comment:"commented on"};
+    const VERB={reply:"replied to your comment on",like:"liked your comment on",comment:"commented on",page_like:"liked your article"};
     let list, moreBtn, allBtn, lastId=null, unread=0;
 
     function setUnread(n){ unread=n; F.setUnread(n); allBtn.disabled=n<=0; }

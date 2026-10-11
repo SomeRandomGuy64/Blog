@@ -111,7 +111,7 @@ func serve(args []string) error {
 	defer stop()
 
 	srv := api.New(d, api.Config{Site: cfg.site, Origins: cfg.origins, CookieSecure: cfg.cookieSecure,
-		Mailer: cfg.mailer(), MailTimeout: time.Minute})
+		Mailer: cfg.mailer(), MailTimeout: time.Minute, AuthorEmail: cfg.adminEmail})
 	httpSrv := &http.Server{Addr: cfg.listen, Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 2 * time.Minute}
 	maintDone := make(chan struct{})

@@ -6,8 +6,8 @@ description = "What Fazon Nexus stores about you, who can see it, where it lives
 *Last updated: 11 October 2026.*
 
 Fazon Nexus is a personal site run by one person (Faizan). You can read everything on it without
-an account. An account lets you comment, like comments, log your immersion on Track and keep your
-Kyōtsu trainer history. This page explains, in plain English, what that involves.
+an account. An account lets you comment, like articles and comments, log your immersion on Track
+and keep your Kyōtsu trainer history. This page explains, in plain English, what that involves.
 
 ## What's stored
 
@@ -19,10 +19,10 @@ Only what you give the site or what it needs to work:
 - **Profile:** the optional "About me" text and profile picture. Pictures are re-encoded on the
   server as a small square JPEG, so the original file and its metadata (such as camera or location
   data) are not kept.
-- **Comments and likes:** the comments you post (with the page and time), and which comments you
-  liked.
+- **Comments and likes:** the comments you post (with the page and time), and which comments and
+  articles you liked (and when).
 - **Notifications:** replies to your comments and likes on them (admins are also notified of new
-  comments).
+  comments, and Faizan, who writes the articles, of likes on them).
 - **Track:** the hours you log per category and sub-category, your sub-category names, Kotu and
   Kyōtsu scores, weekly summaries (and whether each one is private), your weekly self-ratings and
   goals, and whether your Track is public.
@@ -49,9 +49,11 @@ features you use: comments, likes, notifications, profiles, Track, the Kyōtsu t
 **Anyone can see**, without logging in:
 
 - your display name, profile picture, "About me", when you joined, your level and points (the
-  likes your comments received), and how many comments you've posted;
+  likes your comments received; Faizan's also count the likes on his articles), and how many
+  comments you've posted;
 - your comments, on the pages where you posted them and the most recent ones on your profile, and
   how many likes each comment has (not who liked it);
+- how many likes each article has (not who liked it);
 - your **Track**, unless you turn it off: hours per category and sub-category, Kotu and Kyōtsu
   scores (Kyōtsu scores include the results of your trainer sessions), self-ratings and weekly
   summaries that you haven't marked private. These show on the leaderboard, the summaries feed and
@@ -60,8 +62,9 @@ features you use: comments, likes, notifications, profiles, Track, the Kyōtsu t
   you met at least one of them, the goal achievers board shows your goals and hours for that
   week. With your Track turned off, none of it is shown to anyone else.
 
-**Only you can see:** your email address, your notifications, the comments you liked, your private
-summaries, your Kyōtsu session history, your API keys, and your current week on Track.
+**Only you can see:** your email address, your notifications, the comments and articles you liked
+(except that whoever wrote the comment or article is notified of your like, with your name), your
+private summaries, your Kyōtsu session history, your API keys, and your current week on Track.
 
 **Moderators and admins** can see a list of accounts with display names, roles, when people joined
 and were last active, how many comments they've posted, whether they're blocked from commenting

@@ -1,16 +1,18 @@
 {{ define "main" }}
+  {{/* keep in step with layouts/home.commentpages.json (the API's list of commentable, likeable pages) */}}
+  {{ $commentable := and (eq .Section "articles") (ne .Params.comments false) }}
   <article>
     <h1>{{ .Title }}</h1>
     {{ if and .Date (eq .Section "articles") }}
-    <p class="meta"><time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "January 2, 2006" }}</time></p>
+    <p class="meta art-meta"><time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "January 2, 2006" }}</time>
+      {{- if $commentable }}<span class="art-like-slot art-like-slot-mini" data-art-like="mini" hidden></span>{{ end }}</p>
     {{ end }}
     {{ .Content }}
     {{ with .Params.tags }}
     <p class="tags">{{ range . }}<a href="{{ (printf "/tags/%s" (urlize .)) | relURL }}">#{{ . }}</a> {{ end }}</p>
     {{ end }}
   </article>
-  {{/* keep in step with layouts/home.commentpages.json (the API's list of commentable pages) */}}
-  {{ if and (eq .Section "articles") (ne .Params.comments false) }}
+  {{ if $commentable }}
   {{ partial "comments.html" . }}
   {{ end }}
 {{ end }}

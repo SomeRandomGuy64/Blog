@@ -40,22 +40,28 @@ func avatarPath(userID, updated int64) string {
 }
 
 // publicUsers loads the given accounts with their avatar and XP in one grouped query. XP is the
-// number of likes on the user's comments by other people, counted live so unlikes and
-// deletions take it back. Unknown ids are absent from the map.
+// number of likes other people gave the user's comments, plus, for the article author
+// (Config.AuthorEmail), the likes other people gave the articles. It is counted live, so
+// unlikes and deletions take it back. Unknown ids are absent from the map.
 func (s *Server) publicUsers(ctx context.Context, ids []int64) (map[int64]*publicUser, error) {
 	out := make(map[int64]*publicUser, len(ids))
 	if len(ids) == 0 {
 		return out, nil
 	}
 	idsJSON, _ := json.Marshal(ids)
+	var author any // NULL matches no one (not even the [deleted] account's empty email)
+	if s.cfg.AuthorEmail != "" {
+		author = s.cfg.AuthorEmail
+	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT u.id, u.name, u.role, a.updated_at, COUNT(l.user_id)
+		SELECT u.id, u.name, u.role, a.updated_at, COUNT(l.user_id) +
+			CASE WHEN u.id > 0 AND u.email = ? THEN (SELECT COUNT(*) FROM page_likes p WHERE p.user_id != u.id) ELSE 0 END
 		FROM users u
 		LEFT JOIN avatars a ON a.user_id = u.id
 		LEFT JOIN comments c ON c.user_id = u.id
 		LEFT JOIN comment_likes l ON l.comment_id = c.id AND l.user_id != u.id
 		WHERE u.id IN (SELECT value FROM json_each(?))
-		GROUP BY u.id`, string(idsJSON))
+		GROUP BY u.id`, author, string(idsJSON))
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +175,7 @@ func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 }
 
 // profileBasics is what the profile page and the hover card share: user, bio, joined date,
-// live comment count and likes received (= XP).
+// live comment count and likes received (= XP: on comments, and on articles for the author).
 func (s *Server) profileBasics(r *http.Request, u *publicUser) (map[string]any, error) {
 	var joined int64
 	var comments int

@@ -1,7 +1,9 @@
-{{/* Comment thread for an article (js/fazon-comments.js talks to the API). Turn off per page
-     with `comments = false` in the front matter. The API only takes comments on pages listed in
-     /comment-pages.json (layouts/home.commentpages.json, same condition as page.html) and takes
-     the title from there. */}}
+{{/* Article like button and comment thread (js/fazon-comments.js talks to the API). Turn both
+     off per page with `comments = false` in the front matter. The API only takes likes and
+     comments on pages listed in /comment-pages.json (layouts/home.commentpages.json, same
+     condition as page.html) and takes the title from there. The like bar (and the compact like
+     in the date line, page.html) stays hidden until the like count has loaded. */}}
+<div class="art-like-slot art-like-bar" id="like" data-art-like="bar" hidden></div>
 <section class="comments" id="comments" data-page="{{ .RelPermalink }}">
   <h2 class="comments-h" id="commentsH">Comments</h2>
   <div class="cmt-composer" id="cmtComposer"></div>

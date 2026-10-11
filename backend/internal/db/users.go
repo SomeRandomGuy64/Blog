@@ -199,7 +199,8 @@ func CreateSignupToken(ctx context.Context, db *sql.DB, email, name, next string
 
 // DeleteUser removes an account and everything that belongs to it, inside tx: sessions, login
 // and sign-up tokens, API keys, avatar, Track data (weeks, hours, ratings, goals, sub-
-// categories), Kyōtsu sessions, likes given, notifications to or from them, and their comments.
+// categories), Kyōtsu sessions, likes given (on comments and articles), notifications to or
+// from them, and their comments.
 // A comment that nothing replies to is removed outright (with its likes and notifications),
 // leaf first, so a chain of their own replies goes too. A comment others replied to stays as a
 // "[deleted]" placeholder, exactly like a comment deleted by its author (body cleared,
@@ -260,6 +261,7 @@ func DeleteUser(ctx context.Context, tx *sql.Tx, id int64, now time.Time) error 
 		`DELETE FROM api_keys WHERE user_id = ?`,
 		`DELETE FROM avatars WHERE user_id = ?`,
 		`DELETE FROM comment_likes WHERE user_id = ?`,
+		`DELETE FROM page_likes WHERE user_id = ?`,
 		`DELETE FROM notifications WHERE user_id = ?1 OR actor_id = ?1`,
 		`DELETE FROM kyotsu_sessions WHERE user_id = ?`,
 		`DELETE FROM track_hours WHERE user_id = ?`,

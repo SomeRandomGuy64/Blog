@@ -113,7 +113,7 @@ func newEnv(t *testing.T) *env {
 	fm := &fakeMailer{}
 	e := &env{t: t, db: d, mail: fm, clock: time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)}
 	e.s = New(d, Config{Site: site, Origins: []string{origin, "http://localhost:1313", "http://127.0.0.1:*"},
-		CookieSecure: true, Mailer: fm, Pages: e.fetchIndex})
+		CookieSecure: true, Mailer: fm, Pages: e.fetchIndex, AuthorEmail: "admin@example.com"})
 	e.setIndex(testPages)
 	e.s.now = func() time.Time { return e.clock }
 	e.h = e.s.Handler()

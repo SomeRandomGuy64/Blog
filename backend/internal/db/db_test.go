@@ -18,7 +18,7 @@ import (
 )
 
 // latestVersion is the number of the newest migration.
-const latestVersion = 9
+const latestVersion = 10
 
 func open(t *testing.T, path string) *sql.DB {
 	t.Helper()
@@ -433,7 +433,7 @@ func TestMigrateFromV4(t *testing.T) {
 		`SELECT rowid, user_id, week, category, subcat_id, centihours FROM track_hours ORDER BY rowid`,
 		`SELECT * FROM track_weeks ORDER BY user_id, week`,
 		`SELECT id, email, track_public, bio FROM users ORDER BY id`,
-		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name != 'users' ORDER BY name`, // users gains columns in 0007
+		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name != 'users' AND tbl_name != 'notifications' ORDER BY name`, // users gains columns in 0007; 0010 rebuilds notifications (TestMigrateFromV9)
 	}
 	before := make([]string, len(queries))
 	raw, err := sql.Open("sqlite", path)
@@ -539,8 +539,8 @@ func TestMigrateFromV5(t *testing.T) {
 		`SELECT * FROM track_weeks ORDER BY user_id, week`,
 		`SELECT * FROM track_ratings`,
 		`SELECT * FROM track_goals`,
-		`SELECT * FROM settings WHERE key != 'users_max_id'`,                                      /* added by 0008 */
-		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name != 'users' ORDER BY name`, // users gains columns in 0007
+		`SELECT * FROM settings WHERE key != 'users_max_id'`, /* added by 0008 */
+		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name != 'users' AND tbl_name != 'notifications' ORDER BY name`, // users gains columns in 0007; 0010 rebuilds notifications (TestMigrateFromV9)
 	}
 	last := len(queries) - 1
 	before := make([]string, len(queries))
@@ -631,11 +631,11 @@ func TestMigrateFromV6(t *testing.T) {
 	queries := []string{
 		`SELECT id, email, name, is_admin, track_public, bio, created_at FROM users ORDER BY id`,
 		`SELECT * FROM sessions`, `SELECT * FROM login_tokens`, `SELECT * FROM pages`,
-		`SELECT * FROM comments ORDER BY id`, `SELECT * FROM comment_likes`, `SELECT * FROM notifications`,
+		`SELECT * FROM comments ORDER BY id`, `SELECT * FROM comment_likes`, `SELECT id, user_id, kind, actor_id, comment_id, created_at, read_at FROM notifications`, /* 0010 adds page */
 		`SELECT * FROM avatars`, `SELECT id, user_id, started_at, ended_at, layout, advanced, total, correct, answers_json FROM kyotsu_sessions` /* 0009 adds columns */, `SELECT * FROM track_subcats`,
 		`SELECT rowid, * FROM track_hours`, `SELECT * FROM track_weeks`, `SELECT * FROM track_ratings`,
 		`SELECT * FROM track_goals`, `SELECT * FROM api_keys`, `SELECT * FROM settings WHERE key != 'users_max_id'`, /* added by 0008 */
-		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name != 'users' ORDER BY name`,
+		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name != 'users' AND tbl_name != 'notifications' ORDER BY name`, /* see TestMigrateFromV9 */
 	}
 	last := len(queries) - 1
 	before := make([]string, len(queries))
@@ -790,6 +790,129 @@ func TestMigrateFromV8(t *testing.T) {
 	}
 	if _, err := d.Exec(ins, "abcdefgh"); err == nil {
 		t.Fatal("duplicate client_id accepted")
+	}
+	for _, q := range []string{`PRAGMA foreign_key_check`, `PRAGMA integrity_check`} {
+		if got := dumpRows(t, d, q); got != "" && got != "ok\n" {
+			t.Fatalf("%s: %s", q, got)
+		}
+	}
+}
+
+// Production is at version 9; 0010 adds page_likes (article likes) and rebuilds notifications so
+// an article like can notify ('page_like': a page, no comment). Every notification must come
+// through with its id, read state and timestamps, the old indexes must be back under the same
+// names and definitions, and nothing else in the schema may change.
+func TestMigrateFromV9(t *testing.T) {
+	path := oldDB(t, 9,
+		`INSERT INTO users (id, email, name, role, is_admin, created_at) VALUES (1, 'admin@example.com', 'Admin', 'admin', 1, 0),
+			(2, 'a@example.com', 'A', 'user', 0, 1), (3, 'b@example.com', 'B', 'moderator', 0, 2)`,
+		`INSERT INTO pages (path, title) VALUES ('/articles/x/', 'X'), ('/articles/y/', 'Y')`,
+		`INSERT INTO comments (id, page, user_id, body, created_at) VALUES (1, '/articles/x/', 2, 'hi', 10), (5, '/articles/y/', 1, 'admin here', 11)`,
+		`INSERT INTO comments (id, page, parent_id, user_id, body, created_at) VALUES (7, '/articles/x/', 1, 3, 'yo', 12)`,
+		`INSERT INTO comment_likes (comment_id, user_id, created_at) VALUES (1, 3, 13), (5, 2, 14)`,
+		// ids with a gap; read and unread; all three kinds
+		`INSERT INTO notifications (id, user_id, kind, actor_id, comment_id, created_at, read_at) VALUES
+			(3, 1, 'comment', 2, 1, 10, 20), (4, 2, 'reply', 3, 7, 12, NULL), (9, 2, 'like', 3, 1, 13, NULL), (10, 1, 'like', 2, 5, 14, 15)`,
+	)
+	queries := []string{
+		`SELECT id, user_id, kind, actor_id, comment_id, created_at, read_at FROM notifications ORDER BY id`,
+		`SELECT * FROM users ORDER BY id`, `SELECT * FROM pages`, `SELECT * FROM comments ORDER BY id`, `SELECT * FROM comment_likes`,
+		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE tbl_name != 'notifications' ORDER BY name`,
+		`SELECT type, name, sql FROM sqlite_master WHERE tbl_name = 'notifications' AND type = 'index' ORDER BY name`,
+	}
+	before := make([]string, len(queries))
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, q := range queries {
+		before[i] = dumpRows(t, raw, q)
+	}
+	raw.Close()
+	if strings.Count(before[0], "\n") != 4 {
+		t.Fatalf("fixture not as expected:\n%s", before[0])
+	}
+
+	d := open(t, path)
+	var version int
+	d.QueryRow("PRAGMA user_version").Scan(&version)
+	if version != latestVersion {
+		t.Fatalf("user_version=%d", version)
+	}
+	for i, q := range queries[:5] {
+		if after := dumpRows(t, d, q); after != before[i] {
+			t.Fatalf("%s changed:\nbefore:\n%safter:\n%s", q, before[i], after)
+		}
+	}
+	// Every other schema object is untouched, and the old notification indexes are back as they were.
+	for _, i := range []int{5, 6} {
+		after := dumpRows(t, d, queries[i])
+		for _, line := range strings.SplitAfter(before[i], "\n") {
+			if !strings.Contains(after, line) {
+				t.Fatalf("schema object changed or lost: %s\nafter:\n%s", line, after)
+			}
+		}
+	}
+	if got := dumpRows(t, d, `SELECT name FROM sqlite_master WHERE name LIKE '%_new'`); got != "" {
+		t.Fatalf("leftover tables: %s", got)
+	}
+	if got := dumpRows(t, d, `SELECT name FROM sqlite_master WHERE tbl_name IN ('page_likes', 'notifications') AND name NOT LIKE 'sqlite_%' ORDER BY name`); got !=
+		"notifications\nnotifications_comment\nnotifications_once\nnotifications_page_once\nnotifications_unread\nnotifications_user\npage_likes\npage_likes_page\n" {
+		t.Fatalf("schema objects:\n%s", got)
+	}
+	if got := dumpRows(t, d, `SELECT page FROM notifications WHERE page IS NOT NULL`); got != "" {
+		t.Fatalf("old notifications got a page: %s", got)
+	}
+	if got := dumpRows(t, d, `SELECT "table", "from", "to", on_delete FROM pragma_foreign_key_list('notifications') ORDER BY "from"`); got !=
+		"users actor_id id CASCADE\ncomments comment_id id CASCADE\npages page path NO ACTION\nusers user_id id CASCADE\n" {
+		t.Fatalf("notifications foreign keys:\n%s", got)
+	}
+
+	// The new shapes: an article like, liked once per account; its notification has a page and no
+	// comment, once per (author, actor, page); comment notifications are as strict as before.
+	for _, q := range []string{
+		`INSERT INTO page_likes (user_id, page, created_at) VALUES (2, '/articles/x/', 30), (3, '/articles/x/', 31), (2, '/articles/y/', 32)`,
+		`INSERT INTO notifications (user_id, kind, actor_id, page, created_at) VALUES (1, 'page_like', 2, '/articles/x/', 30)`,
+		`INSERT INTO notifications (user_id, kind, actor_id, page, created_at) VALUES (1, 'page_like', 3, '/articles/x/', 31)`,
+		`INSERT INTO notifications (user_id, kind, actor_id, comment_id, created_at) VALUES (1, 'reply', 3, 7, 32)`,
+	} {
+		if _, err := d.Exec(q); err != nil {
+			t.Fatal(q, err)
+		}
+	}
+	for _, bad := range []string{
+		`INSERT INTO page_likes (user_id, page, created_at) VALUES (2, '/articles/x/', 40)`,                                    // twice
+		`INSERT INTO page_likes (user_id, page, created_at) VALUES (2, '/articles/nope/', 40)`,                                 // no such page
+		`INSERT INTO page_likes (user_id, page, created_at) VALUES (99, '/articles/x/', 40)`,                                   // no such user
+		`INSERT INTO notifications (user_id, kind, actor_id, page, created_at) VALUES (1, 'page_like', 2, '/articles/x/', 40)`, // twice
+		`INSERT INTO notifications (user_id, kind, actor_id, created_at) VALUES (1, 'page_like', 2, 40)`,                       // no page
+		`INSERT INTO notifications (user_id, kind, actor_id, comment_id, page, created_at) VALUES (1, 'page_like', 3, 1, '/articles/y/', 40)`,
+		`INSERT INTO notifications (user_id, kind, actor_id, created_at) VALUES (2, 'like', 3, 40)`, // no comment
+		`INSERT INTO notifications (user_id, kind, actor_id, comment_id, page, created_at) VALUES (2, 'like', 1, 1, '/articles/x/', 40)`,
+		`INSERT INTO notifications (user_id, kind, actor_id, comment_id, created_at) VALUES (2, 'like', 3, 1, 40)`, // like (9) again
+		`INSERT INTO notifications (user_id, kind, actor_id, comment_id, created_at) VALUES (2, 'poke', 3, 1, 40)`,
+	} {
+		if _, err := d.Exec(bad); err == nil {
+			t.Fatalf("accepted: %s", bad)
+		}
+	}
+	if got := dumpRows(t, d, `SELECT MAX(id) FROM notifications`); got != "13\n" {
+		t.Fatalf("new notification ids: %s", got)
+	}
+	// Deleting a comment still takes its notifications along; deleting an account its likes.
+	if _, err := d.Exec(`DELETE FROM comments WHERE id = 7`); err != nil {
+		t.Fatal(err)
+	}
+	if got := dumpRows(t, d, `SELECT COUNT(*) FROM notifications WHERE comment_id = 7`); got != "0\n" {
+		t.Fatalf("notifications of a deleted comment: %s", got)
+	}
+	d.Exec(`DELETE FROM comment_likes WHERE user_id = 3`)
+	d.Exec(`DELETE FROM notifications WHERE user_id = 3 OR actor_id = 3`)
+	if _, err := d.Exec(`DELETE FROM users WHERE id = 3`); err != nil {
+		t.Fatal(err)
+	}
+	if got := dumpRows(t, d, `SELECT user_id, page FROM page_likes ORDER BY user_id, page`); got != "2 /articles/x/\n2 /articles/y/\n" {
+		t.Fatalf("page likes after deleting an account:\n%s", got)
 	}
 	for _, q := range []string{`PRAGMA foreign_key_check`, `PRAGMA integrity_check`} {
 		if got := dumpRows(t, d, q); got != "" && got != "ok\n" {

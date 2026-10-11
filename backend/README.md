@@ -1,7 +1,7 @@
 # backend (fazond)
 
 Go API for fazon.nexus at `https://api.fazon.nexus`: magic-link accounts with open sign-up, roles
-(user / moderator / admin) and moderation, threaded comments with likes on every article, in-site notifications, Kyōtsu trainer session history, the
+(user / moderator / admin) and moderation, threaded comments with likes and article likes on every article, in-site notifications, Kyōtsu trainer session history, the
 Track immersion log, and personal API keys for scripting your own Track data.
 One binary, one SQLite file (`modernc.org/sqlite`, pure Go, so it cross-compiles with
 `CGO_ENABLED=0`). The site itself stays static on GitHub Pages; `fazon.nexus` and
@@ -14,7 +14,8 @@ internal/api       handlers, session auth, CORS/CSRF, rate limits; api_test.go c
 internal/db        open + pragmas, embedded migrations (PRAGMA user_version; 0001 init, 0002 avatars,
                    0003 track + bio, 0004 track 'anki' category, 0005 track ratings/goals + settings,
                    0006 api_keys, 0007 roles + mutes + signup_tokens, 0008 user ids never reused,
-                   0009 Kyōtsu practice time on kyotsu_sessions),
+                   0009 Kyōtsu practice time on kyotsu_sessions, 0010 page_likes + notifications
+                   rebuilt for 'page_like'),
                    users/tokens, backup, purge
 internal/week      Track week calendar (Sun 03:00 UTC weeks, Saturday keys)
 internal/mail      resend (HTTP API), smtp (STARTTLS) and log mailers; RFC 5322 message builder
@@ -34,7 +35,7 @@ All JSON; errors are `{"error":"msg"}` with 400/401/403/404/409/413/415/429/500.
 | `POST /v1/auth/signup/confirm` `{token}` | consumes the sign-up token, creates the account (or uses the one the address got meanwhile) → `{"user":{…},"next":"/…","created":bool}` + `fz_session` cookie |
 | `GET /v1/me` | `{"user":null}` or `{"user":{id,name,email,role,admin,muted,…},"unread":N}` |
 | `DELETE /v1/me` | delete your account and all its data (see Users), clears the cookie; 409 for the only admin |
-| `GET /v1/me/export` | everything stored about you as a JSON download (`Content-Disposition: attachment; filename="fazon-nexus-export-YYYY-MM-DD.json"`): profile, comments, likes, notifications, Track (sub-categories, weeks with hours/scores/ratings/goals/summaries), Kyōtsu sessions, API key metadata (never keys or hashes). 10/hour (429 + `Retry-After`) |
+| `GET /v1/me/export` | everything stored about you as a JSON download (`Content-Disposition: attachment; filename="fazon-nexus-export-YYYY-MM-DD.json"`): profile, comments, likes (`likes` on comments, `article_likes`), notifications, Track (sub-categories, weeks with hours/scores/ratings/goals/summaries), Kyōtsu sessions, API key metadata (never keys or hashes). 10/hour (429 + `Retry-After`) |
 | `GET /v1/admin/users?q=&limit=50&offset=0` | moderators + admins (403 otherwise): `{users:[{user,email (admins only),role,joined,last_active,comments,muted,muted_at,muted_by,track_public,can:{role,mute,delete}}],total,limit,offset,viewer,admins}`, newest first; `q` matches names (admins: and emails); `limit` ≤ 200 |
 | `POST /v1/admin/users/{id}/role` `{role}` | admins: `user`/`moderator`/`admin` → `{"user":<row>}` |
 | `POST /v1/admin/users/{id}/mute`, `…/unmute` | moderators (regular users only) and admins → `{"user":<row>}`; idempotent |
@@ -43,6 +44,8 @@ All JSON; errors are `{"error":"msg"}` with 400/401/403/404/409/413/415/429/500.
 | `POST /v1/comments` `{page,parent,body}` | 201 comment (login; 403 `"You've been blocked from commenting."` if muted); 404 if `page` isn't in the site's comment-pages index, 503 if no index has loaded yet. A `title` field (older frontends) is ignored |
 | `DELETE /v1/comments/{id}` | author, moderator or admin; soft delete (also drops its likes and notifications) |
 | `POST`/`DELETE /v1/comments/{id}/like` | `{"likes":N,"liked":bool}`, idempotent |
+| `GET /v1/pages/likes?page=/articles/x/` | article likes: `{"count":N,"liked":bool}` (`liked` false when logged out); 404 if `page` isn't in the comment-pages index, 503 if no index has loaded yet (see Article likes) |
+| `POST`/`DELETE /v1/pages/likes?page=/articles/x/` | like / unlike an article (login; muted users too) → `{"count":N,"liked":bool}`, idempotent; same 404/503; 60 per user per 10 minutes |
 | `GET /v1/notifications?limit=50&before=ID` | `{"notifications":[…],"unread":N}` newest first |
 | `POST /v1/notifications/read` `{ids:[…]}` or `{all:true}` | `{"unread":N}` |
 | `POST /v1/kyotsu/sessions` `{started,layout,advanced,answers,active_seconds,client_id}` | 201 `{"id":N,"active_seconds":S,"track_added":{…}\|null}` (200 for a retry of the same `client_id`); adds the practice time to your Track (see Kyōtsu practice time) |
@@ -78,7 +81,18 @@ All JSON; errors are `{"error":"msg"}` with 400/401/403/404/409/413/415/429/500.
 Every user object carries `role` (`user`, `moderator` or `admin`), `admin` (= role is admin; kept
 for older frontends), `avatar` (path relative to the API base, or null), `level`, `xp`,
 `level_xp` and `next_xp` (null at level 100). XP is the number of likes other people gave the
-user's comments, counted live, so unlikes and deleted comments take it back.
+user's comments, plus, for the article author (the `FAZOND_ADMIN_EMAIL` account), the likes other
+people gave the articles. It is counted live, so unlikes, deleted comments and deleted accounts
+take it back. The profile's and hover card's `likes` is the same number.
+
+**Article likes** (`page_likes`, `internal/api/pagelikes.go`): every page in the comment-pages
+index can be liked, once per account; muted accounts can like (muting only blocks commenting).
+Every article is written by the `FAZOND_ADMIN_EMAIL` account (`api.Config.AuthorEmail`, resolved
+to its user id on each use, so nothing breaks if the account is recreated): each like from
+someone else is one XP for it and notifies it (`page_like`). The author may like their own
+article: the like counts on the article but gives no XP and no notification, as with comments.
+On the site, the like button sits above the comments, with a compact ♥ in the article's date
+line (`static/js/fazon-comments.js`).
 
 Track weeks run Sunday 03:00 UTC → Sunday 03:00 UTC and are keyed by the Saturday before
 (`internal/week`). Hours are stored in hundredths; a day's Kyōtsu score is the manual value, else
@@ -215,9 +229,10 @@ renders it with marked + DOMPurify under a strict allowlist (`static/js/fazon-md
 shown as text, links http/https/mailto only, images shown as links). Other user text (comments,
 bios, names) is plain text.
 
-Notifications: `reply` to the parent's author, `like` to the liked comment's author, and `comment`
-to admins for every new comment by someone else — never two for one comment, never to yourself.
-Unliking or deleting withdraws them.
+Notifications: `reply` to the parent's author, `like` to the liked comment's author, `comment`
+to admins for every new comment by someone else, and `page_like` to the article author — never two
+for one comment or one (liker, article), never to yourself. Unliking or deleting withdraws them.
+A `page_like` notification has the article's `page`/`page_title`, `comment_id` 0 and no snippet.
 
 Comment pages: the site publishes `/comment-pages.json`, `{"pages":{"/articles/x/":"Title",…}}`,
 listing every page that renders a comment thread (`layouts/home.commentpages.json`, same condition
@@ -235,7 +250,7 @@ profiles carries on as normal.
 CSRF: every non-GET request (outside `/v1/api/`, see API keys) needs an `Origin` in
 `FAZOND_ORIGINS` (403 otherwise) and, with a body, `Content-Type: application/json` (415); the avatar upload alone takes `image/jpeg`/`image/png`
 instead (still not a CORS-safelisted type, so it still needs our preflight). Bodies are capped at 64 KB (Kyōtsu sessions 1 MB).
-Comments are limited to 30 per user per 10 minutes; Kyōtsu sessions, avatar uploads, profile
+Comments are limited to 30 per user per 10 minutes, article likes/unlikes to 60; Kyōtsu sessions, avatar uploads, profile
 edits, week saves and other Track changes to 60, 20, 20, 120 and 120 per hour (429).
 
 ## API keys
@@ -348,7 +363,8 @@ systemctl start fazond
 
 Anyone can sign up on the site (`/account/signup/`); the admin can still add accounts with the CLI.
 The admin (`FAZOND_ADMIN_EMAIL`/`FAZOND_ADMIN_NAME`) is created at startup if missing, and made an
-admin again if their role was changed. Run the CLI **as the fazond user** with the service's env, so files it creates stay
+admin again if their role was changed. That account is also the author of every article: article
+likes are its XP and notify it. Run the CLI **as the fazond user** with the service's env, so files it creates stay
 owned by fazond:
 
 ```sh
@@ -398,7 +414,7 @@ typed in the page.
 **Deleting an account** (`DELETE /v1/me` or `DELETE /v1/admin/users/{id}`, one transaction,
 `db.DeleteUser`) removes the user row and everything referring to it: sessions, login and sign-up
 tokens, API keys, avatar, Track weeks/hours/ratings/goals/sub-categories, Kyōtsu sessions, likes
-given, notifications to or from them, and their comments. A comment nobody replied to is deleted
+given (on comments and articles), notifications to or from them, and their comments. A comment nobody replied to is deleted
 outright (leaf first, so chains of their own replies go too). A comment with replies stays as a
 `[deleted]` tombstone exactly like an author-deleted one (body cleared, its likes and notifications
 dropped) and is handed to the placeholder account id 0 (`db.GhostID`: no email, never listed,

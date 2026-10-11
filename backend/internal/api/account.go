@@ -58,18 +58,25 @@ type exportLike struct {
 	Created   string `json:"created"`
 }
 
+type exportPageLike struct {
+	Page      string `json:"page"`
+	PageTitle string `json:"page_title"`
+	Created   string `json:"created"`
+}
+
 type exportNotification struct {
 	Kind      string `json:"kind"`
 	Actor     string `json:"actor"` // their display name
 	Page      string `json:"page"`
 	PageTitle string `json:"page_title"`
-	CommentID int64  `json:"comment_id"`
+	CommentID int64  `json:"comment_id"` // 0 for an article like
 	Created   string `json:"created"`
 	Read      bool   `json:"read"`
 }
 
 // exportMe: GET /v1/me/export downloads everything stored about the requester as one JSON file
-// (fazon-nexus-export-YYYY-MM-DD.json): profile, comments, likes given, notifications, Track
+// (fazon-nexus-export-YYYY-MM-DD.json): profile, comments, likes given (on comments and on
+// articles), notifications, Track
 // (sub-categories and every week with hours, ratings, goals, scores and summaries), Kyōtsu
 // sessions and API key metadata (never the keys or their hashes). 10 an hour per user (429).
 func (s *Server) exportMe(w http.ResponseWriter, r *http.Request, u *user) {
@@ -171,6 +178,23 @@ func (s *Server) export(ctx context.Context, r *http.Request, u *user) (map[stri
 		return nil, err
 	}
 
+	articleLikes := []exportPageLike{}
+	err = s.each(ctx, func(rows *sql.Rows) error {
+		var l exportPageLike
+		var created int64
+		if err := rows.Scan(&l.Page, &l.PageTitle, &created); err != nil {
+			return err
+		}
+		l.Created = rfc3339(created)
+		articleLikes = append(articleLikes, l)
+		return nil
+	}, `SELECT l.page, COALESCE(p.title, ''), l.created_at
+		FROM page_likes l LEFT JOIN pages p ON p.path = l.page
+		WHERE l.user_id = ? ORDER BY l.created_at, l.page`, u.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	notifications := []exportNotification{}
 	err = s.each(ctx, func(rows *sql.Rows) error {
 		var n exportNotification
@@ -181,9 +205,10 @@ func (s *Server) export(ctx context.Context, r *http.Request, u *user) (map[stri
 		n.Created = rfc3339(created)
 		notifications = append(notifications, n)
 		return nil
-	}, `SELECT n.kind, a.name, c.page, COALESCE(p.title, ''), n.comment_id, n.created_at, n.read_at IS NOT NULL
-		FROM notifications n JOIN users a ON a.id = n.actor_id JOIN comments c ON c.id = n.comment_id
-		LEFT JOIN pages p ON p.path = c.page
+	}, `SELECT n.kind, a.name, COALESCE(c.page, n.page, ''), COALESCE(p.title, ''), COALESCE(n.comment_id, 0),
+			n.created_at, n.read_at IS NOT NULL
+		FROM notifications n JOIN users a ON a.id = n.actor_id LEFT JOIN comments c ON c.id = n.comment_id
+		LEFT JOIN pages p ON p.path = COALESCE(c.page, n.page)
 		WHERE n.user_id = ? ORDER BY n.id`, u.ID)
 	if err != nil {
 		return nil, err
@@ -243,6 +268,7 @@ func (s *Server) export(ctx context.Context, r *http.Request, u *user) (map[stri
 		"profile":         profile,
 		"comments":        comments,
 		"likes":           likes,
+		"article_likes":   articleLikes,
 		"notifications":   notifications,
 		"track":           map[string]any{"public": public, "subcats": subcats, "weeks": weeks},
 		"kyotsu_sessions": kyotsu,

@@ -1,5 +1,6 @@
-// Comment thread for articles (layouts/_partials/comments.html). Everything user-supplied is
-// put in the DOM with textContent (via Fazon.el); bodies keep their newlines via CSS pre-wrap.
+// Article like button and comment thread (layouts/_partials/comments.html). Everything
+// user-supplied is put in the DOM with textContent (via Fazon.el); bodies keep their newlines via
+// CSS pre-wrap.
 (function () {
   "use strict";
   var F = window.Fazon, el = F && F.el;
@@ -37,6 +38,94 @@
     comments = comments.filter(hasLive);
     index();
   }
+
+  // ---- article like: a bar above the comments and a compact ♥ in the date line ----
+  // Both buttons show one state. A click updates them at once (optimistic) and syncs with the
+  // API; clicks while a request is in flight just change the wanted state, which is sent when
+  // it returns. On an error both roll back to the last state the server confirmed.
+  function initArticleLike() {
+    var slots = [].slice.call(document.querySelectorAll("[data-art-like]"));
+    if (!slots.length) return;
+    var LIKES = "/v1/pages/likes?page=" + encodeURIComponent(PAGE);
+    var me = null, st = { count: 0, liked: false }, confirmed = st, busy = false;
+    var views = [];
+
+    function msg(v, node) {
+      v.msg.textContent = "";
+      if (node) v.msg.appendChild(node);
+      v.msg.hidden = !node;
+    }
+    function loginHint(v, expired) {
+      var href = F.loginHref(location.pathname + location.search + "#like");
+      msg(v, el("span", { class: "art-like-hint fz-muted" },
+        expired ? "Your login has expired — " : null,
+        el("a", { href: href, text: expired ? "log in again" : "Log in to like this article" }), "."));
+    }
+    function paint() {
+      var label = "Like this article, " + st.count + (st.count === 1 ? " like" : " likes");
+      views.forEach(function (v) {
+        v.btn.classList.toggle("on", st.liked);
+        v.btn.setAttribute("aria-pressed", st.liked ? "true" : "false");
+        v.btn.setAttribute("aria-label", label);
+        v.btn.title = st.liked ? "Unlike" : "Like";
+        v.n.textContent = String(st.count);
+        if (v.word) v.word.textContent = st.liked ? "Liked" : "Like";
+      });
+    }
+    function sync(from) {
+      if (busy) return;
+      busy = true;
+      var want = st.liked;
+      F.api(LIKES, { method: want ? "POST" : "DELETE" }).then(function (d) {
+        busy = false;
+        confirmed = { count: d.count | 0, liked: !!d.liked };
+        if (st.liked !== want) {           // clicked again meanwhile: send that too
+          st = { count: confirmed.count + (st.liked ? 1 : -1), liked: st.liked };
+          paint(); sync(from); return;
+        }
+        st = confirmed; paint();
+      }, function (e) {
+        busy = false;
+        st = confirmed; paint();
+        if (e.status === 401) { me = null; loginHint(from, true); }
+        else msg(from, el("span", { class: "fz-error", role: "alert", text: e.message }));
+      });
+    }
+    function click(v) {
+      views.forEach(function (x) { msg(x, null); });
+      if (!me) { loginHint(v); return; }
+      st = { count: Math.max(0, st.count + (st.liked ? -1 : 1)), liked: !st.liked };
+      paint();
+      sync(v);
+    }
+
+    slots.forEach(function (slot) {
+      var mini = slot.getAttribute("data-art-like") === "mini";
+      var v = { slot: slot, n: el("span", { class: "art-like-n" }), msg: el("span", { class: "art-like-msg", hidden: true }) };
+      if (mini) {
+        v.btn = el("button", { type: "button", class: "fz-linkbtn art-like-mini" },
+          el("span", { "aria-hidden": "true", text: "♥ " }), v.n);
+        slot.append(el("span", { class: "art-like-sep", "aria-hidden": "true", text: " · " }), v.btn, v.msg);
+      } else {
+        v.word = el("span", { class: "art-like-word" });
+        v.btn = el("button", { type: "button", class: "art-like" },
+          el("span", { class: "art-like-heart", "aria-hidden": "true", text: "♥" }), v.word,
+          el("span", { class: "art-like-div", "aria-hidden": "true" }), v.n);
+        slot.append(v.btn, v.msg);
+      }
+      v.btn.addEventListener("click", function () { click(v); });
+      views.push(v);
+    });
+
+    Promise.all([F.me(), F.api(LIKES)]).then(function (r) {
+      me = r[0].user;
+      st = confirmed = { count: (r[1] && r[1].count) | 0, liked: !!(r[1] && r[1].liked) };
+      paint();
+      views.forEach(function (v) { v.slot.hidden = false; });
+      if (location.hash === "#like") document.getElementById("like").scrollIntoView({ block: "center" });   // back from logging in
+    }, function () { /* API unreachable or page not likeable: leave the buttons hidden */ });
+  }
+  initArticleLike();
 
   // ---- composer (top level or inline reply) ----
   function composer(opts) {

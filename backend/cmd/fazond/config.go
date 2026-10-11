@@ -60,7 +60,7 @@ func configFlags(fs *flag.FlagSet) (c *config, finish func() error) {
 	fs.StringVar(&origins, "origins", env("FAZOND_ORIGINS", "https://fazon.nexus"),
 		"comma-separated allowed origins; host:* = any port, e.g. http://localhost:1313,http://127.0.0.1:* for dev ($FAZOND_ORIGINS)")
 	fs.BoolVar(&c.cookieSecure, "cookie-secure", envBool("FAZOND_COOKIE_SECURE", true), "Secure session cookie; false only for http dev ($FAZOND_COOKIE_SECURE)")
-	fs.StringVar(&c.adminEmail, "admin-email", env("FAZOND_ADMIN_EMAIL", "m.faizan.rasul@gmail.com"), "admin account seeded at startup ($FAZOND_ADMIN_EMAIL)")
+	fs.StringVar(&c.adminEmail, "admin-email", env("FAZOND_ADMIN_EMAIL", "m.faizan.rasul@gmail.com"), "admin account seeded at startup, and the author of every article: article likes are its points ($FAZOND_ADMIN_EMAIL)")
 	fs.StringVar(&c.adminName, "admin-name", env("FAZOND_ADMIN_NAME", "Faizan"), "admin display name, used only when creating it ($FAZOND_ADMIN_NAME)")
 	fs.StringVar(&c.mailMode, "mail", env("FAZOND_MAIL", "log"), "resend, smtp, or log = print magic links to the log ($FAZOND_MAIL)")
 	fs.StringVar(&resendKeyFile, "resend-key-file", env("FAZOND_RESEND_KEY_FILE", ""), "file holding the Resend API key ($FAZOND_RESEND_KEY_FILE; or set $FAZOND_RESEND_KEY)")
