@@ -64,7 +64,7 @@
     render();
     return {
       update: function (o) { st.opts = o; render(); },
-      destroy: function () { if (ro) ro.disconnect(); box.textContent = ""; }
+      destroy: function () { if (ro) ro.disconnect(); if (st.outside) document.removeEventListener("pointerdown", st.outside); box.textContent = ""; }
     };
   }
   function legend(st, series, kind) {
@@ -130,7 +130,10 @@
       set(i, null, null);
     });
     svg.addEventListener("focus", function () { if (cur < 0 && n) set(n - 1, null, null); });
-    document.addEventListener("pointerdown", function (e) { if (cur >= 0 && !st.box.contains(e.target)) clear(); });
+    // one outside-tap listener per chart, replaced on every redraw (resize / update) rather than piling up
+    if (st.outside) document.removeEventListener("pointerdown", st.outside);
+    st.outside = function (e) { if (cur >= 0 && !st.box.contains(e.target)) clear(); };
+    document.addEventListener("pointerdown", st.outside);
   }
 
   // ---- stacked columns (one column per x; one stack segment per series) ----
@@ -249,10 +252,12 @@
       svg.appendChild(s("line", { class: t === 0 ? "fc-base" : "fc-grid", x1: pad.l, x2: W - pad.r, y1: Math.round(y(t)) + 0.5, y2: Math.round(y(t)) + 0.5 }));
       svg.appendChild(s("text", { class: "fc-tick", x: pad.l - 6, y: y(t) + 4, "text-anchor": "end" }, fmt(t, true)));
     });
-    var every = xLabelsEvery(n, pw, narrow);
+    var every = xLabelsEvery(n, pw, narrow), tw = function (i) { return Array.from(String(xLabel(xs[i], i))).length * 6.8; };   // ~11px mono
+    var prevL = Math.floor((n - 1) / every) * every;
     xs.forEach(function (xv, i) {
       if (i % every && i !== n - 1) return;
-      if (i === n - 1 && i % every && (n - 1) % every < every / 2) return;   // last label only if it won't collide
+      // the last label (end-anchored) only if it clears the previous one (centred, or start-anchored at 0)
+      if (i === n - 1 && i % every && x(i) - tw(i) < x(prevL) + (prevL === 0 ? tw(prevL) : tw(prevL) / 2) + 8) return;
       svg.appendChild(s("text", { class: "fc-tick", x: x(i), y: H - 8, "text-anchor": n === 1 ? "middle" : i === 0 ? "start" : i === n - 1 ? "end" : "middle" }, xLabel(xv, i)));
     });
     var cross = s("line", { class: "fc-cross", y1: pad.t, y2: pad.t + ph, x1: -10, x2: -10, visibility: "hidden" });

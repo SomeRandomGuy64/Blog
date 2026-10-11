@@ -17,7 +17,6 @@
     --tk-s1: #3987e5; --tk-s2: #d95926; --tk-s3: #199e70; --tk-s4: #c98500;
     --tk-s5: #d55181; --tk-s6: #008300; --tk-s7: #9085e9; --tk-s8: #e66767;
     --tk-other: #7a7a76;
-    --fc-surface: var(--bg-color, #111);
     --fc-grid: #262626;
     --fc-axis: #444;
     --fc-ink: #eee;
@@ -44,6 +43,9 @@
 
 /* ---- charts (fazon-charts.js) ---- */
 .fc { position: relative; min-width: 0; }
+/* dot outlines match what the chart sits on; set here (not :root) so it follows .light-mode on <body> */
+.fc { --fc-surface: var(--bg-color, #111); }
+.tk-card .fc { --fc-surface: var(--fz-surface, #1a1a1a); }
 .fc-scroll { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
 .fc-svg { display: block; overflow: visible; font-family: 'JetBrains Mono', monospace; touch-action: pan-y; }
 .fc-svg:focus { outline: none; }
@@ -148,7 +150,7 @@ a:hover .fc-lbl, a:focus .fc-lbl { fill: var(--fz-accent); }
 .tk-h.bad, .tk-sc.bad { border-color: var(--fz-bad); }
 .tk-unit { width: 1em; flex: none; color: var(--fz-muted); font-size: 0.85em; }
 .tk-menu-btn {
-    flex: none; width: 30px; height: 30px; padding: 0; border-radius: 6px; font: inherit; line-height: 1; cursor: pointer;
+    flex: none; box-sizing: border-box; width: 30px; height: 30px; padding: 0; border-radius: 6px; font: inherit; line-height: 1; cursor: pointer;
     color: var(--fz-muted); background: transparent; border: 1px solid transparent;
 }
 .tk-menu-btn:hover, .tk-menu-btn[aria-expanded="true"] { border-color: var(--fz-line); color: var(--text-color); }
@@ -176,13 +178,13 @@ a:hover .fc-lbl, a:focus .fc-lbl { fill: var(--fz-accent); }
 .tk-rename .fz-input { flex: 1; min-width: 8em; }
 
 /* ---- logger: daily scores ---- */
-.tk-scores { display: grid; grid-template-columns: minmax(5.5em, auto) minmax(0, 1fr) minmax(0, 1fr); gap: 6px 10px; align-items: center; }
+.tk-scores { display: grid; grid-template-columns: minmax(5.5em, max-content) minmax(0, 11em) minmax(0, 11em); justify-content: start; gap: 6px 10px; align-items: center; }
 .tk-scores .hd { font-size: 0.78em; color: var(--fz-muted); }
-.tk-day { font-size: 0.85em; white-space: nowrap; }
+.tk-day { font-size: 0.85em; white-space: nowrap; margin-bottom: 1.15em; }   /* = the .tk-hint line under each input, so the label centres on the input */
 .tk-sc-cell { min-width: 0; }
 .tk-sc { text-align: right; font-variant-numeric: tabular-nums; }
-.tk-hint { display: block; font-size: 0.7em; color: var(--fz-muted); text-align: right; min-height: 1em; }
-.tk-avg { font-weight: 700; font-size: 0.9em; text-align: right; font-variant-numeric: tabular-nums; }
+.tk-hint { display: block; font-size: 0.7em; line-height: 1.4; color: var(--fz-muted); text-align: right; min-height: 1.4em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* same height empty or not, so a row's inputs line up */
+.tk-avg { font-weight: 700; font-size: 0.9em; text-align: right; font-variant-numeric: tabular-nums; margin-bottom: 1.09em; }
 .tk-scores-foot { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 12px; font-size: 0.85em; }
 
 /* ---- logger: summary + save bar + settings ---- */

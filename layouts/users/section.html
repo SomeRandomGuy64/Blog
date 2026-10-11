@@ -2,6 +2,7 @@
   {{/* /users/?id=N — public profile, rendered from GET /v1/users/{id}. Own profile adds name /
        picture editing (client-side crop → ≤1024px JPEG → POST /v1/me/avatar). */}}
   <div class="pf" id="pf"><p class="fz-muted pf-msg">Loading…</p></div>
+  <script src="{{ relURL "js/fazon-track-charts.js" }}"></script>
   <script>
   (function(){
     const F=window.Fazon, el=F.el, root=document.getElementById("pf");
@@ -254,7 +255,10 @@
       return Promise.all([F.me(),F.api("/v1/users/"+ID)]).then(([m,p])=>{
         own=!!(m.user&&p&&p.user&&m.user.id===p.user.id);
         root.textContent="";
-        root.append(card(p,own),recent(p),levelsBox(p.user));
+        // Track charts + summaries (js/fazon-track-charts.js); stays hidden if they hid their track
+        const track=el("section",{class:"pf-sec pf-track",hidden:true});
+        root.append(card(p,own),track,recent(p),levelsBox(p.user));
+        if(window.FazonTrack&&FazonTrack.renderProfile) FazonTrack.renderProfile(track,p.user.id);
       },e=>{
         if(e.status===404) msg("There's no user with that id.");
         else msg(e.message);

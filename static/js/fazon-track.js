@@ -97,7 +97,7 @@
       if (k > cur) k = cur;
       if (k < "2000-01-01") k = "2000-01-01";
       if (k === key) return;
-      if (dirty() && !confirm("You have unsaved changes for the " + T.weekTitle(key).toLowerCase() + ". Discard them?")) return;
+      if (dirty() && !confirm("You have unsaved changes for the week of " + T.fmtKeyLong(key) + ". Discard them?")) return;
       loadWeek(k);
     }
     function loadWeek(k) {
@@ -377,7 +377,8 @@
           inp.addEventListener("input", function () { st[f][i] = inp.value; refresh(); });
           inp.addEventListener("blur", function () { var p = parseScore(inp.value); if (!p.err && inp.value) { inp.value = p.v == null ? "" : String(p.v); st[f][i] = inp.value; } showErrs = true; refresh(); });
           ui.fields[f + ":" + i] = inp;
-          var hint = el("span", { class: "tk-hint", text: f === "kyotsu" && ans[i] ? ans[i] + " answers" + (st.kyotsu[i] ? " · auto " + T.fmtNum(a, 1) + "%" : "") : "" });
+          var ht = f === "kyotsu" && ans[i] ? ans[i] + " answers" + (st.kyotsu[i] ? " · auto " + T.fmtNum(a, 1) + "%" : "") : "";
+          var hint = el("span", { class: "tk-hint", text: ht, title: ht || null });
           ui.errs[f + ":" + i] = el("span", { class: "tk-err", role: "alert" });
           grid.appendChild(el("span", { class: "tk-sc-cell" }, inp, hint, ui.errs[f + ":" + i]));
         });
@@ -598,7 +599,7 @@
         : P.label + ": " + (from ? T.fmtKeyLong(from) : "") + " → " + T.fmtKeyLong(T.addDays(to, 6));
 
       var rows = (data.users || []).map(function (u) { return { u: u, v: value(u) }; })
-        .filter(function (r) { return r.v != null; })
+        .filter(function (r) { return r.v != null && (M.pct || r.v > 0); })   // nobody ranked at 0 h
         .sort(function (a, b) { return b.v - a.v || String(a.u.user && a.u.user.name).localeCompare(String(b.u.user && b.u.user.name)); });
       var missing = (data.users || []).length - rows.length;
 
@@ -620,7 +621,7 @@
         tableBox.appendChild(el("table", { class: "lb-table" },
           el("thead", {}, el("tr", {}, el("th", { text: "#" }), el("th", { text: "Name" }), el("th", { class: "num", text: M.label + (M.pct ? " %" : " h") }), el("th", { class: "num", text: "Weeks" }))),
           tb));
-        if (missing && M.pct) tableBox.appendChild(el("p", { class: "fz-muted tk-small", text: missing + " more " + (missing === 1 ? "person" : "people") + " logged hours but no " + M.label + " scores." }));
+        if (missing) tableBox.appendChild(el("p", { class: "fz-muted tk-small", text: missing + " more " + (missing === 1 ? "person" : "people") + " logged this period but no " + (M.pct ? M.label + " scores." : M.long.toLowerCase() + ".") }));
       }
 
       // graph 1: the metric per user
