@@ -1,6 +1,7 @@
 {{/* Desktop/landscape: the header box is display:contents, so the title is centred and the
-     toggle group fixed top-right as before. Portrait/burger: one row — [☰ Fazon Nexus ...... group]
-     with the burger's nav opening underneath (style.css). */}}
+     toggle group fixed top-right as before. Portrait/burger: one compact row —
+     [☰ Fazon Nexus ...... bell/account | Log in] — with the burger's nav opening underneath; the
+     theme switch is hidden from the row there and shown as the nav's last item instead (style.css). */}}
 <header class="site-header">
 <div class="theme-toggle-wrapper">
   <div id="themeToggle" class="toggle-button">
@@ -28,5 +29,15 @@
   {{ range site.Menus.main }}
   <a href="{{ .URL }}"{{ if .Params.authOnly }} data-fz-auth hidden{{ end }}>{{ .Name }}</a>
   {{ end }}
+  {{/* burger menu only (hidden on desktop): a stand-in for #themeToggle — button.js forwards its
+       clicks to the real toggle, so the switching/saving logic stays in one place. The label and
+       switch follow body.light-mode in CSS, so they're right from the first paint. */}}
+  <button type="button" class="nav-theme">
+    <span class="nav-theme-dark">Dark mode</span><span class="nav-theme-light">Light mode</span>
+    <span class="toggle-button nav-theme-switch" aria-hidden="true">
+      <img class="dark" src="{{ relURL "assets/images/full-moon.png" }}" alt=""/>
+      <img class="light" src="{{ relURL "assets/images/sunny.png" }}" alt=""/>
+    </span>
+  </button>
 </nav>
 </header>

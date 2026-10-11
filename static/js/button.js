@@ -31,3 +31,6 @@ toggleButton.addEventListener("click", () => {
     // global to pass to WebGL
     window.isLightMode = isLightMode;
 });
+
+// burger-menu copy of the switch (header.html .nav-theme, portrait only): same toggle, same saved preference
+document.querySelectorAll(".nav-theme").forEach(btn => btn.addEventListener("click", () => toggleButton.click()));

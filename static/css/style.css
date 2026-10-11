@@ -183,9 +183,12 @@ canvas {
 /* burger nav — hidden on landscape/desktop, shown when portrait */
 .nav-toggle { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
 .nav-burger { display: none; }
+/* burger menu's theme item (header.html): only exists in burger mode; its label follows the theme */
+.nav-theme, .nav-theme-light, .light-mode .nav-theme-dark { display: none; }
+.light-mode .nav-theme-light { display: inline; }
 
 @media (max-aspect-ratio: 1/1) {
-    /* burger mode (mobile/portrait): toggle stays put at the top, scrolls away */
+    /* burger mode (mobile/portrait): the header row stays put at the top, scrolls away */
     .theme-toggle-wrapper { position: absolute; }
     .nav-burger {
         display: block;
@@ -197,8 +200,16 @@ canvas {
         cursor: pointer;
         user-select: none;
     }
-    .nav-burger:focus-visible { outline: 2px solid var(--text-color); border-radius: 4px; }
+    .nav-burger:focus-visible,
+    .nav-toggle:focus-visible + .nav-burger { outline: 2px solid var(--text-color); border-radius: 4px; }
     .site-nav { display: none; margin-top: 12px; }
+    /* the theme switch lives here in burger mode, as the menu's last item: [Dark mode (switch)] */
+    .site-nav .nav-theme {
+        display: flex; align-items: center; gap: 12px; margin: 0; padding: 0; border: 0;
+        background: none; color: var(--text-color); font: inherit; text-align: left; cursor: pointer;
+    }
+    .nav-theme:focus-visible { outline: 2px solid var(--text-color); outline-offset: 4px; border-radius: 4px; }
+    .nav-theme-switch { display: block; flex: none; }
     .nav-toggle:checked ~ .site-nav {
         display: flex;
         flex-direction: column;
@@ -293,8 +304,8 @@ figcaption {
 /* top-right group (header.html): the theme toggle stays where it always was; under it, right-
    aligned, a row with [bell] [Log in pill | account button]. It all lives in .theme-toggle-wrapper,
    so it's fixed on desktop and scrolls away together in portrait. The row appears only once
-   /v1/me has answered (fades in; stays hidden if the API is down). In portrait the row lands
-   below the title's line, so the title is never covered. */
+   /v1/me has answered (fades in; stays hidden if the API is down). In portrait the toggle is
+   hidden and the row sits inline on the title's line (see .site-header below). */
 .theme-toggle-wrapper { flex-direction: column; align-items: flex-end; gap: 8px; }
 .fz-cluster-row { display: flex; align-items: center; gap: 8px; animation: fz-fade-in 0.2s ease; }
 .fz-cluster-row[hidden] { display: none; }
@@ -304,25 +315,27 @@ figcaption {
 /* header box: invisible on desktop/landscape (children lay out exactly as before) */
 .site-header { display: contents; }
 @media (max-aspect-ratio: 1/1) {
-    /* portrait/burger: YouTube-style single row — burger + title on the left, the toggle group
-       (toggle on top, bell/account under it) inline on the right; the burger's nav opens below.
-       It scrolls away with the page. The group column has a fixed min-width and the title is
-       left-aligned, so logging in/out never moves the title. */
+    /* portrait/burger: YouTube-style compact single row near the top — burger + title on the left,
+       [bell + account | Log in] inline on the right; the burger's nav opens below (with the theme
+       switch as its last item — the top-right toggle is hidden here). It scrolls away with the page.
+       The group column has a fixed min-width and the title is left-aligned, so logging in/out never
+       moves the title. The negative margin collapses with body's 40px top margin: row starts 12px down. */
     .site-header {
         display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
         grid-template-areas: "burger title group" "nav nav nav";
-        align-items: center; column-gap: 8px;
+        align-items: center; column-gap: 8px; margin-top: -28px;
     }
     .site-header .nav-burger { grid-area: burger; margin: 0; }
     .site-header .site-title {
         grid-area: title; margin: 0; text-align: left; white-space: nowrap;
         font-size: clamp(1.05em, 5.4vw, 1.6em);
     }
-    /* fixed box (toggle 30 + gap 8 + row 36) whatever the login state, so the row never resizes */
+    /* fixed-height box (the 36px bell/account row) whatever the login state, so the row never resizes */
     .site-header .theme-toggle-wrapper {
         grid-area: group; position: static; padding: 0; min-width: 80px;
-        height: 74px; box-sizing: border-box; justify-content: flex-start;
+        height: 36px; justify-content: center;
     }
+    .site-header .theme-toggle-wrapper > .toggle-button { display: none; }
     .site-header .fz-cluster-row { min-height: 36px; }
     .site-header .site-nav { grid-area: nav; }
 }
