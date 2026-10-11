@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/subtle"
 	"database/sql"
 	"errors"
@@ -78,24 +79,20 @@ func scanAPIKey(row interface{ Scan(...any) error }) (apiKeyJSON, error) {
 	return k, nil
 }
 
-func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request, u *user) {
-	rows, err := s.db.QueryContext(r.Context(),
-		`SELECT id, name, scope, prefix, created_at, last_used_at FROM api_keys WHERE user_id = ? ORDER BY id`, u.ID)
-	if err != nil {
-		internalErr(w, "list api keys", err)
-		return
-	}
-	defer rows.Close()
+// apiKeys lists a user's keys (metadata only), oldest first.
+func (s *Server) apiKeys(ctx context.Context, userID int64) ([]apiKeyJSON, error) {
 	keys := []apiKeyJSON{}
-	for rows.Next() {
+	err := s.each(ctx, func(rows *sql.Rows) error {
 		k, err := scanAPIKey(rows)
-		if err != nil {
-			internalErr(w, "list api keys", err)
-			return
-		}
 		keys = append(keys, k)
-	}
-	if err := rows.Err(); err != nil {
+		return err
+	}, `SELECT id, name, scope, prefix, created_at, last_used_at FROM api_keys WHERE user_id = ? ORDER BY id`, userID)
+	return keys, err
+}
+
+func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request, u *user) {
+	keys, err := s.apiKeys(r.Context(), u.ID)
+	if err != nil {
 		internalErr(w, "list api keys", err)
 		return
 	}

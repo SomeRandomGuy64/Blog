@@ -1,0 +1,8 @@
+{{ define "main" }}
+  {{/* /admin/ — users list with roles, mute and account deletion (GET/POST/DELETE /v1/admin/users…).
+       Rendered client-side by js/fazon-admin.js; what each control does is checked by the API. */}}
+  <link rel="stylesheet" href="{{ relURL "css/admin.css" }}">
+  <h1>{{ .Title }}</h1>
+  <div class="adm" id="adm"><p class="fz-muted adm-msg">Loading…</p></div>
+  <script src="{{ relURL "js/fazon-admin.js" }}"></script>
+{{ end }}

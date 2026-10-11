@@ -17,6 +17,9 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
+// latestVersion is the number of the newest migration.
+const latestVersion = 8
+
 func open(t *testing.T, path string) *sql.DB {
 	t.Helper()
 	d, err := Open(context.Background(), path)
@@ -37,7 +40,7 @@ func TestOpenMigratePragmas(t *testing.T) {
 	d.QueryRow("PRAGMA foreign_keys").Scan(&fk)
 	d.QueryRow("PRAGMA busy_timeout").Scan(&busy)
 	d.QueryRow("PRAGMA journal_mode").Scan(&journal)
-	if version != 6 || fk != 1 || busy != 5000 || journal != "wal" {
+	if version != latestVersion || fk != 1 || busy != 5000 || journal != "wal" {
 		t.Fatalf("user_version=%d foreign_keys=%d busy_timeout=%d journal=%s", version, fk, busy, journal)
 	}
 	if _, err := d.Exec(`INSERT INTO sessions (hash, user_id, created_at, expires_at, last_seen) VALUES (x'00', 999, 0, 0, 0)`); err == nil {
@@ -76,7 +79,7 @@ func TestMigrateFromV1(t *testing.T) {
 	var version, users int
 	d.QueryRow("PRAGMA user_version").Scan(&version)
 	d.QueryRow("SELECT COUNT(*) FROM users").Scan(&users)
-	if version != 6 || users != 1 {
+	if version != latestVersion || users != 1 {
 		t.Fatalf("user_version=%d users=%d", version, users)
 	}
 	if _, err := d.Exec(`INSERT INTO avatars (user_id, data, updated_at) VALUES (1, x'ff', 1)`); err != nil {
@@ -103,7 +106,7 @@ func TestMigrateFromV2(t *testing.T) {
 	d.QueryRow("SELECT COUNT(*) FROM comment_likes").Scan(&likes)
 	d.QueryRow("SELECT COUNT(*) FROM avatars").Scan(&avatars)
 	d.QueryRow("SELECT COUNT(*) FROM kyotsu_sessions").Scan(&kyotsu)
-	if version != 6 || public != 2 || comments != 1 || likes != 1 || avatars != 1 || kyotsu != 1 {
+	if version != latestVersion || public != 2 || comments != 1 || likes != 1 || avatars != 1 || kyotsu != 1 {
 		t.Fatalf("version=%d public=%d comments=%d likes=%d avatars=%d kyotsu=%d", version, public, comments, likes, avatars, kyotsu)
 	}
 	for _, q := range []string{
@@ -206,7 +209,7 @@ func TestMigrateFromV3(t *testing.T) {
 	d := open(t, path)
 	var version int
 	d.QueryRow("PRAGMA user_version").Scan(&version)
-	if version != 6 {
+	if version != latestVersion {
 		t.Fatalf("user_version=%d", version)
 	}
 	for i, q := range queries {
@@ -297,16 +300,28 @@ func TestUsers(t *testing.T) {
 		t.Fatal("display-name address accepted")
 	}
 	bob, err := AddUser(ctx, d, " bob@example.com ", "Bob", false)
-	if err != nil || bob.Email != "bob@example.com" || bob.Admin {
+	if err != nil || bob.Email != "bob@example.com" || bob.Admin || bob.Role != RoleUser {
 		t.Fatalf("add: %+v %v", bob, err)
 	}
-	// EnsureAdmin promotes but never renames.
-	d.Exec(`UPDATE users SET name = 'Renamed', is_admin = 0 WHERE id = 1`)
+	if carol, err := AddUser(ctx, d, "carol@example.com", "Carol", true); err != nil || carol.Role != RoleAdmin || !carol.Admin {
+		t.Fatalf("add admin: %+v %v", carol, err)
+	}
+	// EnsureAdmin promotes (role and the legacy is_admin) but never renames.
+	d.Exec(`UPDATE users SET name = 'Renamed', role = 'moderator', is_admin = 0 WHERE id = 1`)
 	EnsureAdmin(ctx, d, "admin@example.com", "Faizan")
 	u, err := UserByEmail(ctx, d, "ADMIN@example.com")
-	if err != nil || u.Name != "Renamed" || !u.Admin {
+	if err != nil || u.Name != "Renamed" || !u.Admin || u.Role != RoleAdmin {
 		t.Fatalf("admin %+v %v", u, err)
 	}
+	if got := dumpRows(t, d, `SELECT id, role, is_admin FROM users ORDER BY id`); got != "1 admin 1\n2 user 0\n3 admin 1\n" {
+		t.Fatalf("roles:\n%s", got)
+	}
+	// The deleted-account placeholder (GhostID) is never found or listed.
+	d.Exec(`INSERT INTO users (id, email, name, created_at) VALUES (0, '', '[deleted]', 0)`)
+	if _, err := UserByEmail(ctx, d, ""); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("ghost found by email: %v", err)
+	}
+	d.Exec(`DELETE FROM users WHERE id = 3`)
 	if _, err := UserByEmail(ctx, d, "nobody@example.com"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("missing user: %v", err)
 	}
@@ -323,10 +338,17 @@ func TestPurge(t *testing.T) {
 	now := time.Now()
 	CreateLoginToken(ctx, d, 1, "/", now.Add(-time.Hour), 15*time.Minute)
 	CreateLoginToken(ctx, d, 1, "/", now, 15*time.Minute)
+	CreateSignupToken(ctx, d, "new@example.com", "New", "/", now.Add(-2*time.Hour))
+	CreateSignupToken(ctx, d, "new@example.com", "New", "/", now)
 	d.Exec(`INSERT INTO sessions VALUES (x'01', 1, 0, ?, 0), (x'02', 1, 0, ?, 0)`, now.Add(-time.Second).Unix(), now.Add(time.Hour).Unix())
 	tok, sess, err := Purge(ctx, d, now)
-	if err != nil || tok != 1 || sess != 1 {
+	if err != nil || tok != 2 || sess != 1 {
 		t.Fatalf("purged %d tokens %d sessions, err %v", tok, sess, err)
+	}
+	var left int
+	d.QueryRow(`SELECT (SELECT COUNT(*) FROM login_tokens) + (SELECT COUNT(*) FROM signup_tokens)`).Scan(&left)
+	if left != 2 {
+		t.Fatalf("%d live tokens left, want 2", left)
 	}
 }
 
@@ -411,7 +433,7 @@ func TestMigrateFromV4(t *testing.T) {
 		`SELECT rowid, user_id, week, category, subcat_id, centihours FROM track_hours ORDER BY rowid`,
 		`SELECT * FROM track_weeks ORDER BY user_id, week`,
 		`SELECT id, email, track_public, bio FROM users ORDER BY id`,
-		`SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY name`,
+		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name != 'users' ORDER BY name`, // users gains columns in 0007
 	}
 	before := make([]string, len(queries))
 	raw, err := sql.Open("sqlite", path)
@@ -426,7 +448,7 @@ func TestMigrateFromV4(t *testing.T) {
 	d := open(t, path)
 	var version int
 	d.QueryRow("PRAGMA user_version").Scan(&version)
-	if version != 6 {
+	if version != latestVersion {
 		t.Fatalf("user_version=%d", version)
 	}
 	for i, q := range queries[:4] {
@@ -517,8 +539,8 @@ func TestMigrateFromV5(t *testing.T) {
 		`SELECT * FROM track_weeks ORDER BY user_id, week`,
 		`SELECT * FROM track_ratings`,
 		`SELECT * FROM track_goals`,
-		`SELECT * FROM settings`,
-		`SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY name`,
+		`SELECT * FROM settings WHERE key != 'users_max_id'`,                                      /* added by 0008 */
+		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name != 'users' ORDER BY name`, // users gains columns in 0007
 	}
 	last := len(queries) - 1
 	before := make([]string, len(queries))
@@ -534,7 +556,7 @@ func TestMigrateFromV5(t *testing.T) {
 	d := open(t, path)
 	var version int
 	d.QueryRow("PRAGMA user_version").Scan(&version)
-	if version != 6 {
+	if version != latestVersion {
 		t.Fatalf("user_version=%d", version)
 	}
 	for i, q := range queries[:last] {
@@ -579,5 +601,161 @@ func TestMigrateFromV5(t *testing.T) {
 	d.QueryRow(`SELECT COUNT(*) FILTER (WHERE user_id = 2), COUNT(*) FILTER (WHERE user_id = 1) FROM api_keys`).Scan(&mine, &others)
 	if mine != 0 || others != 1 {
 		t.Fatalf("after deleting the user: %d of their keys, %d others", mine, others)
+	}
+}
+
+// Production is at version 6 with real data; 0007 adds role/muted_at/muted_by to users and the
+// signup_tokens table. It must keep every row, id, index and foreign key, and turn admins into
+// role 'admin' and everyone else into 'user'.
+func TestMigrateFromV6(t *testing.T) {
+	path := oldDB(t, 6,
+		`INSERT INTO users (email, name, is_admin, created_at, bio) VALUES ('a@example.com', 'A', 1, 0, 'hi'), ('b@example.com', 'B', 0, 5, ''),
+			('c@example.com', 'C', 0, 6, '')`,
+		`INSERT INTO sessions (hash, user_id, created_at, expires_at, last_seen) VALUES (x'01', 2, 0, 9999999999, 0)`,
+		`INSERT INTO login_tokens (hash, user_id, next, created_at, expires_at) VALUES (x'02', 3, '/', 0, 9999999999)`,
+		`INSERT INTO pages (path, title) VALUES ('/articles/x/', 'X')`,
+		`INSERT INTO comments (page, user_id, body, created_at) VALUES ('/articles/x/', 2, 'hi', 0)`,
+		`INSERT INTO comments (page, parent_id, user_id, body, created_at) VALUES ('/articles/x/', 1, 3, 'yo', 1)`,
+		`INSERT INTO comment_likes (comment_id, user_id, created_at) VALUES (1, 3, 0)`,
+		`INSERT INTO notifications (user_id, kind, actor_id, comment_id, created_at) VALUES (2, 'reply', 3, 2, 1)`,
+		`INSERT INTO avatars (user_id, data, updated_at) VALUES (2, x'ffd8', 5)`,
+		`INSERT INTO kyotsu_sessions (user_id, started_at, ended_at, layout, total, correct, answers_json) VALUES (2, 0, 1, 'kotu', 10, 9, '[]')`,
+		`INSERT INTO track_subcats (id, user_id, category, name, created_at) VALUES (5, 2, 'anki', 'Core', 1)`,
+		`INSERT INTO track_weeks (user_id, week, summary, updated_at) VALUES (2, '2026-10-03', 'first', 100)`,
+		`INSERT INTO track_hours (user_id, week, category, subcat_id, centihours) VALUES (2, '2026-10-03', 'anki', 5, 150)`,
+		`INSERT INTO track_ratings (user_id, week, category, rating) VALUES (2, '2026-10-03', 'anki', 3)`,
+		`INSERT INTO track_goals (user_id, week, category, centihours, created_at) VALUES (2, '2026-10-03', 'anki', 100, 0)`,
+		`INSERT INTO api_keys (user_id, name, prefix, hash, scope, created_at) VALUES (2, 'k', 'fz_aaaa', x'aa', 'read', 0)`,
+		`INSERT INTO settings (key, value) VALUES ('track_ended_week', '2026-10-10')`,
+	)
+	queries := []string{
+		`SELECT id, email, name, is_admin, track_public, bio, created_at FROM users ORDER BY id`,
+		`SELECT * FROM sessions`, `SELECT * FROM login_tokens`, `SELECT * FROM pages`,
+		`SELECT * FROM comments ORDER BY id`, `SELECT * FROM comment_likes`, `SELECT * FROM notifications`,
+		`SELECT * FROM avatars`, `SELECT * FROM kyotsu_sessions`, `SELECT * FROM track_subcats`,
+		`SELECT rowid, * FROM track_hours`, `SELECT * FROM track_weeks`, `SELECT * FROM track_ratings`,
+		`SELECT * FROM track_goals`, `SELECT * FROM api_keys`, `SELECT * FROM settings WHERE key != 'users_max_id'`, /* added by 0008 */
+		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name != 'users' ORDER BY name`,
+	}
+	last := len(queries) - 1
+	before := make([]string, len(queries))
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, q := range queries {
+		before[i] = dumpRows(t, raw, q)
+	}
+	raw.Close()
+
+	d := open(t, path)
+	var version int
+	d.QueryRow("PRAGMA user_version").Scan(&version)
+	if version != latestVersion {
+		t.Fatalf("user_version=%d", version)
+	}
+	for i, q := range queries[:last] {
+		if after := dumpRows(t, d, q); after != before[i] {
+			t.Fatalf("%s changed:\nbefore:\n%safter:\n%s", q, before[i], after)
+		}
+	}
+	after := dumpRows(t, d, queries[last])
+	for _, line := range strings.SplitAfter(before[last], "\n") {
+		if !strings.Contains(after, line) {
+			t.Fatalf("schema object changed or lost: %s", line)
+		}
+	}
+	for _, want := range []string{"table signup_tokens signup_tokens", "index signup_tokens_email", "index signup_tokens_expires"} {
+		if !strings.Contains(after, want) {
+			t.Fatalf("no %s:\n%s", want, after)
+		}
+	}
+	if got := dumpRows(t, d, `SELECT id, role, muted_at, muted_by FROM users ORDER BY id`); got != "1 admin <nil> <nil>\n2 user <nil> <nil>\n3 user <nil> <nil>\n" {
+		t.Fatalf("roles after migration:\n%s", got)
+	}
+	for _, q := range []string{`PRAGMA foreign_key_check`, `PRAGMA integrity_check`} {
+		if got := dumpRows(t, d, q); got != "" && got != "ok\n" {
+			t.Fatalf("%s: %s", q, got)
+		}
+	}
+	for _, bad := range []string{
+		`UPDATE users SET role = 'owner' WHERE id = 2`,
+		`UPDATE users SET role = NULL WHERE id = 2`,
+		`UPDATE users SET muted_by = 99 WHERE id = 2`, // no such user
+	} {
+		if _, err := d.Exec(bad); err == nil {
+			t.Fatalf("accepted: %s", bad)
+		}
+	}
+	// A mute survives the deletion of the account that gave it (muted_by is cleared).
+	d.Exec(`UPDATE users SET muted_at = 1, muted_by = 3 WHERE id = 2`)
+	d.Exec(`DELETE FROM comment_likes WHERE user_id = 3`)
+	d.Exec(`DELETE FROM notifications`)
+	d.Exec(`DELETE FROM login_tokens WHERE user_id = 3`)
+	d.Exec(`DELETE FROM comments WHERE user_id = 3`)
+	if _, err := d.Exec(`DELETE FROM users WHERE id = 3`); err != nil {
+		t.Fatal(err)
+	}
+	if got := dumpRows(t, d, `SELECT muted_at, muted_by FROM users WHERE id = 2`); got != "1 <nil>\n" {
+		t.Fatalf("mute after the muting account was deleted: %s", got)
+	}
+}
+
+// A deleted account's id is never handed to a new account (migration 0008), even when it was
+// the highest id and even across a reopen.
+func TestUserIDsNeverReused(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fazon.db")
+	d := open(t, path)
+	ctx := context.Background()
+	a, err := AddUser(ctx, d, "a@example.com", "A", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := AddUser(ctx, d, "b@example.com", "B", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	del := func(id int64) {
+		tx, err := d.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := DeleteUser(ctx, tx, id, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		if err := tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	del(b.ID) // the highest id: plain SQLite would hand it out again
+	c, err := AddUser(ctx, d, "c@example.com", "C", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ID <= b.ID {
+		t.Fatalf("new account got id %d, deleted account had %d", c.ID, b.ID)
+	}
+	del(c.ID)
+	del(a.ID)
+	d.Close()
+	d = open(t, path)
+	if err := EnsureAdmin(ctx, d, "admin@example.com", "Admin"); err != nil {
+		t.Fatal(err)
+	}
+	var adminID int64
+	if err := d.QueryRow(`SELECT id FROM users WHERE email = 'admin@example.com'`).Scan(&adminID); err != nil {
+		t.Fatal(err)
+	}
+	if adminID <= c.ID {
+		t.Fatalf("admin got id %d after ids up to %d were deleted", adminID, c.ID)
+	}
+	// re-running EnsureAdmin for an existing admin keeps its id
+	if err := EnsureAdmin(ctx, d, "admin@example.com", "Admin"); err != nil {
+		t.Fatal(err)
+	}
+	var again int64
+	d.QueryRow(`SELECT id FROM users WHERE email = 'admin@example.com'`).Scan(&again)
+	if again != adminID {
+		t.Fatalf("EnsureAdmin changed the id %d → %d", adminID, again)
 	}
 }

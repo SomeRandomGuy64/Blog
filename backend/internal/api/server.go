@@ -1,5 +1,6 @@
-// Package api is the fazon.nexus HTTP API: magic-link accounts, article comments with likes
-// and notifications, and Kyōtsu trainer sessions.
+// Package api is the fazon.nexus HTTP API: magic-link accounts with open sign-up, roles and
+// moderation, article comments with likes and notifications, Kyōtsu trainer sessions, Track and
+// personal API keys.
 package api
 
 import (
@@ -45,6 +46,7 @@ type Server struct {
 	avatarLimit, nameLimit *limiter // per user
 	weekLimit, trackLimit  *limiter // per user: week saves; subcat/settings changes
 	keyMgmtLimit           *limiter // per user: API key creation
+	exportLimit            *limiter // per user: data exports
 	keyReadLimit           *limiter // per API key: /v1/api/ reads
 	keyWriteLimit          *limiter // per API key: /v1/api/ writes
 
@@ -72,6 +74,7 @@ func New(db *sql.DB, cfg Config) *Server {
 		weekLimit:    newLimiter(120, time.Hour),
 		trackLimit:   newLimiter(120, time.Hour),
 		keyMgmtLimit: newLimiter(20, time.Hour),
+		exportLimit:  newLimiter(10, time.Hour),
 		// per key; 429 with Retry-After (see keyAuthed)
 		keyReadLimit:  newLimiter(120, time.Minute),
 		keyWriteLimit: newLimiter(30, time.Minute),
@@ -87,7 +90,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/auth/request", s.authRequest)
 	mux.HandleFunc("POST /v1/auth/verify", s.authVerify)
 	mux.HandleFunc("POST /v1/auth/logout", s.authLogout)
+	mux.HandleFunc("POST /v1/auth/signup", s.authSignup)
+	mux.HandleFunc("POST /v1/auth/signup/confirm", s.authSignupConfirm)
 	mux.HandleFunc("GET /v1/me", s.me)
+	mux.HandleFunc("DELETE /v1/me", s.authed(s.deleteMe))
+	mux.HandleFunc("GET /v1/me/export", s.authed(s.exportMe))
+
+	// The admin page (moderators and admins; see admin.go).
+	mux.HandleFunc("GET /v1/admin/users", s.staff(s.listAdminUsers))
+	mux.HandleFunc("POST /v1/admin/users/{id}/role", s.staff(s.adminSetRole))
+	mux.HandleFunc("POST /v1/admin/users/{id}/mute", s.staff(s.adminMute))
+	mux.HandleFunc("POST /v1/admin/users/{id}/unmute", s.staff(s.adminUnmute))
+	mux.HandleFunc("DELETE /v1/admin/users/{id}", s.staff(s.adminDeleteUser))
 
 	mux.HandleFunc("GET /v1/comments", s.listComments)
 	mux.HandleFunc("POST /v1/comments", s.authed(s.postComment))
@@ -149,7 +163,7 @@ func (s *Server) Wait() { s.mailWG.Wait() }
 func (s *Server) Sweep() {
 	now := s.now()
 	for _, l := range []*limiter{s.ipLimit, s.emailLimit, s.commentLimit, s.kyoLimit, s.avatarLimit, s.nameLimit, s.weekLimit, s.trackLimit,
-		s.keyMgmtLimit, s.keyReadLimit, s.keyWriteLimit} {
+		s.keyMgmtLimit, s.keyReadLimit, s.keyWriteLimit, s.exportLimit} {
 		l.sweep(now)
 	}
 }

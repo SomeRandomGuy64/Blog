@@ -28,7 +28,30 @@ type user struct {
 	ID    int64
 	Email string
 	Name  string
-	Admin bool
+	Role  string // db.RoleUser, db.RoleModerator or db.RoleAdmin
+	Admin bool   // Role == db.RoleAdmin
+	Muted bool   // can't post comments
+}
+
+// userCols / scan load a user row into a user (keep the two in step).
+const userCols = `u.id, u.email, u.name, u.role, u.muted_at IS NOT NULL`
+
+func (u *user) scan(row interface{ Scan(...any) error }, extra ...any) error {
+	err := row.Scan(append([]any{&u.ID, &u.Email, &u.Name, &u.Role, &u.Muted}, extra...)...)
+	u.Admin = u.Role == db.RoleAdmin
+	return err
+}
+
+// moderator reports whether u may moderate: moderators and admins.
+func (u *user) moderator() bool { return u.Role == db.RoleModerator || u.Role == db.RoleAdmin }
+
+// loadUser loads the account id (sql.ErrNoRows if missing).
+func (s *Server) loadUser(ctx context.Context, id int64) (*user, error) {
+	var u user
+	if err := u.scan(s.db.QueryRowContext(ctx, `SELECT `+userCols+` FROM users u WHERE u.id = ?`, id)); err != nil {
+		return nil, err
+	}
+	return &u, nil
 }
 
 // SafeNext keeps only same-site relative paths ("/x"), never "//host" or "/\host", which
@@ -95,13 +118,20 @@ func (s *Server) authRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 // LoginEmail is the magic-link message.
-func LoginEmail(to, name, link string) mail.Message {
-	text := fmt.Sprintf("Hi %s,\n\nUse this link to sign in to Fazon Nexus:\n\n%s\n\n"+
+func LoginEmail(to, name, link string) mail.Message { return loginEmail(to, name, link, "") }
+
+// loginEmail is the magic-link message with an optional first paragraph (plain text).
+func loginEmail(to, name, link, intro string) mail.Message {
+	var textIntro, htmlIntro string
+	if intro != "" {
+		textIntro, htmlIntro = intro+"\n\n", "<p>"+html.EscapeString(intro)+"</p>"
+	}
+	text := fmt.Sprintf("Hi %s,\n\n%sUse this link to sign in to Fazon Nexus:\n\n%s\n\n"+
 		"It works once and expires in %d minutes. If you didn't ask for it, you can ignore this email.\n",
-		name, link, int(LoginTokenTTL.Minutes()))
-	h := fmt.Sprintf(`<p>Hi %s,</p><p><a href="%s">Sign in to Fazon Nexus</a></p>`+
+		name, textIntro, link, int(LoginTokenTTL.Minutes()))
+	h := fmt.Sprintf(`<p>Hi %s,</p>%s<p><a href="%s">Sign in to Fazon Nexus</a></p>`+
 		`<p>The link works once and expires in %d minutes. If you didn't ask for it, you can ignore this email.</p>`,
-		html.EscapeString(name), html.EscapeString(link), int(LoginTokenTTL.Minutes()))
+		html.EscapeString(name), htmlIntro, html.EscapeString(link), int(LoginTokenTTL.Minutes()))
 	return mail.Message{To: to, Subject: "Your Fazon Nexus sign-in link", Text: text, HTML: h}
 }
 
@@ -114,10 +144,10 @@ func (s *Server) sendAsync(m mail.Message) {
 		ctx, cancel := context.WithTimeout(context.Background(), s.cfg.MailTimeout)
 		defer cancel()
 		if err := s.cfg.Mailer.Send(ctx, m); err != nil {
-			slog.Error("send login email", "to", m.To, "err", err)
+			slog.Error("send email", "to", m.To, "subject", m.Subject, "err", err)
 			return
 		}
-		slog.Info("login email sent", "to", m.To)
+		slog.Info("email sent", "to", m.To, "subject", m.Subject)
 	}()
 }
 
@@ -148,27 +178,35 @@ func (s *Server) authVerify(w http.ResponseWriter, r *http.Request) {
 		internalErr(w, "verify token", err)
 		return
 	}
+	self, ok := s.startSession(w, r, userID)
+	if !ok {
+		return
+	}
+	slog.Info("login", "user", userID, "ip", clientIP(r))
+	writeJSON(w, http.StatusOK, map[string]any{"user": self, "next": SafeNext(next)})
+}
+
+// startSession creates a session for userID and sets its cookie; false after answering 500.
+func (s *Server) startSession(w http.ResponseWriter, r *http.Request, userID int64) (selfUser, bool) {
+	now := s.now()
 	tok, hash := db.NewSecret()
 	if _, err := s.db.ExecContext(r.Context(),
 		`INSERT INTO sessions (hash, user_id, created_at, expires_at, last_seen) VALUES (?, ?, ?, ?, ?)`,
 		hash, userID, now.Unix(), now.Add(sessionTTL).Unix(), now.Unix()); err != nil {
 		internalErr(w, "create session", err)
-		return
+		return selfUser{}, false
 	}
-	var u user
-	if err := s.db.QueryRowContext(r.Context(), `SELECT id, email, name, is_admin FROM users WHERE id = ?`, userID).
-		Scan(&u.ID, &u.Email, &u.Name, &u.Admin); err != nil {
-		internalErr(w, "load user", err)
-		return
+	u, err := s.loadUser(r.Context(), userID)
+	var self selfUser
+	if err == nil {
+		self, err = s.selfUser(r.Context(), u)
 	}
-	self, err := s.selfUser(r.Context(), &u)
 	if err != nil {
 		internalErr(w, "load user", err)
-		return
+		return selfUser{}, false
 	}
 	s.setCookie(w, tok, int(sessionTTL.Seconds()))
-	slog.Info("login", "user", u.ID, "ip", clientIP(r))
-	writeJSON(w, http.StatusOK, map[string]any{"user": self, "next": SafeNext(next)})
+	return self, true
 }
 
 func (s *Server) authLogout(w http.ResponseWriter, r *http.Request) {
@@ -221,10 +259,10 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) (*user, error) 
 	hash := db.HashSecret(c.Value)
 	var u user
 	var lastSeen int64
-	err = s.db.QueryRowContext(r.Context(), `
-		SELECT u.id, u.email, u.name, u.is_admin, s.last_seen
+	err = u.scan(s.db.QueryRowContext(r.Context(), `
+		SELECT `+userCols+`, s.last_seen
 		FROM sessions s JOIN users u ON u.id = s.user_id
-		WHERE s.hash = ? AND s.expires_at > ?`, hash, now.Unix()).Scan(&u.ID, &u.Email, &u.Name, &u.Admin, &lastSeen)
+		WHERE s.hash = ? AND s.expires_at > ?`, hash, now.Unix()), &lastSeen)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

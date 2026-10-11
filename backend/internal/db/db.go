@@ -89,14 +89,17 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-// Purge deletes expired login tokens and sessions.
+// Purge deletes expired login and sign-up tokens (tokens counts both) and sessions.
 func Purge(ctx context.Context, db *sql.DB, now time.Time) (tokens, sessions int64, err error) {
-	res, err := db.ExecContext(ctx, "DELETE FROM login_tokens WHERE expires_at < ?", now.Unix())
-	if err != nil {
-		return 0, 0, err
+	for _, q := range []string{"DELETE FROM login_tokens WHERE expires_at < ?", "DELETE FROM signup_tokens WHERE expires_at < ?"} {
+		res, err := db.ExecContext(ctx, q, now.Unix())
+		if err != nil {
+			return tokens, 0, err
+		}
+		n, _ := res.RowsAffected()
+		tokens += n
 	}
-	tokens, _ = res.RowsAffected()
-	res, err = db.ExecContext(ctx, "DELETE FROM sessions WHERE expires_at < ?", now.Unix())
+	res, err := db.ExecContext(ctx, "DELETE FROM sessions WHERE expires_at < ?", now.Unix())
 	if err != nil {
 		return tokens, 0, err
 	}

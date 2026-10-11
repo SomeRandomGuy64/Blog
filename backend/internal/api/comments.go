@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"slices"
@@ -12,6 +13,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 )
+
+// mutedMsg answers a muted user's comment or reply (403).
+const mutedMsg = "You've been blocked from commenting."
 
 const (
 	maxCommentRunes = 5000
@@ -184,6 +188,10 @@ func visibleComments(all []commentJSON) []commentJSON {
 }
 
 func (s *Server) postComment(w http.ResponseWriter, r *http.Request, u *user) {
+	if u.Muted {
+		writeErr(w, http.StatusForbidden, mutedMsg)
+		return
+	}
 	var in struct {
 		Page   string `json:"page"`
 		Parent *int64 `json:"parent"`
@@ -251,7 +259,7 @@ func (s *Server) postComment(w http.ResponseWriter, r *http.Request, u *user) {
 		// Admins hear about every comment, except their own and ones that already notified
 		// them as a reply.
 		_, err := tx.Exec(`INSERT OR IGNORE INTO notifications (user_id, kind, actor_id, comment_id, created_at)
-			SELECT id, 'comment', ?, ?, ? FROM users WHERE is_admin = 1 AND id != ? AND id != ?`,
+			SELECT id, 'comment', ?, ?, ? FROM users WHERE role = 'admin' AND id != ? AND id != ?`,
 			u.ID, id, now.Unix(), u.ID, parentAuthor)
 		return err
 	})
@@ -283,11 +291,14 @@ func (s *Server) deleteComment(w http.ResponseWriter, r *http.Request, u *user) 
 		if err != nil {
 			return err
 		}
-		if author != u.ID && !u.Admin {
+		if author != u.ID && !u.moderator() {
 			return errStatus{http.StatusForbidden, "not your comment"}
 		}
 		if deleted {
 			return nil
+		}
+		if author != u.ID {
+			slog.Info("moderation", "actor", u.ID, "action", "delete_comment", "comment", id, "target", author)
 		}
 		// Soft delete: the row stays so replies keep their parent. Its likes and every
 		// notification about it go.

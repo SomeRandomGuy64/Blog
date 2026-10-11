@@ -2,7 +2,7 @@
 // and its admin CLI:
 //
 //	fazond [serve]                                  run the API (default)
-//	fazond user add -email X -name Y [-admin]       add an account (there is no signup)
+//	fazond user add -email X -name Y [-admin]       add an account (people can also sign up on the site)
 //	fazond user list
 //	fazond login-link -email X [-next /path/]       print a fresh magic link, no email sent
 //
@@ -204,9 +204,9 @@ func userList(args []string) error {
 		return err
 	}
 	tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tEMAIL\tNAME\tADMIN\tCREATED")
+	fmt.Fprintln(tw, "ID\tEMAIL\tNAME\tROLE\tCREATED")
 	for _, u := range users {
-		fmt.Fprintf(tw, "%d\t%s\t%s\t%v\t%s\n", u.ID, u.Email, u.Name, u.Admin, u.Created.Format(time.RFC3339))
+		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\n", u.ID, u.Email, u.Name, u.Role, u.Created.Format(time.RFC3339))
 	}
 	return tw.Flush()
 }

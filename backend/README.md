@@ -1,7 +1,7 @@
 # backend (fazond)
 
-Go API for fazon.nexus at `https://api.fazon.nexus`: magic-link accounts (no signup), threaded
-comments with likes on every article, in-site notifications, Kyōtsu trainer session history, the
+Go API for fazon.nexus at `https://api.fazon.nexus`: magic-link accounts with open sign-up, roles
+(user / moderator / admin) and moderation, threaded comments with likes on every article, in-site notifications, Kyōtsu trainer session history, the
 Track immersion log, and personal API keys for scripting your own Track data.
 One binary, one SQLite file (`modernc.org/sqlite`, pure Go, so it cross-compiles with
 `CGO_ENABLED=0`). The site itself stays static on GitHub Pages; `fazon.nexus` and
@@ -13,7 +13,7 @@ cmd/fazond         main: config (flags / FAZOND_* env), serve, CLI, hourly maint
 internal/api       handlers, session auth, CORS/CSRF, rate limits; api_test.go covers the spec
 internal/db        open + pragmas, embedded migrations (PRAGMA user_version; 0001 init, 0002 avatars,
                    0003 track + bio, 0004 track 'anki' category, 0005 track ratings/goals + settings,
-                   0006 api_keys),
+                   0006 api_keys, 0007 roles + mutes + signup_tokens),
                    users/tokens, backup, purge
 internal/week      Track week calendar (Sun 03:00 UTC weeks, Saturday keys)
 internal/mail      resend (HTTP API), smtp (STARTTLS) and log mailers; RFC 5322 message builder
@@ -29,10 +29,18 @@ All JSON; errors are `{"error":"msg"}` with 400/401/403/404/409/413/415/429/500.
 | `POST /v1/auth/request` `{email,next}` | always `202 {"ok":true}`; emails `$FAZOND_SITE/account/verify/#t=TOKEN&next=PATH` if the account exists. Limits: 3/email/15 min, 10/IP/hour (silently dropped, logged) |
 | `POST /v1/auth/verify` `{token}` | consumes the token (single use, 15 min) → `{"user":{…},"next":"/…"}` + `fz_session` cookie (90 days, sliding) |
 | `POST /v1/auth/logout` | deletes the session, clears the cookie |
-| `GET /v1/me` | `{"user":null}` or `{"user":{id,name,email,admin},"unread":N}` |
+| `POST /v1/auth/signup` `{email,name,next,website}` | always `202 {"ok":true}` (see Sign-up): a new address gets `$FAZOND_SITE/account/verify/#s=TOKEN&next=PATH` (single use, 1 hour), an existing one a normal login link saying "You already have an account". `website` is a honeypot (filled → nothing sent). 400 only for a malformed email or name. Shares the auth/request limits |
+| `POST /v1/auth/signup/confirm` `{token}` | consumes the sign-up token, creates the account (or uses the one the address got meanwhile) → `{"user":{…},"next":"/…","created":bool}` + `fz_session` cookie |
+| `GET /v1/me` | `{"user":null}` or `{"user":{id,name,email,role,admin,muted,…},"unread":N}` |
+| `DELETE /v1/me` | delete your account and all its data (see Users), clears the cookie; 409 for the only admin |
+| `GET /v1/me/export` | everything stored about you as a JSON download (`Content-Disposition: attachment; filename="fazon-nexus-export-YYYY-MM-DD.json"`): profile, comments, likes, notifications, Track (sub-categories, weeks with hours/scores/ratings/goals/summaries), Kyōtsu sessions, API key metadata (never keys or hashes). 10/hour (429 + `Retry-After`) |
+| `GET /v1/admin/users?q=&limit=50&offset=0` | moderators + admins (403 otherwise): `{users:[{user,email (admins only),role,joined,last_active,comments,muted,muted_at,muted_by,track_public,can:{role,mute,delete}}],total,limit,offset,viewer,admins}`, newest first; `q` matches names (admins: and emails); `limit` ≤ 200 |
+| `POST /v1/admin/users/{id}/role` `{role}` | admins: `user`/`moderator`/`admin` → `{"user":<row>}` |
+| `POST /v1/admin/users/{id}/mute`, `…/unmute` | moderators (regular users only) and admins → `{"user":<row>}`; idempotent |
+| `DELETE /v1/admin/users/{id}` | admins: delete that account and all its data, like `DELETE /v1/me` |
 | `GET /v1/comments?page=/articles/x/` | `{"comments":[…]}` oldest first; deleted comments with live replies come back as tombstones |
-| `POST /v1/comments` `{page,parent,body}` | 201 comment (login); 404 if `page` isn't in the site's comment-pages index, 503 if no index has loaded yet. A `title` field (older frontends) is ignored |
-| `DELETE /v1/comments/{id}` | author or admin; soft delete (also drops its likes and notifications) |
+| `POST /v1/comments` `{page,parent,body}` | 201 comment (login; 403 `"You've been blocked from commenting."` if muted); 404 if `page` isn't in the site's comment-pages index, 503 if no index has loaded yet. A `title` field (older frontends) is ignored |
+| `DELETE /v1/comments/{id}` | author, moderator or admin; soft delete (also drops its likes and notifications) |
 | `POST`/`DELETE /v1/comments/{id}/like` | `{"likes":N,"liked":bool}`, idempotent |
 | `GET /v1/notifications?limit=50&before=ID` | `{"notifications":[…],"unread":N}` newest first |
 | `POST /v1/notifications/read` `{ids:[…]}` or `{all:true}` | `{"unread":N}` |
@@ -66,7 +74,8 @@ All JSON; errors are `{"error":"msg"}` with 400/401/403/404/409/413/415/429/500.
 | `GET`/`POST /v1/api/track/subcats` | API key: list / create sub-categories (the site's rules) |
 | `GET /healthz` | `ok` |
 
-Every user object carries `avatar` (path relative to the API base, or null), `level`, `xp`,
+Every user object carries `role` (`user`, `moderator` or `admin`), `admin` (= role is admin; kept
+for older frontends), `avatar` (path relative to the API base, or null), `level`, `xp`,
 `level_xp` and `next_xp` (null at level 100). XP is the number of likes other people gave the
 user's comments, counted live, so unlikes and deleted comments take it back.
 
@@ -305,8 +314,9 @@ systemctl start fazond
 
 ## Users
 
-There is no signup. The admin (`FAZOND_ADMIN_EMAIL`/`FAZOND_ADMIN_NAME`) is created at startup if
-missing. Run the CLI **as the fazond user** with the service's env, so files it creates stay
+Anyone can sign up on the site (`/account/signup/`); the admin can still add accounts with the CLI.
+The admin (`FAZOND_ADMIN_EMAIL`/`FAZOND_ADMIN_NAME`) is created at startup if missing, and made an
+admin again if their role was changed. Run the CLI **as the fazond user** with the service's env, so files it creates stay
 owned by fazond:
 
 ```sh
@@ -315,6 +325,54 @@ fz user add -email friend@example.com -name "Friend"     # -admin to make an adm
 fz user list
 fz login-link -email friend@example.com -next /articles/some-post/   # prints a magic link, sends nothing
 ```
+
+**Sign-up.** `POST /v1/auth/signup` answers `202 {"ok":true}` whatever happens, so it never tells
+whether an address has an account. A new address gets a confirmation email (a pending sign-up in
+`signup_tokens`: email, name, next, sha256 of the token, 1 hour, single use; no account exists
+until it's confirmed). An address with an account gets an ordinary login link with a line saying
+"You already have an account". A filled-in honeypot (`website`, hidden on the form) or a
+rate-limited request sends nothing (logged). It shares the login-link limits: 3 per address per 15
+minutes and 10 per IP per hour, counting both kinds of request. Confirming
+(`/v1/auth/signup/confirm`, via the site's verify page with `#s=`) creates the account as a `user`
+and logs in; if the address got an account meanwhile it simply logs into that one, and any other
+pending links for the address are spent. Expired tokens are purged hourly.
+
+**Roles** (`users.role`; `users.is_admin` is kept equal to role = admin for rollbacks):
+
+| | user | moderator | admin |
+|---|---|---|---|
+| delete own comments | ✓ | ✓ | ✓ |
+| delete anyone's comment | | ✓ | ✓ |
+| admin page: list users | | ✓ (no emails; search by name) | ✓ (with emails; search by name or email) |
+| mute / unmute | | regular users only | anyone but themselves |
+| change roles | | | anyone but themselves |
+| delete accounts | | | anyone but themselves |
+
+The last admin can never be demoted, muted or deleted, and can't delete their own account
+(`DELETE /v1/me` → 409); nobody changes their own role or mutes/deletes themselves through the admin
+API. Only admins get the "new comment" notifications. Every admin/moderation action is logged at
+Info with the actor, the action and the target ids.
+
+**Mute** (`muted_at`, `muted_by`): a muted user can't post comments or replies (403 `"You've been
+blocked from commenting."`); likes, Track, profile and everything else still work. The site's
+composer says so instead of showing the form.
+
+**The admin page** is `/admin/` (not in the main nav; "Admin" in the account menu for moderators
+and admins; "Not allowed" for others). It lists every user (50 at a time, newest first, search)
+with name, email (admins), role, joined, last seen (newest session use), comment count, mute and
+Track visibility, plus the controls the viewer's `can` flags allow. Deleting needs the user's name
+typed in the page.
+
+**Deleting an account** (`DELETE /v1/me` or `DELETE /v1/admin/users/{id}`, one transaction,
+`db.DeleteUser`) removes the user row and everything referring to it: sessions, login and sign-up
+tokens, API keys, avatar, Track weeks/hours/ratings/goals/sub-categories, Kyōtsu sessions, likes
+given, notifications to or from them, and their comments. A comment nobody replied to is deleted
+outright (leaf first, so chains of their own replies go too). A comment with replies stays as a
+`[deleted]` tombstone exactly like an author-deleted one (body cleared, its likes and notifications
+dropped) and is handed to the placeholder account id 0 (`db.GhostID`: no email, never listed,
+can't log in, created on first use), so threads stay intact and no row points at the deleted user.
+Mutes they gave keep `muted_at` with `muted_by` cleared. The daily backups still hold the data for
+up to 14 days.
 
 ## Mail
 

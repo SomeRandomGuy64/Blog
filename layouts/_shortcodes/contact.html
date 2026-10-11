@@ -1,0 +1,7 @@
+{{- /* "contact the site owner" — with the address from hugo.toml params.contactEmail when it's
+       set (a mailto link), plain otherwise. Used by content/privacy.md. */ -}}
+{{- with site.Params.contactEmail -}}
+contact the site owner at <a href="mailto:{{ . }}">{{ . }}</a>
+{{- else -}}
+contact the site owner
+{{- end -}}

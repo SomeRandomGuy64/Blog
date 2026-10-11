@@ -26,14 +26,15 @@
           box.append(
             el("p",{class:"fz-note",text:"If that email has an account, a login link is on its way (valid 15 minutes)."}),
             el("p",{class:"fz-muted",text:"Open it on this device and you'll be logged in. Didn't get it? Check spam, or "},
-              el("a",{href:location.pathname+location.search,text:"try again"}),"."));
+              el("a",{href:location.pathname+location.search,text:"try again"}),"."),
+            el("p",{class:"fz-switch"},"No account? ",el("a",{href:F.signupHref(next),text:"Sign up"})));
         },e2=>{ err.textContent=e2.message; btn.disabled=false; btn.textContent="Send login link"; });
       });
       box.textContent="";
       box.append(
         el("p",{text:"Enter your email and I'll send you a one-time login link — no password needed."}),
-        el("p",{class:"fz-muted",text:"There's no sign-up yet: accounts are invite-only for now."}),
-        f);
+        f,
+        el("p",{class:"fz-switch"},"No account? ",el("a",{href:F.signupHref(next),text:"Sign up"})));
       email.focus();
     }
 

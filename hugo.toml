@@ -9,6 +9,9 @@ enableRobotsTXT = true
   # Accounts / comments / notifications / Kyōtsu sessions API (backend/). On localhost the
   # client uses http://localhost:8091 instead (static/js/fazon-api.js).
   api = "https://api.fazon.nexus"
+  # Shown on /privacy/ ("contact the site owner at …"); left empty, the page just says
+  # "contact the site owner" (layouts/_shortcodes/contact.html).
+  contactEmail = ""
 
 # Allow raw HTML (e.g. <ruby> furigana) inside Markdown content.
 [markup]

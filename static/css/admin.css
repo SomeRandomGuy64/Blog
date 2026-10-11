@@ -1,0 +1,55 @@
+/* /admin/ page (layouts/admin/section.html, js/fazon-admin.js). Uses the --fz-* tokens from
+   style.css, so it follows the light/dark theme like the rest of the account UI. */
+.adm { max-width: 760px; margin: 0 auto; }
+.adm-msg { text-align: center; color: var(--fz-muted); margin-top: 40px; }
+.adm-msg b { color: var(--text-color); }
+.adm-intro { font-size: 0.9em; margin: 0.4em 0; }
+.adm-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 1.2em 0 0.6em; }
+.adm-search { flex: 1 1 16em; min-width: 0; max-width: 26em; }
+.adm-count { margin: 0; font-size: 0.85em; }
+.adm-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.adm-row {
+    padding: 12px 14px; border: 1px solid var(--fz-line); border-radius: 8px; background: var(--fz-surface);
+}
+.adm-row.muted { border-left: 3px solid var(--fz-bad); }
+.adm-row.confirming { border-color: var(--fz-bad); }
+.adm-row.adm-gone { color: var(--fz-muted); font-size: 0.9em; }
+.adm-row.adm-gone:focus { outline: none; }
+.adm-top { display: flex; align-items: flex-start; gap: 12px; }
+.adm-info { flex: 1; min-width: 0; }
+.adm-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-weight: 700; }
+.adm-name a, .adm-name a:visited, .light-mode .adm-name a, .light-mode .adm-name a:visited {
+    color: var(--text-color); text-decoration: none; overflow-wrap: anywhere; unicode-bidi: isolate;
+}
+.adm-name a:hover { color: var(--fz-accent); }
+.adm-self { font-weight: 400; font-size: 0.85em; }
+.adm-badge {
+    font-size: 0.72em; font-weight: 700; padding: 0 8px; border-radius: 999px; line-height: 1.6;
+    border: 1px solid var(--fz-line); color: var(--fz-muted); white-space: nowrap;
+}
+.adm-role-admin { border-color: var(--fz-accent); color: var(--fz-accent); background: var(--fz-accent-soft); }
+.adm-role-moderator { border-color: var(--fz-accent); color: var(--fz-accent); }
+.adm-badge.adm-muted { border-color: var(--fz-bad); color: var(--fz-bad); }
+.adm-email { font-size: 0.85em; color: var(--fz-muted); overflow-wrap: anywhere; }
+.adm-meta { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 2px; font-size: 0.8em; color: var(--fz-muted); }
+.adm-mutedby { font-size: 0.8em; margin-top: 2px; }
+.adm-mutedby b { color: var(--text-color); font-weight: 400; overflow-wrap: anywhere; unicode-bidi: isolate; }
+.adm-ctl { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; flex: none; max-width: 50%; }
+.adm-ctl[hidden] { display: none; }
+.adm-role { width: auto; padding: 0.3em 0.5em; font-size: 0.85em; }
+.adm-ctl .fz-btn { font-size: 0.85em; }
+.fz-btn.adm-danger { border-color: var(--fz-bad); color: var(--fz-bad); }
+.fz-btn.adm-danger:hover:not(:disabled) { background: var(--fz-bad); color: #fff; }
+.fz-btn.adm-danger.solid { background: var(--fz-bad); color: #fff; }
+.adm-confirm { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--fz-line); display: flex; flex-direction: column; gap: 8px; }
+.adm-confirm p { margin: 0; font-size: 0.88em; }
+.adm-confirm label { font-size: 0.88em; }
+.adm-confirm .fz-input { max-width: 24em; }
+.adm-q { overflow-wrap: anywhere; unicode-bidi: isolate; }
+.adm-err { margin: 6px 0 0; }
+.adm-err:empty { display: none; }
+.adm-foot { text-align: center; margin-top: 12px; }
+@media (max-width: 560px) {
+    .adm-top { flex-wrap: wrap; }
+    .adm-ctl { max-width: none; width: 100%; box-sizing: border-box; justify-content: flex-start; padding-left: 56px; }
+}

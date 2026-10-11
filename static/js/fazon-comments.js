@@ -78,9 +78,13 @@
     return box;
   }
 
+  // muted by a moderator (user.muted): no composer, no replies; likes still work
+  var MUTED = "You've been blocked from commenting.";
   function renderTopComposer() {
     composerEl.textContent = "";
-    if (user) {
+    if (user && user.muted) {
+      composerEl.appendChild(el("p", { class: "cmt-empty cmt-muted", text: MUTED }));
+    } else if (user) {
       composerEl.appendChild(composer({ onDone: function (c) { addComment(c); } }));
     } else {
       composerEl.appendChild(el("p", { class: "cmt-empty" }, loginLink("Log in to comment"), "."));
@@ -137,6 +141,11 @@
       var replyBtn = el("button", { class: "fz-linkbtn", type: "button", text: "Reply" });
       replyBtn.addEventListener("click", function () {
         if (!user) { hint(actions, "reply"); return; }
+        if (user.muted) {
+          var old = actions.querySelector(".cmt-hint"); if (old) old.remove();
+          actions.appendChild(el("span", { class: "cmt-hint fz-muted", text: MUTED }));
+          return;
+        }
         if (replySlot.firstChild) { replySlot.textContent = ""; return; }
         var form = composer({
           parent: c.id,
@@ -148,7 +157,7 @@
       });
       actions.appendChild(replyBtn);
 
-      if (user && (c.mine || user.admin)) {
+      if (user && (c.mine || user.admin || user.role === "moderator")) {   // moderators may delete any comment
         var del = el("button", { class: "fz-linkbtn", type: "button", text: "Delete" });
         del.addEventListener("click", function () {
           if (!confirm("Delete this comment?")) return;

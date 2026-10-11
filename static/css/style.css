@@ -361,6 +361,17 @@ figcaption {
     text-decoration: none; background: transparent;
 }
 .fz-login-pill:hover, .light-mode .fz-login-pill:hover { background: var(--fz-accent); color: #fff; }
+/* logged out: [Sign up] (filled) [Log in]. Portrait phones narrower than 385px keep only
+   "Log in" (its page links to sign-up), so the one-row header never overflows. */
+.fz-signup-pill, .fz-signup-pill:visited, .light-mode .fz-signup-pill, .light-mode .fz-signup-pill:visited {
+    background: var(--fz-accent); color: #fff; margin-right: 8px;
+}
+.fz-signup-pill:hover, .light-mode .fz-signup-pill:hover { filter: brightness(1.12); }
+@media (max-aspect-ratio: 1/1) {
+    .fz-login-pill, .fz-login-pill:visited, .light-mode .fz-login-pill, .light-mode .fz-login-pill:visited { padding: 4px 11px; }
+    .fz-signup-pill, .light-mode .fz-signup-pill { margin-right: 6px; }
+}
+@media (max-aspect-ratio: 1/1) and (max-width: 384.98px) { .fz-signup-pill { display: none !important; } }
 
 /* logged in: the avatar component is the account button */
 .fz-acct-btn {
@@ -467,6 +478,10 @@ figcaption {
 .fz-form label { font-size: 0.9em; }
 .fz-row { display: flex; align-items: center; gap: 0.8em; flex-wrap: wrap; }
 .fz-account-page { max-width: 30em; margin: 0 auto; }
+.fz-switch { text-align: center; }
+.fz-fine { font-size: 0.85em; margin: 0; }
+/* sign-up honeypot: off-screen (not display:none, which some bots skip) */
+.fz-hp { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
 .fz-account-page p { margin: 1em 0; }
 
 /* comments */
@@ -734,3 +749,21 @@ a.notif { display: flex; gap: 12px; align-items: flex-start; }
 .light-mode .dev-docs .chroma .bp { color: #1f5f99; }
 .light-mode .dev-docs .chroma .nt, .light-mode .dev-docs .chroma .nf, .light-mode .dev-docs .chroma .nv { color: #7b3fa0; }
 /* ==== end personal API keys ==== */
+
+/* ==== profile "Your data": export + delete account (js/fazon-account.js, own profile only) ==== */
+.acc-intro { font-size: 0.92em; }
+.acc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.acc-status { font-size: 0.85em; }
+.acc-status:empty, .acc-err:empty { display: none; }
+.acc-danger {
+    margin-top: 1.4em; padding: 14px 16px; border: 1px solid var(--fz-bad); border-radius: 8px;
+}
+.acc-danger h3 { margin: 0 0 0.4em; color: var(--fz-bad); font-size: 1em; }
+.acc-danger p { margin: 0 0 0.8em; font-size: 0.9em; }
+.acc-confirm { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.acc-confirm label { font-size: 0.88em; }
+.acc-confirm .fz-input { max-width: 24em; }
+.fz-btn.acc-danger-btn { border-color: var(--fz-bad); color: var(--fz-bad); }
+.fz-btn.acc-danger-btn:hover:not(:disabled) { background: var(--fz-bad); color: #fff; }
+.fz-btn.acc-danger-btn.solid { background: var(--fz-bad); color: #fff; }
+/* ==== end "Your data" ==== */

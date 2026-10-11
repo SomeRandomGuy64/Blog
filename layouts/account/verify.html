@@ -8,24 +8,29 @@
     const F=window.Fazon, el=F.el, box=document.getElementById("verifyBox");
     // the token lives in the fragment (#t=…&next=…) so it never reaches a server log or a
     // link scanner; read it, then wipe it from the address bar / history straight away
+    // login links carry #t=…, sign-up confirmation links #s=… (POST /v1/auth/signup/confirm)
     let h=new URLSearchParams(location.hash.replace(/^#/,""));
-    const token=h.get("t")||"", hashNext=h.get("next")||"";
+    const signup=!h.get("t")&&!!h.get("s");
+    const token=h.get(signup?"s":"t")||"", hashNext=h.get("next")||"";
     if(location.hash) history.replaceState(null,"",location.pathname+location.search);
+    if(signup) document.querySelector("main h1").textContent="Confirming your account";
 
     function fail(msg){
       msg=String(msg||"Invalid or expired link."); msg=msg.charAt(0).toUpperCase()+msg.slice(1);
+      const q=F.safePath(hashNext)?"?next="+encodeURIComponent(hashNext):"";
       box.textContent="";
       box.append(el("p",{class:"fz-error",role:"alert",text:msg}),
-        el("p",{},el("a",{href:"/account/login/"+(F.safePath(hashNext)?"?next="+encodeURIComponent(hashNext):""),
-          text:"Request a new login link →"})));
+        signup?el("p",{},"Confirmation links work once, for an hour. ",el("a",{href:"/account/signup/"+q,text:"Sign up again →"})):null,
+        el("p",{},el("a",{href:"/account/login/"+q,text:signup?"Already confirmed? Log in →":"Request a new login link →"})));
     }
     if(!token){ fail("This login link is incomplete or has already been used."); return; }
-    F.api("/v1/auth/verify",{method:"POST",body:{token}}).then(d=>{
+    F.api(signup?"/v1/auth/signup/confirm":"/v1/auth/verify",{method:"POST",body:{token}}).then(d=>{
       let next=F.safePath((d&&d.next)||"")||F.safePath(hashNext)||"/";
-      if(next.indexOf("/account/login/")===0||next.indexOf("/account/verify/")===0) next="/";
+      if(/^\/account\/(login|verify|signup)\//.test(next)) next="/";
       box.textContent="";
-      box.append(el("p",{},"Logged in",d&&d.user?" as ":"",d&&d.user?el("b",{text:d.user.name}):null,". Taking you back…"));
-      location.replace(next);
+      if(d&&d.created) box.append(el("p",{class:"fz-note"},"Welcome, ",el("b",{text:d.user.name}),"! Your account is ready. Taking you back…"));
+      else box.append(el("p",{},"Logged in",d&&d.user?" as ":"",d&&d.user?el("b",{text:d.user.name}):null,". Taking you back…"));
+      setTimeout(()=>location.replace(next),d&&d.created?1200:0);
     },e=>fail(e.message));
   })();
   </script>

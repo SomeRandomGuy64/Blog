@@ -19,7 +19,8 @@ import (
 type publicUser struct {
 	ID      int64   `json:"id"`
 	Name    string  `json:"name"`
-	Admin   bool    `json:"admin"`
+	Admin   bool    `json:"admin"`  // role == "admin" (kept for older frontends)
+	Role    string  `json:"role"`   // "user", "moderator" or "admin"
 	Avatar  *string `json:"avatar"` // path relative to the API base, or null
 	Level   int     `json:"level"`
 	XP      int64   `json:"xp"`
@@ -31,6 +32,7 @@ type publicUser struct {
 type selfUser struct {
 	publicUser
 	Email string `json:"email"`
+	Muted bool   `json:"muted"` // blocked from commenting by a moderator
 }
 
 func avatarPath(userID, updated int64) string {
@@ -47,7 +49,7 @@ func (s *Server) publicUsers(ctx context.Context, ids []int64) (map[int64]*publi
 	}
 	idsJSON, _ := json.Marshal(ids)
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT u.id, u.name, u.is_admin, a.updated_at, COUNT(l.user_id)
+		SELECT u.id, u.name, u.role, a.updated_at, COUNT(l.user_id)
 		FROM users u
 		LEFT JOIN avatars a ON a.user_id = u.id
 		LEFT JOIN comments c ON c.user_id = u.id
@@ -61,9 +63,10 @@ func (s *Server) publicUsers(ctx context.Context, ids []int64) (map[int64]*publi
 	for rows.Next() {
 		var u publicUser
 		var avatar sql.NullInt64
-		if err := rows.Scan(&u.ID, &u.Name, &u.Admin, &avatar, &u.XP); err != nil {
+		if err := rows.Scan(&u.ID, &u.Name, &u.Role, &avatar, &u.XP); err != nil {
 			return nil, err
 		}
+		u.Admin = u.Role == db.RoleAdmin
 		if avatar.Valid {
 			p := avatarPath(u.ID, avatar.Int64)
 			u.Avatar = &p
@@ -88,17 +91,15 @@ func (s *Server) selfUser(ctx context.Context, u *user) (selfUser, error) {
 	if p == nil {
 		return selfUser{}, errors.New("user vanished")
 	}
-	return selfUser{*p, u.Email}, nil
+	return selfUser{*p, u.Email, u.Muted}, nil
 }
 
 // writeSelf answers {"user": <the requester, freshly loaded>}.
 func (s *Server) writeSelf(w http.ResponseWriter, r *http.Request, id int64) {
-	var u user
-	err := s.db.QueryRowContext(r.Context(), `SELECT id, email, name, is_admin FROM users WHERE id = ?`, id).
-		Scan(&u.ID, &u.Email, &u.Name, &u.Admin)
+	u, err := s.loadUser(r.Context(), id)
 	var self selfUser
 	if err == nil {
-		self, err = s.selfUser(r.Context(), &u)
+		self, err = s.selfUser(r.Context(), u)
 	}
 	if err != nil {
 		internalErr(w, "load user", err)

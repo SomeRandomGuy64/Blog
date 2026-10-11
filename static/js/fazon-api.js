@@ -127,6 +127,13 @@
     var n = safePath(next || (location.pathname + location.search)) || "/";
     return "/account/login/?next=" + encodeURIComponent(n);
   }
+  function signupHref(next) {
+    var n = safePath(next || (location.pathname + location.search)) || "/";
+    if (n.indexOf("/account/") === 0) n = "/";   // don't come back to login/sign-up pages
+    return "/account/signup/?next=" + encodeURIComponent(n);
+  }
+  // moderators and admins (user.role; older APIs only sent user.admin)
+  function isStaff(u) { return !!u && (u.role === "admin" || u.role === "moderator" || (!u.role && !!u.admin)); }
 
   // ---- avatar: picture (or initial) inside an XP progress ring, with a level badge ----
   // Fazon.avatar(user, size, {ring, badge}) → <span class="fz-av">. user = public User object
@@ -478,7 +485,9 @@
     if (!wrap) return;
     wrap.textContent = "";
     if (!user) {
-      wrap.appendChild(el("a", { href: loginHref(), class: "fz-login-pill", text: "Log in" }));
+      // [Sign up] [Log in]; on narrow phones only "Log in" (style.css), whose page links to sign-up
+      wrap.append(el("a", { href: signupHref(), class: "fz-login-pill fz-signup-pill", text: "Sign up" }),
+        el("a", { href: loginHref(), class: "fz-login-pill", text: "Log in" }));
       wrap.hidden = false;
       return;
     }
@@ -489,6 +498,7 @@
     var panel = el("div", { class: "fz-panel fz-acct-panel", id: "fzAcctPanel", role: "region", "aria-label": "Account", hidden: true },
       who, prof,
       el("a", { class: "fz-acct-item", href: "/account/notifications/", text: "Notifications" }),
+      isStaff(user) ? el("a", { class: "fz-acct-item", href: "/admin/", text: "Admin" }) : null,
       el("button", { type: "button", class: "fz-acct-item", text: "Log out", onclick: function () { logout(); } }));
     acct = { btn: btn, who: who, profile: prof };
     paintAccount(user);
@@ -536,6 +546,8 @@
     invalidateCard: invalidateCard,
     openNotif: openNotif,
     loginHref: loginHref,
+    signupHref: signupHref,
+    isStaff: isStaff,
     esc: esc,
     el: el,
     safePath: safePath,
