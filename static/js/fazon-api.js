@@ -504,7 +504,11 @@
   function initHeader() {
     me().then(function (m) {
       if (m.offline) return;  // API unreachable: show nothing
-      if (m.user) { initBell(); paintBadge(m.unread); }
+      if (m.user) {
+        initBell(); paintBadge(m.unread);
+        // nav links for logged-in users only (menu params.authOnly in hugo.toml); logout reloads
+        document.querySelectorAll(".site-nav [data-fz-auth]").forEach(function (a) { a.hidden = false; });
+      }
       initAccount(m.user);
       var row = document.getElementById("fzClusterRow");
       if (row) row.hidden = false;

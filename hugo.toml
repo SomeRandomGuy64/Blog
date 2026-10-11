@@ -39,6 +39,9 @@ enableRobotsTXT = true
     name = "Track"
     pageRef = "/track"
     weight = 16
+    # hidden until js/fazon-api.js confirms a logged-in user
+    [menu.main.params]
+      authOnly = true
   [[menu.main]]
     name = "Tools"
     pageRef = "/tools"
