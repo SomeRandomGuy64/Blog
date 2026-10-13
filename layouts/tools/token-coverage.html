@@ -138,6 +138,12 @@
             offset moves whichever subtitles it's using.
             <span class="tc-nw"><kbd>←</kbd>/<kbd>→</kbd> skip 5 s</span> ·
             <span class="tc-nw"><kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> nudge the subtitles.</span></p>
+          <!-- watch time → Track (logged in), or a log-in nudge; filled in by token-coverage.js -->
+          <p class="tc-watch" id="tcWatch" hidden>
+            <label class="tc-watch-on" id="tcWatchOnWrap" hidden><input type="checkbox" id="tcWatchOn"> Track watch time</label>
+            <span class="tc-watch-msg" id="tcWatchMsg" role="status"></span>
+            <span class="tc-watch-note" id="tcWatchNote" role="status" hidden></span>
+          </p>
         </div>
         <div class="tc-live" aria-live="off">
           <div class="tc-live-head">
