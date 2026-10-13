@@ -3,7 +3,9 @@ package api
 // MvJ sync: mirrors one account's Track into the MvJ dojo immersion tracker
 // (mattvsjapan.com/immersion-tracking). That site is a Supabase app with no public API, so this
 // talks to its PostgREST tables the way its own frontend does, signed in as the owner's MvJ
-// account (row-level security keeps it to that account's rows):
+// account (row-level security keeps it to that account's rows). fazond never sees the password:
+// the owner signs in on their own machine (deploy/mvj_login.py) and hands over only the session's
+// refresh token (fazond mvj-token), kept in settings and rotated on every refresh. Tables:
 //
 //	weeks        one row per week: id, start_date (= our week key, the label Saturday), …
 //	weekly_logs  one row per (user_id, week_id): categories {cat: {hours, rating}}, notes,
@@ -19,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,10 +38,8 @@ import (
 
 // MvJConfig turns the sync on (see Server.RunMvJSync).
 type MvJConfig struct {
-	Supabase   string // the site's Supabase project URL, e.g. https://xxxx.supabase.co
-	AnonKey    string // the site's public anon key (the apikey header its frontend sends)
-	Email      string // the MvJ account
-	Password   string
+	Supabase   string   // the site's Supabase project URL, e.g. https://xxxx.supabase.co
+	AnonKey    string   // the site's public anon key (the apikey header its frontend sends)
 	LocalEmail string   // the fazon.nexus account whose Track is mirrored
 	From       week.Key // earliest week mirrored
 	HTTP       *http.Client
@@ -48,6 +49,9 @@ const (
 	mvjEvery       = time.Minute
 	mvjMaxBackoff  = time.Hour
 	mvjDefaultRate = "🔥" // what the MvJ form sends for a category nobody rated
+	// SettingMvJRefresh is the settings key holding the MvJ session's current refresh token.
+	SettingMvJRefresh = "mvj_refresh_token"
+	mvjRelogin        = "sign in again from your machine: python3 backend/deploy/mvj_login.py root@<server>"
 )
 
 // mvjRatings maps track_ratings values to the MvJ site's rating strings.
@@ -60,8 +64,8 @@ type mvjSync struct {
 	cfg MvJConfig
 	hc  *http.Client
 
-	access, refresh, userID string
-	expires                 time.Time
+	access, userID string
+	expires        time.Time
 
 	weekIDs map[string]string   // week key → MvJ weeks.id
 	sent    map[string][32]byte // week key → hash of what was last pushed (or found empty at start)
@@ -265,34 +269,29 @@ func (m *mvjSync) rest(ctx context.Context, method, path string, body any, prefe
 	}
 }
 
-// token returns a live access token: the current one, else a refreshed one, else a fresh
-// password sign-in. Refresh tokens are single-use, so this keeps its own session and never
-// touches the browser's.
+// token returns a live access token: the current one, else one from refreshing the stored
+// session. Refresh tokens are single-use (Supabase rotates them), so the new one is stored
+// straight away: the token in settings is always the session's latest. One stored by
+// fazond mvj-token is picked up at the next refresh.
 func (m *mvjSync) token(ctx context.Context) (string, error) {
 	if m.access != "" && time.Now().Before(m.expires.Add(-2*time.Minute)) {
 		return m.access, nil
 	}
-	if m.refresh != "" {
-		err := m.signIn(ctx, "refresh_token", map[string]string{"refresh_token": m.refresh})
-		if err == nil {
-			return m.access, nil
-		}
-		slog.Info("mvj sync: refresh failed, signing in again", "err", err)
+	var refresh string
+	err := m.s.db.QueryRowContext(ctx, `SELECT value FROM settings WHERE key = ?`, SettingMvJRefresh).Scan(&refresh)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && refresh == "") {
+		return "", errors.New("no MvJ session: " + mvjRelogin)
 	}
-	if err := m.signIn(ctx, "password", map[string]string{"email": m.cfg.Email, "password": m.cfg.Password}); err != nil {
-		m.refresh = ""
+	if err != nil {
 		return "", err
 	}
-	return m.access, nil
-}
-
-func (m *mvjSync) signIn(ctx context.Context, grant string, body map[string]string) error {
-	status, raw, err := m.call(ctx, http.MethodPost, m.cfg.Supabase+"/auth/v1/token?grant_type="+grant, http.Header{}, body)
+	status, raw, err := m.call(ctx, http.MethodPost, m.cfg.Supabase+"/auth/v1/token?grant_type=refresh_token",
+		http.Header{}, map[string]string{"refresh_token": refresh})
 	if err != nil {
-		return err
+		return "", err
 	}
 	if status != http.StatusOK {
-		return fmt.Errorf("MvJ sign-in (%s): %d %s", grant, status, snippet(raw))
+		return "", fmt.Errorf("MvJ session refresh: %d %s; %s", status, snippet(raw), mvjRelogin)
 	}
 	var r struct {
 		AccessToken  string `json:"access_token"`
@@ -303,14 +302,19 @@ func (m *mvjSync) signIn(ctx context.Context, grant string, body map[string]stri
 		} `json:"user"`
 	}
 	if err := json.Unmarshal(raw, &r); err != nil {
-		return fmt.Errorf("MvJ sign-in (%s): %w", grant, err)
+		return "", fmt.Errorf("MvJ session refresh: %w", err)
 	}
-	if r.AccessToken == "" || r.User.ID == "" {
-		return fmt.Errorf("MvJ sign-in (%s): no token or user in the response", grant)
+	if r.AccessToken == "" || r.RefreshToken == "" || r.User.ID == "" {
+		return "", errors.New("MvJ session refresh: no tokens or user in the response")
 	}
-	m.access, m.refresh, m.userID = r.AccessToken, r.RefreshToken, r.User.ID
+	// Replace only the token just used, so one stored meanwhile by mvj-token wins.
+	if _, err := m.s.db.ExecContext(ctx, `UPDATE settings SET value = ? WHERE key = ? AND value = ?`,
+		r.RefreshToken, SettingMvJRefresh, refresh); err != nil {
+		return "", fmt.Errorf("store the rotated MvJ refresh token: %w", err)
+	}
+	m.access, m.userID = r.AccessToken, r.User.ID
 	m.expires = time.Now().Add(time.Duration(r.ExpiresIn) * time.Second)
-	return nil
+	return m.access, nil
 }
 
 // call sends one request with the apikey header (and a JSON body if non-nil) and reads the reply.

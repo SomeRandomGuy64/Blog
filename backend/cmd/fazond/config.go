@@ -31,7 +31,7 @@ type config struct {
 
 // mvjConfig is the optional Track → MvJ dojo tracker sync (api/mvjsync.go); on when email is set.
 type mvjConfig struct {
-	email, password, supabase, anonKey, from string
+	email, supabase, anonKey, from string
 }
 
 const defaultResendFrom = "Fazon Nexus <login@fazon.nexus>"
@@ -61,7 +61,7 @@ func envBool(key string, def bool) bool {
 // Call finish after fs.Parse.
 func configFlags(fs *flag.FlagSet) (c *config, finish func() error) {
 	c = &config{}
-	var origins, passFile, resendKeyFile, mvjPassFile string
+	var origins, passFile, resendKeyFile string
 	fs.StringVar(&c.listen, "listen", env("FAZOND_LISTEN", "127.0.0.1:8091"), "listen address ($FAZOND_LISTEN)")
 	fs.StringVar(&c.dataDir, "data", env("FAZOND_DATA", "/var/lib/fazond"), "data directory: fazon.db, backups/ ($FAZOND_DATA)")
 	fs.StringVar(&c.site, "site", env("FAZOND_SITE", "https://fazon.nexus"), "public site base URL: magic links, and where /comment-pages.json is fetched from ($FAZOND_SITE)")
@@ -78,8 +78,7 @@ func configFlags(fs *flag.FlagSet) (c *config, finish func() error) {
 	fs.StringVar(&passFile, "smtp-pass-file", env("FAZOND_SMTP_PASS_FILE", ""), "file holding the SMTP password ($FAZOND_SMTP_PASS_FILE; or set $FAZOND_SMTP_PASS)")
 	fs.StringVar(&c.mailFrom, "mail-from", env("FAZOND_MAIL_FROM", ""),
 		`From address, e.g. "Fazon Nexus <you@gmail.com>"; resend defaults to "`+defaultResendFrom+`" ($FAZOND_MAIL_FROM)`)
-	fs.StringVar(&c.mvj.email, "mvj-email", env("FAZOND_MVJ_EMAIL", ""), "MvJ dojo account to mirror the admin's Track into; empty = sync off ($FAZOND_MVJ_EMAIL)")
-	fs.StringVar(&mvjPassFile, "mvj-password-file", env("FAZOND_MVJ_PASSWORD_FILE", ""), "file holding the MvJ account's password ($FAZOND_MVJ_PASSWORD_FILE; or set $FAZOND_MVJ_PASSWORD)")
+	fs.StringVar(&c.mvj.email, "mvj-email", env("FAZOND_MVJ_EMAIL", ""), "MvJ dojo account to mirror the admin's Track into (its session comes from fazond mvj-token); empty = sync off ($FAZOND_MVJ_EMAIL)")
 	fs.StringVar(&c.mvj.supabase, "mvj-supabase", env("FAZOND_MVJ_SUPABASE", ""), "the MvJ site's Supabase project URL ($FAZOND_MVJ_SUPABASE)")
 	fs.StringVar(&c.mvj.anonKey, "mvj-anon-key", env("FAZOND_MVJ_ANON_KEY", ""), "the MvJ site's public Supabase anon key ($FAZOND_MVJ_ANON_KEY)")
 	fs.StringVar(&c.mvj.from, "mvj-from", env("FAZOND_MVJ_FROM", ""), "earliest week mirrored, a Saturday like 2026-10-10 ($FAZOND_MVJ_FROM)")
@@ -97,12 +96,9 @@ func configFlags(fs *flag.FlagSet) (c *config, finish func() error) {
 		if c.resendKey, err = secret("FAZOND_RESEND_KEY", resendKeyFile); err != nil {
 			return err
 		}
-		if c.mvj.password, err = secret("FAZOND_MVJ_PASSWORD", mvjPassFile); err != nil {
-			return err
-		}
 		if c.mvj.email != "" {
-			if c.mvj.password == "" || c.mvj.supabase == "" || c.mvj.anonKey == "" || c.mvj.from == "" {
-				return errors.New("FAZOND_MVJ_EMAIL is set: also set FAZOND_MVJ_PASSWORD(_FILE), FAZOND_MVJ_SUPABASE, FAZOND_MVJ_ANON_KEY and FAZOND_MVJ_FROM")
+			if c.mvj.supabase == "" || c.mvj.anonKey == "" || c.mvj.from == "" {
+				return errors.New("FAZOND_MVJ_EMAIL is set: also set FAZOND_MVJ_SUPABASE, FAZOND_MVJ_ANON_KEY and FAZOND_MVJ_FROM")
 			}
 			if _, err := week.Parse(c.mvj.from, time.Now()); err != nil {
 				return fmt.Errorf("FAZOND_MVJ_FROM: %w", err)
