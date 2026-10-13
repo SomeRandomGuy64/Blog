@@ -28,6 +28,10 @@ Only what you give the site or what it needs to work:
   goals, and whether your Track is public.
 - **Kyōtsu trainer sessions:** when you trained, the settings you used, your answers and your active
   practice time (which is also added to Phonetic training on your Track).
+- **Watch sessions:** if you're logged in while playing a video in the Primed Listening and Token
+  Coverage tool (and haven't turned tracking off there), when you started, how long the video was
+  actually playing, and the YouTube video's ID. The playing time is added to Active immersion on
+  your Track. Your Anki collection and subtitle files never leave your browser.
 - **API keys:** if you create any, their name, permission (read or read & write), a short prefix
   and when they were created and last used. The keys themselves are stored only as a one-way
   fingerprint (hash), so nobody can read them back.
@@ -42,7 +46,8 @@ address, and moderation actions) for troubleshooting and to prevent abuse.
 ## Why
 
 To run your account (sending login and sign-up emails, keeping you logged in), and to provide the
-features you use: comments, likes, notifications, profiles, Track, the Kyōtsu trainer and API keys.
+features you use: comments, likes, notifications, profiles, Track, the Kyōtsu trainer, the
+Primed Listening tool's watch time and API keys.
 
 ## What's public and what's private
 
@@ -64,7 +69,8 @@ features you use: comments, likes, notifications, profiles, Track, the Kyōtsu t
 
 **Only you can see:** your email address, your notifications, the comments and articles you liked
 (except that whoever wrote the comment or article is notified of your like, with your name), your
-private summaries, your Kyōtsu session history, your API keys, and your current week on Track.
+private summaries, your Kyōtsu session history, your watch sessions, your API keys, and your
+current week on Track.
 
 **Moderators and admins** can see a list of accounts with display names, roles, when people joined
 and were last active, how many comments they've posted, whether they're blocked from commenting

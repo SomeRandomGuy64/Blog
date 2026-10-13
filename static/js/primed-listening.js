@@ -16,7 +16,7 @@
 // Usage (token-coverage.js): var pl = PrimedListening({ppc, onPpc, onOffset, onLine});
 // pl.setCues(cues, offset) (swap the track it runs off; offset defaults to 0) · pl.attach(ytPlayer)
 // on ready · pl.state(e.data) from onStateChange · pl.detach() before the player is destroyed ·
-// pl.offset() (s added to cue times).
+// pl.offset() (s added to cue times) · pl.idle() (stopped, and not by one of its own auto-pauses).
 (function () {
   "use strict";
 
@@ -381,7 +381,11 @@
       detach: detach,
       state: onState,
       setCues: function (c, off) { cues = c || []; cur = -2; setOffset(off || 0, true); if (enabled && player) startEngine(); },
-      offset: function () { return offset; }
+      offset: function () { return offset; },
+      // stopped for good rather than in one of our own timed pauses (which resume by themselves):
+      // a manual pause, a held pause, the end, or nothing playing yet. playing is set optimistically
+      // as we resume, so the gap before YouTube's PLAYING event doesn't count as stopped
+      idle: function () { return !!player && !playing && !resumeTimer; }
     };
   };
 })();

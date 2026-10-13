@@ -10,7 +10,8 @@
 // interjections, fillers, numerals, single-hiragana fragments and words the dictionary doesn't
 // know are never counted; proper nouns and transparent katakana loanwords are optional.
 // Everything stays in the browser; the only network calls are AnkiConnect (localhost), the
-// kuromoji dictionary (jsDelivr) and the YouTube player.
+// kuromoji dictionary (jsDelivr), the YouTube player and — logged in — watch-time heartbeats to
+// the site's API (how long the video played, and its YouTube id; see "watch time" below).
 (function () {
   "use strict";
 
@@ -35,7 +36,7 @@
   // ---------------------------------------------------------------- settings
   var DEFAULTS = { url: "http://127.0.0.1:8765", filters: null, mature: 21, knownIvl: 21, stability: false,
                    manualTag: "am-known-manually",
-                   csvLemmas: [], exNames: true, exLoan: true, win: 180, ppc: 0.06 };
+                   csvLemmas: [], exNames: true, exLoan: true, win: 180, ppc: 0.06, watch: true };
   var S = (function () {
     var o = {};
     try { o = JSON.parse(localStorage.getItem(STORE) || "{}") || {}; } catch (e) { o = {}; }
@@ -772,14 +773,14 @@
     $("tcPlayerWrap").hidden = false;
     if (player && playerVid === id) return;
     loadYT().then(function () {
-      if (player) { player.cueVideoById(id); playerVid = id; return; }
+      if (player) { player.cueVideoById(id); playerVid = id; watch.video(id); return; }
       player = new window.YT.Player("tcPlayer", {
         // fs:0 hides YouTube's fullscreen button: it would fullscreen only the iframe, losing our
         // overlay — our own button (and f) fullscreens the whole video box instead
         videoId: id, playerVars: { playsinline: 1, rel: 0, modestbranding: 1, fs: 0 },
         events: {
-          onReady: function () { playerVid = id; if (prim) prim.attach(player); startPoll(); renderUnknown(); drawChart(); },
-          onStateChange: function (e) { if (prim) prim.state(e.data); }
+          onReady: function () { playerVid = id; if (prim) prim.attach(player); watch.attach(player, id); startPoll(); renderUnknown(); drawChart(); },
+          onStateChange: function (e) { if (prim) prim.state(e.data); watch.state(e.data); }
         }
       });
     });
@@ -787,6 +788,7 @@
   function teardownPlayer() {
     $("tcPlayerWrap").hidden = true;
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    watch.detach();   // before prim lets go of the player: it still asks prim whether it's stopped
     if (prim) prim.detach();
     if (player) { try { player.destroy(); } catch (e) { /* already gone */ } player = null; playerVid = null;
       // put a fresh placeholder back for the next player, keeping the primed-listening layers
@@ -834,6 +836,203 @@
       line.appendChild(sp);
     });
   }
+
+  // ---------------------------------------------------------------- watch time → Track
+  // Logged in (and unless switched off), the time the video really plays goes to the user's Track
+  // — Active immersion › Primed Listening — through POST /v1/watch/sessions. A session is one
+  // video in one player on one page load: a random client_id, `started` = its first counted second,
+  // and its cumulative playing seconds, sent as a heartbeat about once a minute, ~1.5 s after the
+  // video stops for good (not primed listening's own auto-pauses), and with keepalive when the page
+  // is hidden or left. The server adds whole minutes it hasn't added yet, so repeats are harmless.
+  // Counting: once a second, the time since the last tick — but never more than the video's clock
+  // advanced (÷ playback rate), and only if it was PLAYING at this tick or the last one. Pauses
+  // (ours, held, manual), buffering, the end and seeks add nothing; speed doesn't distort it.
+  var watch = (function () {
+    var F = window.Fazon || null;
+    var TICK_MS = 1000, BEAT_MS = 60000, IDLE_MS = 1500;
+    var FIRST_S = 10;            // first heartbeat after this much play: confirms the login, pins `started`
+    var MAX_STEP = 2;            // seconds one tick may add (more while hidden: timers get throttled)
+    var ROTATE_MS = 20 * 3600e3; // the server takes sessions up to 24 h old: start a new one before that
+    var box = $("tcWatch"), onWrap = $("tcWatchOnWrap"), onBox = $("tcWatchOn"), msg = $("tcWatchMsg"), noteEl = $("tcWatchNote");
+    var who = F ? "unknown" : "offline";   // "unknown" until /v1/me answers, then "user" / "anon" / "offline"
+    var dead = false;            // a 401 or repeated 400s: nothing more is sent from this page
+    var p = null, vid = null, timer = null;
+    var sess = null;             // the current session: {cid, started, t0, video, secs, sent, since, tried, added}
+    var all = [];                // every session on this page (for per-video minutes + retrying unsent ones)
+    var lastWall = 0, lastVT = null, lastSt = -1, idleSince = 0, idleSent = false, lastBeat = 0;
+    var busy = false, queue = [], skip = 0, bad400 = 0, err = "", noteSeen = "", noteTimer = null;
+
+    function enabled() { return S.watch !== false; }
+    function counting() { return who === "user" && !dead && enabled() && !!p; }
+    function newId() {
+      var b = new Uint8Array(16), s = "";
+      crypto.getRandomValues(b);
+      for (var i = 0; i < b.length; i++) s += (b[i] < 16 ? "0" : "") + b[i].toString(16);
+      return s;
+    }
+    function unsent(s) { return s.secs - s.sent >= 0.5; }
+
+    function count(sec) {
+      if (!sess) {
+        sess = { cid: newId(), started: new Date(Date.now() - sec * 1000).toISOString(), t0: Date.now(),
+                 video: vid, secs: 0, sent: 0, since: 0, tried: false, added: null };
+        all.push(sess);
+      }
+      if (!unsent(sess)) sess.since = performance.now();   // unsent time starts piling up again
+      sess.secs += sec;
+    }
+    // stopped for good: primed listening knows its own auto-pauses apart; without it, any non-playing state
+    function idle(st) {
+      if (prim && prim.idle) return prim.idle();
+      return st !== 1 && st !== 3;
+    }
+
+    function tick() {
+      if (!p || !p.getPlayerState || !p.getCurrentTime) return;
+      var now = performance.now(), dt = (now - lastWall) / 1000;
+      var st = p.getPlayerState(), vt = p.getCurrentTime() || 0, was = lastSt, adv = lastVT == null ? 0 : vt - lastVT;
+      lastWall = now; lastVT = vt; lastSt = st;
+      if (counting() && (st === 1 || was === 1) && adv > 0.01) {
+        var rate = (p.getPlaybackRate && p.getPlaybackRate()) || 1;
+        var sec = Math.min(dt, adv / rate, document.hidden ? 70 : MAX_STEP);
+        if (sec > 0) count(sec);
+      }
+      if (sess && Date.now() - sess.t0 > ROTATE_MS) end();   // long session: close it, the next second opens a new one
+      if (who !== "user" || dead) return;
+      // heartbeats: the first after FIRST_S, then one BEAT_MS after the last one or after unsent time
+      // started piling up (so resuming after a long pause doesn't send at once), and once whenever
+      // the video has stayed stopped for IDLE_MS. Earlier sessions with unsent time retry every BEAT_MS.
+      if (idle(st)) { if (!idleSince) idleSince = now; } else { idleSince = 0; idleSent = false; }
+      var retry = all.filter(function (s) { return s !== sess && unsent(s); });
+      var due = retry.length > 0 && now - lastBeat >= BEAT_MS;
+      if (sess && unsent(sess)) {
+        if (sess.tried ? now - Math.max(lastBeat, sess.since) >= BEAT_MS : sess.secs >= FIRST_S) due = true;
+        if (idleSince && !idleSent && now - idleSince >= IDLE_MS) { due = true; idleSent = true; }
+      }
+      if (!due) return;
+      lastBeat = now;
+      if (skip > 0) { skip--; return; }   // rate limited: sit a few beats out
+      retry.forEach(function (s) { send(s); });
+      if (sess && unsent(sess)) send(sess);
+    }
+
+    // one heartbeat for session s: its whole total so far. One request at a time (later ones wait,
+    // newest total wins); keepalive ones (page going away) go straight out.
+    function send(s, keep) {
+      if (!F || who !== "user" || dead || !(s.secs > 0)) return;
+      if (busy && !keep) { if (queue.indexOf(s) < 0) queue.push(s); return; }
+      var secs = s.secs, body = { client_id: s.cid, started: s.started, active_seconds: Math.round(secs * 100) / 100 };
+      if (s.video) body.video_id = s.video;
+      s.tried = true;
+      if (!keep) busy = true;
+      var req;
+      try { req = F.api("/v1/watch/sessions", { method: "POST", body: body, keepalive: !!keep }); }
+      catch (e) { req = Promise.reject(e); }   // never leave busy stuck
+      req.then(function (d) {
+        s.sent = Math.max(s.sent, secs);
+        if (d) s.added = d.track_added || null;
+        err = ""; bad400 = 0;
+        if (s.added && s.added.note && s.added.note !== noteSeen) { noteSeen = s.added.note; showNote(noteSeen); }
+      }, function (e) {
+        if (e.status === 401) { dead = true; who = "anon"; }   // logged out meanwhile: show the log-in line
+        else if (e.status === 429) { skip = 3; err = "Track is busy — trying again in a few minutes"; }
+        else if (e.status === 400) {
+          // the server refuses this session (e.g. a clock far off): drop it, start afresh; give up if it keeps happening
+          s.sent = s.secs;
+          if (s === sess) sess = null;
+          err = e.message;
+          if (++bad400 >= 3) dead = true;
+        } else err = "couldn't reach the server — will retry";   // network / 5xx: keep it, next beat retries
+      }).then(function () {
+        if (!keep) { busy = false; var n = queue.shift(); if (n) send(n); }
+        paint();
+      });
+    }
+    // close the current session (video change, player gone, tracking off, 20 h): send what it has left
+    function end() {
+      var s = sess;
+      sess = null;
+      if (s && unsent(s)) send(s);
+    }
+    // page hidden / leaving: count up to now and send every unsent total with keepalive
+    function flushAll() {
+      tick();
+      all.forEach(function (s) { if (unsent(s)) send(s, true); });
+    }
+
+    function showNote(text) {
+      noteEl.textContent = text; noteEl.hidden = false;
+      if (noteTimer) clearTimeout(noteTimer);
+      noteTimer = setTimeout(function () { noteEl.hidden = true; }, 15000);
+    }
+    function minutesFor(v) {
+      var h = 0;
+      all.forEach(function (s) { if (s.video === v && s.added) h += s.added.hours || 0; });
+      return Math.round(h * 60);
+    }
+    function paint() {
+      // only alongside a player, and nothing at all when the API can't be reached
+      box.hidden = !p || who === "offline" || who === "unknown";
+      if (box.hidden) return;
+      msg.textContent = "";
+      onWrap.hidden = who !== "user";
+      if (who !== "user") {
+        noteEl.hidden = true;
+        msg.appendChild(el("a", null, "Log in to track your watch time automatically"));
+        msg.firstChild.href = F.loginHref(location.pathname);
+        return;
+      }
+      onBox.checked = enabled();
+      if (!enabled() || dead) noteEl.hidden = true;
+      if (!enabled()) { msg.textContent = "Off — watching here isn't added to your Track."; return; }
+      if (dead) { msg.appendChild(el("span", "tc-watch-err", "Not tracking: " + (err || "the server refused it"))); return; }
+      var last = null;
+      all.forEach(function (s) { if (s.added) last = s.added; });
+      var where = "Active immersion" + (!last || last.subcat ? " › " + ((last && last.subcat) || "Primed Listening") : "");
+      msg.appendChild(document.createTextNode(minutesFor(vid) + " min this video → "));
+      var a = el("a", null, where); a.href = "/track/"; msg.appendChild(a);
+      if (err) { msg.appendChild(document.createTextNode(" · ")); msg.appendChild(el("span", "tc-watch-err", err)); }
+    }
+
+    function reset() {
+      lastWall = performance.now(); lastSt = p && p.getPlayerState ? p.getPlayerState() : -1;
+      lastVT = p && p.getCurrentTime ? p.getCurrentTime() || 0 : null; idleSince = 0; idleSent = false;
+    }
+    onBox.addEventListener("change", function () {
+      if (!onBox.checked) { tick(); end(); }   // count up to now, send it, then nothing more
+      S.watch = onBox.checked; save();
+      reset();                                 // back on: the next counted second opens a fresh session
+      paint();
+    });
+    window.addEventListener("pagehide", flushAll);
+    document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") flushAll(); });
+    if (F) F.me().then(function (m) { who = m.offline ? "offline" : m.user ? "user" : "anon"; paint(); });
+
+    return {
+      // a player became ready on video id
+      attach: function (player, id) {
+        if (p && p !== player) this.detach();
+        if (sess && sess.video !== id) end();
+        p = player; vid = id; reset();
+        if (!timer) timer = setInterval(tick, TICK_MS);
+        paint();
+      },
+      // the same player was given another video
+      video: function (id) {
+        if (id === vid) return;
+        tick(); end(); vid = id; reset(); paint();
+      },
+      // the player is about to be destroyed
+      detach: function () {
+        if (!p) return;
+        tick(); end();
+        if (timer) { clearInterval(timer); timer = null; }
+        p = null; vid = null; paint();
+      },
+      // player state change: a stop gets its heartbeat ~IDLE_MS later (if it's still stopped)
+      state: function (s) { if (p && (s === 0 || s === 2)) setTimeout(tick, IDLE_MS + 50); }
+    };
+  })();
 
   // ---------------------------------------------------------------- wire up
   $("tcUrl").value = S.url;
