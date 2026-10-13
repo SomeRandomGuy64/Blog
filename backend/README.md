@@ -265,6 +265,28 @@ instead (still not a CORS-safelisted type, so it still needs our preflight). Bod
 Comments are limited to 30 per user per 10 minutes, article likes/unlikes to 60; Kyōtsu sessions, avatar uploads, profile
 edits, week saves and other Track changes to 60, 20, 20, 120 and 120 per hour (429).
 
+## MvJ sync
+
+Optional: `fazond serve` mirrors the admin's (`FAZOND_ADMIN_EMAIL`) Track into the MvJ dojo
+immersion tracker (mattvsjapan.com/immersion-tracking), so Track is the only place to log
+(`internal/api/mvjsync.go`). That site is a Supabase app with no public API; fazond signs in to the
+owner's MvJ account with email + password, keeps its own session (refreshing it; the browser's is
+untouched) and talks to the same PostgREST tables its frontend uses: `weeks` (one per week,
+`start_date` = our week key) and `weekly_logs` (one row per user and week, upserted whole).
+
+- Every minute it loads the weeks from `FAZOND_MVJ_FROM` to now and pushes each one whose hours,
+  ratings or summary changed since its last push (whatever changed it: a save, the API, the
+  Kyōtsu trainer). Weeks never logged here are never pushed; a week emptied here is pushed as
+  zeros. After a restart every logged week in range is pushed once more (harmless: an upsert).
+- Track wins: edits made on the MvJ site to a mirrored week are overwritten by the next change
+  here. Exceptions, taken from the MvJ row: the notes when our summary is private, and the rating
+  of a category not rated here (🔥, the MvJ form's default, if it has none either).
+- A week the MvJ site hasn't created yet is skipped and retried. Failures log a warning and back
+  off, doubling up to an hour.
+- Unofficial: if the MvJ site changes its tables, the sync breaks (watch the journal for
+  `mvj sync`). Set it up with the `FAZOND_MVJ_*` lines in `deploy/env.example`; the Supabase URL
+  and anon key are the `…supabase.co` host and `apikey` header of any request the tracker page makes.
+
 ## API keys
 
 Any user can create up to 5 personal API keys in the Developers section of their own profile
