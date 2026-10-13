@@ -18,7 +18,7 @@ import (
 )
 
 // latestVersion is the number of the newest migration.
-const latestVersion = 11
+const latestVersion = 12
 
 func open(t *testing.T, path string) *sql.DB {
 	t.Helper()
@@ -936,7 +936,9 @@ func TestMigrateFromV10(t *testing.T) {
 		`SELECT id, email, name, is_admin, created_at, track_public, bio, role, muted_at, muted_by FROM users ORDER BY id`,
 		`SELECT id, user_id, started_at, ended_at, layout, advanced, total, correct, answers_json, active_seconds,
 			track_centihours, track_subcat, track_note, client_id FROM kyotsu_sessions ORDER BY id`,
-		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT IN ('users', 'kyotsu_sessions') ORDER BY name`,
+		// (watch_sessions: new in 0012)
+		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT IN ('users', 'kyotsu_sessions')
+			AND tbl_name != 'watch_sessions' ORDER BY name`,
 	}
 	before := make([]string, len(queries))
 	raw, err := sql.Open("sqlite", path)
@@ -965,5 +967,64 @@ func TestMigrateFromV10(t *testing.T) {
 	}
 	if _, err := d.Exec(`UPDATE kyotsu_sessions SET mode = 'tokyo' WHERE id = 4`); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// 0012 only adds watch_sessions (video watch time): every row and every other schema object
+// stays as it was. client_id is unique per user, and the table goes with its user.
+func TestMigrateFromV11(t *testing.T) {
+	path := oldDB(t, 11,
+		`INSERT INTO users (id, email, name, role, is_admin, created_at) VALUES (1, 'admin@example.com', 'Admin', 'admin', 1, 0),
+			(2, 'a@example.com', 'A', 'user', 0, 1)`,
+		`INSERT INTO kyotsu_sessions (id, user_id, started_at, ended_at, layout, total, correct, answers_json, active_seconds, client_id, mode)
+			VALUES (4, 2, 10, 20, 'kotu', 3, 2, '[]', 9, 'abc12345', 'tokyo')`,
+	)
+	queries := []string{
+		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE tbl_name != 'watch_sessions' ORDER BY name`,
+		`SELECT * FROM users ORDER BY id`, `SELECT * FROM kyotsu_sessions ORDER BY id`,
+	}
+	before := make([]string, len(queries))
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, q := range queries {
+		before[i] = dumpRows(t, raw, q)
+	}
+	raw.Close()
+
+	d := open(t, path)
+	for i, q := range queries {
+		if after := dumpRows(t, d, q); after != before[i] {
+			t.Fatalf("%s changed:\nbefore:\n%safter:\n%s", q, before[i], after)
+		}
+	}
+	if got := dumpRows(t, d, `SELECT name FROM sqlite_master WHERE tbl_name = 'watch_sessions' AND name NOT LIKE 'sqlite_%' ORDER BY name`); got !=
+		"watch_sessions\nwatch_sessions_client\n" {
+		t.Fatalf("schema objects:\n%s", got)
+	}
+	ins := `INSERT INTO watch_sessions (user_id, client_id, started_at, updated_at) VALUES (?, ?, 0, 0)`
+	for _, row := range [][]any{{2, "abcdefgh"}, {1, "abcdefgh"}, {2, "ijklmnop"}} {
+		if _, err := d.Exec(ins, row...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, bad := range [][]any{{2, "abcdefgh"}, {2, nil}, {99, "qrstuvwx"}} {
+		if _, err := d.Exec(ins, bad...); err == nil {
+			t.Fatalf("accepted %v", bad)
+		}
+	}
+	if got := dumpRows(t, d, `SELECT user_id, client_id, video_id, active_seconds, track_centihours, track_week, track_subcat, track_note
+		FROM watch_sessions WHERE id = 1`); got != "2 abcdefgh <nil> 0 0 <nil> <nil> \n" {
+		t.Fatalf("defaults: %q", got)
+	}
+	if _, err := d.Exec(`DELETE FROM kyotsu_sessions WHERE user_id = 2`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.Exec(`DELETE FROM users WHERE id = 2`); err != nil {
+		t.Fatal(err)
+	}
+	if got := dumpRows(t, d, `SELECT user_id FROM watch_sessions`); got != "1\n" {
+		t.Fatalf("after deleting user 2: %s", got)
 	}
 }

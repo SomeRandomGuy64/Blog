@@ -1,7 +1,7 @@
 # backend (fazond)
 
 Go API for fazon.nexus at `https://api.fazon.nexus`: magic-link accounts with open sign-up, roles
-(user / moderator / admin) and moderation, threaded comments with likes and article likes on every article, in-site notifications, Kyōtsu trainer session history, the
+(user / moderator / admin) and moderation, threaded comments with likes and article likes on every article, in-site notifications, Kyōtsu trainer session history, video watch time from the site's tools, the
 Track immersion log, and personal API keys for scripting your own Track data.
 One binary, one SQLite file (`modernc.org/sqlite`, pure Go, so it cross-compiles with
 `CGO_ENABLED=0`). The site itself stays static on GitHub Pages; `fazon.nexus` and
@@ -15,7 +15,8 @@ internal/db        open + pragmas, embedded migrations (PRAGMA user_version; 000
                    0003 track + bio, 0004 track 'anki' category, 0005 track ratings/goals + settings,
                    0006 api_keys, 0007 roles + mutes + signup_tokens, 0008 user ids never reused,
                    0009 Kyōtsu practice time on kyotsu_sessions, 0010 page_likes + notifications
-                   rebuilt for 'page_like', 0011 Tokyo mode: users.hyojungo + kyotsu_sessions.mode),
+                   rebuilt for 'page_like', 0011 Tokyo mode: users.hyojungo + kyotsu_sessions.mode,
+                   0012 watch_sessions),
                    users/tokens, backup, purge
 internal/week      Track week calendar (Sun 03:00 UTC weeks, Saturday keys)
 internal/mail      resend (HTTP API), smtp (STARTTLS) and log mailers; RFC 5322 message builder
@@ -35,7 +36,7 @@ All JSON; errors are `{"error":"msg"}` with 400/401/403/404/409/413/415/429/500.
 | `POST /v1/auth/signup/confirm` `{token}` | consumes the sign-up token, creates the account (or uses the one the address got meanwhile) → `{"user":{…},"next":"/…","created":bool}` + `fz_session` cookie |
 | `GET /v1/me` | `{"user":null}` or `{"user":{id,name,email,role,admin,muted,…},"unread":N}` |
 | `DELETE /v1/me` | delete your account and all its data (see Users), clears the cookie; 409 for the only admin |
-| `GET /v1/me/export` | everything stored about you as a JSON download (`Content-Disposition: attachment; filename="fazon-nexus-export-YYYY-MM-DD.json"`): profile, comments, likes (`likes` on comments, `article_likes`), notifications, Track (sub-categories, weeks with hours/scores/ratings/goals/summaries), Kyōtsu sessions, API key metadata (never keys or hashes). 10/hour (429 + `Retry-After`) |
+| `GET /v1/me/export` | everything stored about you as a JSON download (`Content-Disposition: attachment; filename="fazon-nexus-export-YYYY-MM-DD.json"`): profile, comments, likes (`likes` on comments, `article_likes`), notifications, Track (sub-categories, weeks with hours/scores/ratings/goals/summaries), Kyōtsu sessions, watch sessions (`watch_sessions`: `id, started, updated, video_id, active_seconds, track_added`), API key metadata (never keys or hashes). 10/hour (429 + `Retry-After`) |
 | `GET /v1/admin/users?q=&limit=50&offset=0` | moderators + admins (403 otherwise): `{users:[{user,email (admins only),role,joined,last_active,comments,muted,muted_at,muted_by,track_public,can:{role,mute,delete}}],total,limit,offset,viewer,admins}`, newest first; `q` matches names (admins: and emails); `limit` ≤ 200 |
 | `POST /v1/admin/users/{id}/role` `{role}` | admins: `user`/`moderator`/`admin` → `{"user":<row>}` |
 | `POST /v1/admin/users/{id}/mute`, `…/unmute` | moderators (regular users only) and admins → `{"user":<row>}`; idempotent |
@@ -51,6 +52,7 @@ All JSON; errors are `{"error":"msg"}` with 400/401/403/404/409/413/415/429/500.
 | `POST /v1/notifications/read` `{ids:[…]}` or `{all:true}` | `{"unread":N}` |
 | `POST /v1/kyotsu/sessions` `{started,layout,mode,advanced,answers,active_seconds,client_id}` | `mode` `keihan` (default) or `tokyo` (needs Tokyo-mode access, else 403; see Tokyo mode); 201 `{"id":N,"active_seconds":S,"track_added":{…}\|null}` (200 for a retry of the same `client_id`); adds the practice time to your Track (see Kyōtsu practice time) |
 | `GET /v1/kyotsu/sessions`, `GET /v1/kyotsu/sessions/{id}` | own sessions only (others' are 404); each has `mode`, `active_seconds` and `track_added` |
+| `POST /v1/watch/sessions` `{client_id,started,active_seconds,video_id}` | a watch-session heartbeat (see Watch time): 201 `{"id":N,"active_seconds":S,"track_added":{…}\|null}` for a new `client_id`, 200 for later ones; adds the not-yet-added playing time to your Track. 300 per user per hour |
 | `GET /v1/hyojungo/pairs`, `GET /v1/hyojungo/audio/{id}.aac` | Tokyo mode's pairs index and clips: login + Tokyo-mode access (401/403), 404 if not set up; `Cache-Control: private` |
 | `GET /v1/levels` | `{"levels":[0,5,20,…,49005]}`: XP needed for levels 1–100, `5·(L−1)²` |
 | `GET /v1/users/{id}` | public profile: `{user,joined,comments,likes,recent:[…20]}` (no email) |
@@ -158,6 +160,24 @@ session stores `active_seconds` and what it added (`track_centihours`, `track_su
 nothing to say). `client_id` (8–64 of `A-Z a-z 0-9 _ -`, one per trainer run) makes the save
 idempotent: a repeat for the same user updates that session (newer answers if there are more;
 `active_seconds` only upwards; only the not-yet-added difference goes to Track) and answers 200.
+
+**Watch time.** The site's video tools (Primed Listening) send `POST /v1/watch/sessions`
+heartbeats while a video plays — about one a minute, plus one on pause / page hide — each with
+the run's `client_id` (8–64 of `A-Z a-z 0-9 _ -`), `started` (RFC 3339, when playing started),
+`active_seconds` (the run's **cumulative** playing seconds, a number ≥ 0) and optionally
+`video_id` (an 11-character YouTube id). The first heartbeat for a `client_id` stores the run in
+`watch_sessions` (201): its `started` must be at most 5 minutes ahead of the server (else 400;
+ahead at all = now) and at most 24 h ago (else 400). Later ones update it (200) and their
+`started` is ignored: `active_seconds` is clamped to the stored start → now (at most 24 h) and
+never goes down. In the same transaction the difference between the run's time and what it
+already counted (both in whole minutes, then hundredths like the stopwatch, so a run's
+heartbeats add exactly its rounded total) goes to the **current** week's Active immersion, the
+sub-category `Primed Listening` (an active one of that name in any case, else an archived one
+restored, else created; when the sub-category limits don't allow it, unassigned) — the same code
+and 168 h caps as Kyōtsu practice time; time a cap held back isn't added later. A run that
+crosses the Sunday 03:00 UTC reset adds to both weeks. `track_added` is the run's total:
+`{"week":<the week it last added to>,"hours":<all it added>,"subcat":…,"note":…}` (the note is
+the latest thing worth saying, e.g. a sub-category created, and stays on later heartbeats).
 Missing or 0 `active_seconds` (older cached trainer pages) adds nothing.
 
 **Stale weeks.** `POST /v1/track/weeks/{key}` replaces the whole week, so a logger tab holding an
@@ -262,8 +282,8 @@ profiles carries on as normal.
 CSRF: every non-GET request (outside `/v1/api/`, see API keys) needs an `Origin` in
 `FAZOND_ORIGINS` (403 otherwise) and, with a body, `Content-Type: application/json` (415); the avatar upload alone takes `image/jpeg`/`image/png`
 instead (still not a CORS-safelisted type, so it still needs our preflight). Bodies are capped at 64 KB (Kyōtsu sessions 1 MB).
-Comments are limited to 30 per user per 10 minutes, article likes/unlikes to 60; Kyōtsu sessions, avatar uploads, profile
-edits, week saves and other Track changes to 60, 20, 20, 120 and 120 per hour (429).
+Comments are limited to 30 per user per 10 minutes, article likes/unlikes to 60; Kyōtsu sessions, watch heartbeats, avatar uploads, profile
+edits, week saves and other Track changes to 60, 300, 20, 20, 120 and 120 per hour (429).
 
 ## MvJ sync
 
@@ -463,7 +483,7 @@ typed in the page.
 
 **Deleting an account** (`DELETE /v1/me` or `DELETE /v1/admin/users/{id}`, one transaction,
 `db.DeleteUser`) removes the user row and everything referring to it: sessions, login and sign-up
-tokens, API keys, avatar, Track weeks/hours/ratings/goals/sub-categories, Kyōtsu sessions, likes
+tokens, API keys, avatar, Track weeks/hours/ratings/goals/sub-categories, Kyōtsu and watch sessions, likes
 given (on comments and articles), notifications to or from them, and their comments. A comment nobody replied to is deleted
 outright (leaf first, so chains of their own replies go too). A comment with replies stays as a
 `[deleted]` tombstone exactly like an author-deleted one (body cleared, its likes and notifications

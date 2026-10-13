@@ -14,8 +14,9 @@
 // (postMessage), hence the bookkeeping around pausedByScript / pauseAskedAt below.
 //
 // Usage (token-coverage.js): var pl = PrimedListening({ppc, onPpc, onOffset, onLine});
-// pl.setCues(cues) · pl.attach(ytPlayer) on ready · pl.state(e.data) from onStateChange ·
-// pl.detach() before the player is destroyed · pl.offset() (s added to cue times).
+// pl.setCues(cues, offset) (swap the track it runs off; offset defaults to 0) · pl.attach(ytPlayer)
+// on ready · pl.state(e.data) from onStateChange · pl.detach() before the player is destroyed ·
+// pl.offset() (s added to cue times).
 (function () {
   "use strict";
 
@@ -379,7 +380,7 @@
       attach: attach,
       detach: detach,
       state: onState,
-      setCues: function (c) { cues = c || []; cur = -2; setOffset(0, true); if (enabled && player) startEngine(); },
+      setCues: function (c, off) { cues = c || []; cur = -2; setOffset(off || 0, true); if (enabled && player) startEngine(); },
       offset: function () { return offset; }
     };
   };

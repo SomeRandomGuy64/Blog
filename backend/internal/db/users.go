@@ -264,6 +264,7 @@ func DeleteUser(ctx context.Context, tx *sql.Tx, id int64, now time.Time) error 
 		`DELETE FROM page_likes WHERE user_id = ?`,
 		`DELETE FROM notifications WHERE user_id = ?1 OR actor_id = ?1`,
 		`DELETE FROM kyotsu_sessions WHERE user_id = ?`,
+		`DELETE FROM watch_sessions WHERE user_id = ?`,
 		`DELETE FROM track_hours WHERE user_id = ?`,
 		`DELETE FROM track_ratings WHERE user_id = ?`,
 		`DELETE FROM track_weeks WHERE user_id = ?`,

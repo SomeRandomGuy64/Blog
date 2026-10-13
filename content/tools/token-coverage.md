@@ -14,6 +14,8 @@ YouTube link too and it follows along with the video, showing your coverage at e
 
 With the video loaded you can also turn on **primed listening**. As each line starts, the video
 pauses just long enough for you to read it, then plays it so you hear it straight after. The
-subtitles only show while it's paused, so the rest of the time you're listening.
+subtitles only show while it's paused, so the rest of the time you're listening. Add an optional
+translation (English or any other language) and it primes you with that instead, while coverage
+still comes from the Japanese.
 
 Everything runs in your browser — your collection and subtitles never leave your computer.
