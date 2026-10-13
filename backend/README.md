@@ -269,10 +269,18 @@ edits, week saves and other Track changes to 60, 20, 20, 120 and 120 per hour (4
 
 Optional: `fazond serve` mirrors the admin's (`FAZOND_ADMIN_EMAIL`) Track into the MvJ dojo
 immersion tracker (mattvsjapan.com/immersion-tracking), so Track is the only place to log
-(`internal/api/mvjsync.go`). That site is a Supabase app with no public API; fazond signs in to the
-owner's MvJ account with email + password, keeps its own session (refreshing it; the browser's is
-untouched) and talks to the same PostgREST tables its frontend uses: `weeks` (one per week,
-`start_date` = our week key) and `weekly_logs` (one row per user and week, upserted whole).
+(`internal/api/mvjsync.go`). That site is a Supabase app with no public API; fazond talks to the same PostgREST tables its
+frontend uses: `weeks` (one per week, `start_date` = our week key) and `weekly_logs` (one row per
+user and week, upserted whole), as the owner's MvJ account.
+
+- **No password on the server.** Sign in from your own machine with
+  `python3 backend/deploy/mvj_login.py root@<server>`: it reads the `FAZOND_MVJ_*` settings from
+  the server's env, asks for the password, signs in as the MvJ login form does, and pipes only the
+  session's refresh token to `fazond mvj-token` (kept in `settings`, key `mvj_refresh_token`)
+  before restarting fazond. The sync refreshes that session (the browser's is untouched) and
+  stores each rotated token at once; a leak exposes only this tracker session, never a password.
+  If the session dies (MvJ signs everyone out, a rotation is lost), the journal says
+  `no MvJ session` / `MvJ session refresh: …`: run the script again.
 
 - Every minute it loads the weeks from `FAZOND_MVJ_FROM` to now and pushes each one whose hours,
   ratings or summary changed since its last push (whatever changed it: a save, the API, the
@@ -284,8 +292,8 @@ untouched) and talks to the same PostgREST tables its frontend uses: `weeks` (on
 - A week the MvJ site hasn't created yet is skipped and retried. Failures log a warning and back
   off, doubling up to an hour.
 - Unofficial: if the MvJ site changes its tables, the sync breaks (watch the journal for
-  `mvj sync`). Set it up with the `FAZOND_MVJ_*` lines in `deploy/env.example`; the Supabase URL
-  and anon key are the `…supabase.co` host and `apikey` header of any request the tracker page makes.
+  `mvj sync`). Set it up with the `FAZOND_MVJ_*` lines in `deploy/env.example` and the script
+  above; the Supabase URL and anon key are the `…supabase.co` host and `apikey` header of any request the tracker page makes.
 
 ## API keys
 

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,7 +23,8 @@ type mvjReq struct {
 	Body        map[string]any
 }
 
-// fakeMvJ is a Supabase stand-in: sign-in, weeks and weekly_logs, recording every request.
+// fakeMvJ is a Supabase stand-in: token refresh, weeks and weekly_logs, recording every request.
+// The n-th refresh answers access token acc-n and rotated refresh token ref-n (the seed is ref-0).
 type fakeMvJ struct {
 	*httptest.Server
 	mu    sync.Mutex
@@ -30,18 +32,43 @@ type fakeMvJ struct {
 	weeks map[string]string         // start_date → weeks.id
 	logs  map[string]map[string]any // week_id → stored weekly_logs row
 
-	fail401   int // REST calls still to answer 401
-	failPost  int // upserts still to answer 500
-	passwords int // password sign-ins
-	refreshes int // refresh_token sign-ins
+	fail401     int      // REST calls still to answer 401
+	failPost    int      // upserts still to answer 500
+	failRefresh int      // refresh calls still to answer 400
+	refreshes   int      // refresh_token grants received
+	passwords   int      // password grants received (always rejected: the sync must never use one)
+	refreshToks []string // the refresh token each refresh call sent, in order
+	onRefresh   func()   // runs after a refresh request is read, before it is answered
 }
 
 const mvjUser = "user-1"
 
-func newFakeMvJ(t *testing.T) *fakeMvJ {
+const mvjSeed = "ref-0" // the refresh token mvj-token would have stored
+
+func setRefresh(t *testing.T, d *sql.DB, tok string) {
+	t.Helper()
+	if _, err := d.Exec(`INSERT INTO settings (key, value) VALUES (?, ?)
+		ON CONFLICT (key) DO UPDATE SET value = excluded.value`, SettingMvJRefresh, tok); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func storedRefresh(t *testing.T, d *sql.DB) string {
+	t.Helper()
+	var v string
+	if err := d.QueryRow(`SELECT value FROM settings WHERE key = ?`, SettingMvJRefresh).Scan(&v); err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
+
+// newFakeMvJ starts the fake and seeds the stored session with mvjSeed.
+func (e *env) newFakeMvJ() *fakeMvJ {
+	e.t.Helper()
 	f := &fakeMvJ{weeks: map[string]string{}, logs: map[string]map[string]any{}}
 	f.Server = httptest.NewServer(http.HandlerFunc(f.serve))
-	t.Cleanup(f.Close)
+	e.t.Cleanup(f.Close)
+	setRefresh(e.t, e.db, mvjSeed)
 	return f
 }
 
@@ -61,13 +88,25 @@ func (f *fakeMvJ) serve(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	switch {
 	case r.URL.Path == "/auth/v1/token":
-		if q.Get("grant_type") == "refresh_token" {
-			f.refreshes++
-		} else {
-			f.passwords++
+		if q.Get("grant_type") != "refresh_token" {
+			if q.Get("grant_type") == "password" {
+				f.passwords++
+			}
+			reply(400, map[string]any{"error": "unsupported_grant_type"})
+			return
 		}
-		n := f.passwords + f.refreshes
-		reply(200, map[string]any{"access_token": fmt.Sprint("acc-", n), "refresh_token": fmt.Sprint("ref-", n),
+		f.refreshes++
+		tok, _ := body["refresh_token"].(string)
+		f.refreshToks = append(f.refreshToks, tok)
+		if f.onRefresh != nil {
+			f.onRefresh()
+		}
+		if f.failRefresh > 0 {
+			f.failRefresh--
+			reply(400, map[string]any{"error": "invalid_grant"})
+			return
+		}
+		reply(200, map[string]any{"access_token": fmt.Sprint("acc-", f.refreshes), "refresh_token": fmt.Sprint("ref-", f.refreshes),
 			"expires_in": 3600, "user": map[string]any{"id": mvjUser}})
 	case f.fail401 > 0:
 		f.fail401--
@@ -134,7 +173,7 @@ func (e *env) newMvJ(f *fakeMvJ, from string) *mvjSync {
 	if err != nil {
 		e.t.Fatal(err)
 	}
-	return newMvJSync(e.s, MvJConfig{Supabase: f.URL, AnonKey: "anon", Email: "me@mvj", Password: "pw",
+	return newMvJSync(e.s, MvJConfig{Supabase: f.URL, AnonKey: "anon",
 		LocalEmail: "admin@example.com", From: k, HTTP: f.Client()})
 }
 
@@ -157,7 +196,7 @@ func cat(t *testing.T, body map[string]any, c string) (hours float64, rating str
 
 func TestMvJSyncPush(t *testing.T) {
 	e := newEnv(t)
-	f := newFakeMvJ(t)
+	f := e.newFakeMvJ()
 	f.weeks[thisWeek], f.weeks[prevWeek] = "w-this", "w-prev" // prevWeek exists remotely but was never logged here
 	yt, anime := e.admin.subcat("active", "YouTube"), e.admin.subcat("active", "Anime")
 	e.admin.saveWeek(thisWeek, map[string]any{
@@ -187,8 +226,9 @@ func TestMvJSyncPush(t *testing.T) {
 		eq(t, c+" rating", r, want.r)
 	}
 	eq(t, "categories", len(u.Body["categories"].(map[string]any)), 6)
-	eq(t, "password sign-ins", f.passwords, 1)
-	eq(t, "refresh sign-ins", f.refreshes, 0)
+	eq(t, "refreshes", f.refreshes, 1)
+	eq(t, "refreshed with the seed", f.reqs[0].Body["refresh_token"], any(mvjSeed))
+	eq(t, "no password grants", f.passwords, 0)
 	// Every request carried the apikey, REST ones a Bearer too; the unlogged week was never looked up.
 	for _, r := range f.reqs {
 		eq(t, r.URI+" apikey", r.Header.Get("Apikey"), "anon")
@@ -198,13 +238,11 @@ func TestMvJSyncPush(t *testing.T) {
 	}
 	eq(t, "prev week lookups", f.count("/rest/v1/weeks?select=id&start_date=eq."+prevWeek), 0)
 	eq(t, "this week lookups", f.count("/rest/v1/weeks?select=id&start_date=eq."+thisWeek), 1)
-	eq(t, "password body", f.reqs[0].Body["email"], any("me@mvj"))
-	eq(t, "password body pw", f.reqs[0].Body["password"], any("pw"))
 }
 
 func TestMvJSyncOnlyOnChange(t *testing.T) {
 	e := newEnv(t)
-	f := newFakeMvJ(t)
+	f := e.newFakeMvJ()
 	f.weeks[thisWeek] = "w-this"
 	save := func(summary string) {
 		e.admin.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 1)}, "ratings": map[string]any{"active": 3}, "summary": summary})
@@ -216,7 +254,7 @@ func TestMvJSyncOnlyOnChange(t *testing.T) {
 	e.mustPass(m)
 	eq(t, "unchanged", len(f.upserts()), 1)
 	eq(t, "lookups cached", f.count("/rest/v1/weeks"), 1)
-	eq(t, "one sign-in", f.passwords+f.refreshes, 1)
+	eq(t, "one refresh", f.refreshes, 1)
 
 	save("two")
 	e.mustPass(m)
@@ -233,7 +271,7 @@ func TestMvJSyncOnlyOnChange(t *testing.T) {
 
 func TestMvJSyncKeepsRemote(t *testing.T) {
 	e := newEnv(t)
-	f := newFakeMvJ(t)
+	f := e.newFakeMvJ()
 	f.weeks[thisWeek] = "w-this"
 	f.setLog("w-this", map[string]any{"notes": "written on MvJ",
 		"categories": map[string]any{"active": map[string]any{"hours": 9, "rating": "😐"}, "soroban": map[string]any{"hours": 1, "rating": "👌"}}})
@@ -254,7 +292,7 @@ func TestMvJSyncKeepsRemote(t *testing.T) {
 	eq(t, "hours are ours, not remote", h, 1.0)
 
 	// Private summary with nothing remote: empty notes, never ours.
-	f2 := newFakeMvJ(t)
+	f2 := e.newFakeMvJ()
 	f2.weeks[thisWeek] = "w-x"
 	e.mustPass(e.newMvJ(f2, thisWeek))
 	eq(t, "no remote row", f2.upserts()[0].Body["notes"], any(""))
@@ -262,7 +300,7 @@ func TestMvJSyncKeepsRemote(t *testing.T) {
 
 func TestMvJSyncEmptiedWeek(t *testing.T) {
 	e := newEnv(t)
-	f := newFakeMvJ(t)
+	f := e.newFakeMvJ()
 	f.weeks[thisWeek] = "w-this"
 	e.admin.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 2), hrs("output", nil, 1)},
 		"ratings": map[string]any{"active": 2}, "summary": "hi"})
@@ -290,7 +328,7 @@ func TestMvJSyncEmptiedWeek(t *testing.T) {
 
 func TestMvJSyncWeekNotOnSite(t *testing.T) {
 	e := newEnv(t)
-	f := newFakeMvJ(t)
+	f := e.newFakeMvJ()
 	e.admin.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 1)}})
 	m := e.newMvJ(f, thisWeek)
 	e.mustPass(m)
@@ -307,42 +345,118 @@ func TestMvJSyncWeekNotOnSite(t *testing.T) {
 	eq(t, "not again", len(f.upserts()), 1)
 }
 
-func TestMvJSyncReauthOn401(t *testing.T) {
+func TestMvJSyncRefreshRotates(t *testing.T) {
 	e := newEnv(t)
-	f := newFakeMvJ(t)
+	f := e.newFakeMvJ()
 	f.weeks[thisWeek] = "w-this"
 	e.admin.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 1)}})
 	m := e.newMvJ(f, thisWeek)
-	// A past pass (week unlogged then) signed in; now the token is rejected once.
-	m.access, m.refresh, m.userID = "acc-old", "ref-old", mvjUser
+	e.mustPass(m)
+	eq(t, "first refresh used the seed", f.refreshToks[0], mvjSeed)
+	eq(t, "stored token is the rotated one", storedRefresh(t, e.db), "ref-1")
+	eq(t, "bearer", f.upserts()[0].Header.Get("Authorization"), "Bearer acc-1")
+
+	// Force another refresh: it must send the rotated token, not the original.
+	m.access = ""
+	e.admin.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 2)}})
+	e.mustPass(m)
+	eq(t, "refreshes", f.refreshes, 2)
+	eq(t, "second refresh used the rotated token", f.refreshToks[1], "ref-1")
+	eq(t, "stored token rotated again", storedRefresh(t, e.db), "ref-2")
+	eq(t, "bearer after second refresh", f.upserts()[1].Header.Get("Authorization"), "Bearer acc-2")
+	eq(t, "no password grants", f.passwords, 0)
+}
+
+func TestMvJSyncRefreshOn401(t *testing.T) {
+	e := newEnv(t)
+	f := e.newFakeMvJ()
+	f.weeks[thisWeek] = "w-this"
+	e.admin.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 1)}})
+	m := e.newMvJ(f, thisWeek)
+	// A live-looking access token that the server now rejects once.
+	m.access, m.userID = "acc-old", mvjUser
 	m.expires = e.clock.AddDate(10, 0, 0)
 	f.fail401 = 1
 	e.mustPass(m)
 	eq(t, "upserts", len(f.upserts()), 1)
-	eq(t, "refresh sign-ins", f.refreshes, 1)
-	eq(t, "password sign-ins", f.passwords, 0)
-	last := f.upserts()[0]
-	eq(t, "retried with the new token", last.Header.Get("Authorization"), "Bearer acc-1")
-	eq(t, "refresh body", f.reqs[1].Body["refresh_token"], any("ref-old"))
+	eq(t, "refreshed once", f.refreshes, 1)
+	eq(t, "refreshed with the stored token", f.refreshToks[0], mvjSeed)
+	eq(t, "retried with the new token", f.upserts()[0].Header.Get("Authorization"), "Bearer acc-1")
+	eq(t, "stored the rotated token", storedRefresh(t, e.db), "ref-1")
+	eq(t, "no password grants", f.passwords, 0)
+}
 
-	// With the refresh token rejected too, it falls back to the password.
-	f2 := newFakeMvJ(t)
-	f2.weeks[thisWeek] = "w-this"
-	m2 := e.newMvJ(f2, thisWeek)
-	e.mustPass(m2)
-	eq(t, "first sign-in is the password", f2.passwords, 1)
-	f2.mu.Lock()
-	f2.fail401 = 1
-	f2.mu.Unlock()
+func TestMvJSyncNoSession(t *testing.T) {
+	e := newEnv(t)
+	f := e.newFakeMvJ()
+	f.weeks[thisWeek] = "w-this"
+	e.admin.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 1)}})
+	check := func(what string) {
+		t.Helper()
+		m := e.newMvJ(f, thisWeek)
+		if err := m.pass(context.Background()); err == nil || !strings.Contains(err.Error(), "no MvJ session") {
+			t.Fatalf("%s: err = %v, want \"no MvJ session\"", what, err)
+		}
+		eq(t, what+": requests", len(f.reqs), 0) // nothing reached the fake, not even a lookup
+		eq(t, what+": upserts", len(f.upserts()), 0)
+	}
+	if _, err := e.db.Exec(`DELETE FROM settings WHERE key = ?`, SettingMvJRefresh); err != nil {
+		t.Fatal(err)
+	}
+	check("no row")
+	setRefresh(t, e.db, "")
+	check("empty token")
+}
+
+func TestMvJSyncRefreshRejected(t *testing.T) {
+	e := newEnv(t)
+	f := e.newFakeMvJ()
+	f.weeks[thisWeek] = "w-this"
+	e.admin.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 1)}})
+	f.failRefresh = 1
+	m := e.newMvJ(f, thisWeek)
+	if err := m.pass(context.Background()); err == nil || !strings.Contains(err.Error(), "MvJ session refresh") {
+		t.Fatalf("err = %v, want \"MvJ session refresh\"", err)
+	}
+	eq(t, "stored token unchanged", storedRefresh(t, e.db), mvjSeed)
+	eq(t, "upserts", len(f.upserts()), 0)
+	eq(t, "no password grants", f.passwords, 0)
+
+	// The next pass tries the same token again (nothing is lost by a failed attempt) and recovers.
+	e.mustPass(m)
+	eq(t, "retried with the same token", f.refreshToks[1], mvjSeed)
+	eq(t, "upserts after recovery", len(f.upserts()), 1)
+	eq(t, "rotated", storedRefresh(t, e.db), "ref-2")
+}
+
+func TestMvJSyncReseedDuringRefresh(t *testing.T) {
+	e := newEnv(t)
+	f := e.newFakeMvJ()
+	f.weeks[thisWeek] = "w-this"
+	e.admin.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 1)}})
+	// mvj-token stores a fresh session while the refresh is in flight (fake holds its lock here).
+	f.onRefresh = func() { // runs on the handler goroutine: t.Error, not t.Fatal
+		if _, err := e.db.Exec(`UPDATE settings SET value = 'ref-reseeded' WHERE key = ?`, SettingMvJRefresh); err != nil {
+			t.Error(err)
+		}
+	}
+	m := e.newMvJ(f, thisWeek)
+	e.mustPass(m) // this pass still works: it got an access token from the old token's refresh
+	eq(t, "pushed", len(f.upserts()), 1)
+	eq(t, "re-seeded token not overwritten", storedRefresh(t, e.db), "ref-reseeded")
+
+	// The next refresh starts from the re-seeded token.
+	f.onRefresh = nil
+	m.access = ""
 	e.admin.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 2)}})
-	e.mustPass(m2)
-	eq(t, "second push", len(f2.upserts()), 2)
-	eq(t, "refreshed", f2.refreshes, 1)
+	e.mustPass(m)
+	eq(t, "refreshed with the re-seeded token", f.refreshToks[1], "ref-reseeded")
+	eq(t, "rotated from it", storedRefresh(t, e.db), "ref-2")
 }
 
 func TestMvJSyncUpsertError(t *testing.T) {
 	e := newEnv(t)
-	f := newFakeMvJ(t)
+	f := e.newFakeMvJ()
 	f.weeks[thisWeek] = "w-this"
 	e.admin.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 1)}})
 	f.failPost = 1
@@ -359,18 +473,8 @@ func TestMvJSyncUpsertError(t *testing.T) {
 	eq(t, "then settled", len(f.upserts()), 2)
 }
 
-func TestMvJSyncSignInFails(t *testing.T) {
+func TestMvJSyncUnknownLocalAccount(t *testing.T) {
 	e := newEnv(t)
-	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, `{"error":"invalid_grant"}`, 400)
-	}))
-	defer bad.Close()
-	e.admin.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 1)}})
-	m := newMvJSync(e.s, MvJConfig{Supabase: bad.URL + "/", Email: "me@mvj", Password: "x", LocalEmail: "admin@example.com",
-		From: week.Of(e.clock), HTTP: bad.Client()})
-	if err := m.pass(context.Background()); err == nil || !strings.Contains(err.Error(), "sign-in") {
-		t.Fatalf("err = %v, want a sign-in error", err)
-	}
 	if err := newMvJSync(e.s, MvJConfig{LocalEmail: "nobody@example.com", From: week.Of(e.clock)}).pass(context.Background()); err == nil {
 		t.Fatal("unknown local account: want an error")
 	}

@@ -5,6 +5,7 @@
 //	fazond user add -email X -name Y [-admin]       add an account (people can also sign up on the site)
 //	fazond user list
 //	fazond login-link -email X [-next /path/]       print a fresh magic link, no email sent
+//	fazond mvj-token < token                        store the MvJ sync's session (deploy/mvj_login.py)
 //
 // Config: flags, or the FAZOND_* env vars named in each flag's help (flags win).
 package main
@@ -15,6 +16,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -41,6 +43,7 @@ const usage = `usage:
   fazond user list [flags]
   fazond user hyojungo -email X [-off] [flags]   give (or take) the trainer's Tokyo mode
   fazond login-link -email X [-next /path/] [flags]
+  fazond mvj-token [flags] < refresh-token       store the MvJ sync's session (see deploy/mvj_login.py)
 run "fazond serve -h" for the shared config flags`
 
 func main() {
@@ -65,6 +68,8 @@ func main() {
 		err = userHyojungo(args)
 	case "login-link":
 		err = loginLink(args)
+	case "mvj-token":
+		err = mvjToken(args)
 	case "help":
 		fmt.Println(usage)
 	default:
@@ -132,8 +137,8 @@ func serve(args []string) error {
 		}
 		from, _ := week.Parse(cfg.mvj.from, time.Now()) // checked in configFlags
 		slog.Info("mvj sync on", "account", cfg.mvj.email, "from", cfg.mvj.from)
-		srv.RunMvJSync(ctx, api.MvJConfig{Supabase: cfg.mvj.supabase, AnonKey: cfg.mvj.anonKey, Email: cfg.mvj.email,
-			Password: cfg.mvj.password, LocalEmail: cfg.adminEmail, From: from})
+		srv.RunMvJSync(ctx, api.MvJConfig{Supabase: cfg.mvj.supabase, AnonKey: cfg.mvj.anonKey,
+			LocalEmail: cfg.adminEmail, From: from})
 	}()
 	go func() {
 		slog.Info("listening", "addr", cfg.listen, "data", cfg.dataDir, "site", cfg.site, "mail", cfg.mailMode,
@@ -274,5 +279,30 @@ func loginLink(args []string) error {
 		return err
 	}
 	fmt.Println(api.MagicLink(cfg.site, tok, next))
+	return nil
+}
+
+// mvjToken stores the MvJ sync's session: the refresh token of a sign-in made on the owner's own
+// machine (deploy/mvj_login.py pipes it in), so the server never holds the password. The running
+// server picks it up at its next refresh; the script restarts it to make that immediate.
+func mvjToken(args []string) error {
+	_, d, err := open("mvj-token", args, nil)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	raw, err := io.ReadAll(io.LimitReader(os.Stdin, 4096))
+	if err != nil {
+		return err
+	}
+	tok := strings.TrimSpace(string(raw))
+	if tok == "" || strings.ContainsAny(tok, " \t\n") {
+		return errors.New("expected one refresh token on stdin")
+	}
+	if _, err := d.Exec(`INSERT INTO settings (key, value) VALUES (?, ?)
+		ON CONFLICT (key) DO UPDATE SET value = excluded.value`, api.SettingMvJRefresh, tok); err != nil {
+		return err
+	}
+	fmt.Println("MvJ session stored")
 	return nil
 }
