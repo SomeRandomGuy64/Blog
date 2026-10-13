@@ -1,0 +1,189 @@
+{{ define "main" }}
+  <h1>{{ .Title }}</h1>
+  {{ with .Content }}{{ . }}{{ end }}
+
+  <div class="tc" id="tc">
+    <!-- 1 · connect -->
+    <section class="tc-step" id="tcStepConnect">
+      <h2 class="tc-h2"><span class="tc-num">1</span> Connect to Anki</h2>
+      <details class="tc-help">
+        <summary>What you need</summary>
+        <ul>
+          <li><strong>Anki</strong> open on this computer, with the
+            <a href="https://ankiweb.net/shared/info/2055492159" target="_blank" rel="noopener">AnkiConnect</a> and
+            <a href="https://ankiweb.net/shared/info/472573498" target="_blank" rel="noopener">AnkiMorphs</a> add-ons installed.</li>
+          <li>When you press <em>Connect</em>, Anki pops up a window asking whether this site may use AnkiConnect —
+            click <strong>Yes</strong>. (Or add <code>{{ site.BaseURL | strings.TrimSuffix "/" }}</code> to
+            <code>webCorsOriginList</code> in AnkiConnect's config yourself.)</li>
+          <li>Your browser may also ask to allow access to devices on your local network — allow it, that's how
+            the page talks to Anki. Chrome, Edge and Firefox work; Safari blocks it.</li>
+          <li>The tool only <em>reads</em> your collection (search + note contents). It never changes anything.</li>
+        </ul>
+      </details>
+      <div class="tc-row">
+        <label class="tc-field">AnkiConnect address
+          <input id="tcUrl" type="text" value="http://127.0.0.1:8765" spellcheck="false">
+        </label>
+        <label class="tc-field tc-field-sm"><span>API key <span class="tc-opt">(if set)</span></span>
+          <input id="tcKey" type="password" autocomplete="off" spellcheck="false">
+        </label>
+        <button type="button" class="tc-btn" id="tcConnect">Connect</button>
+      </div>
+      <p class="tc-status" id="tcConnStatus" role="status"></p>
+    </section>
+
+    <!-- 2 · what you know -->
+    <section class="tc-step" id="tcStepKnown" hidden>
+      <h2 class="tc-h2"><span class="tc-num">2</span> Your known words</h2>
+      <p class="tc-note">Mirror your AnkiMorphs <em>note filters</em>: which note type and field hold the Japanese
+        you study. A word counts as <strong>learned</strong> once any card containing it has been studied,
+        and as <strong>mature</strong> once one has an interval of 21+ days (adjustable below).</p>
+      <div id="tcFilters" class="tc-filters"></div>
+      <button type="button" class="tc-btn tc-btn-ghost" id="tcAddFilter">+ Add note filter</button>
+
+      <details class="tc-help tc-adv">
+        <summary>More AnkiMorphs settings</summary>
+        <p class="tc-note">Copy these from AnkiMorphs → Settings so the counts match what AnkiMorphs itself
+          considers known.</p>
+        <div class="tc-row">
+          <label class="tc-field tc-field-sm"><span>Mature at <span class="tc-opt">(days)</span></span>
+            <input id="tcMature" type="number" min="1" max="3650" value="21">
+          </label>
+          <label class="tc-field tc-field-sm"><span>Interval for known morphs</span>
+            <input id="tcKnownIvl" type="number" min="1" max="3650" value="21">
+          </label>
+        </div>
+        <div class="tc-row">
+          <label class="tc-field"><span>Known-manually tag</span>
+            <input id="tcManualTag" type="text" value="am-known-manually" spellcheck="false">
+          </label>
+        </div>
+        <div class="tc-row tc-checks">
+          <label><input type="checkbox" id="tcStability"> Use FSRS stability instead of interval</label>
+        </div>
+        <div class="tc-row">
+          <label class="tc-field"><span>Known-morphs CSVs <span class="tc-opt">(AnkiMorphs <code>known-morphs</code> folder or Known Morphs Exporter)</span></span>
+            <input id="tcKnownCsv" type="file" accept=".csv,text/csv" multiple>
+          </label>
+          <button type="button" class="tc-btn tc-btn-ghost" id="tcClearCsv" hidden>Forget CSV words</button>
+        </div>
+        <p class="tc-note" id="tcCsvStatus"></p>
+      </details>
+
+      <button type="button" class="tc-btn" id="tcLoadKnown">Read my known words</button>
+      <p class="tc-status" id="tcKnownStatus" role="status"></p>
+    </section>
+
+    <!-- 3 · the media -->
+    <section class="tc-step" id="tcStepMedia" hidden>
+      <h2 class="tc-h2"><span class="tc-num">3</span> The video</h2>
+      <div class="tc-row">
+        <label class="tc-field"><span>Subtitles <span class="tc-opt">(.srt, .vtt or .json)</span></span>
+          <input id="tcSubs" type="file" accept=".srt,.vtt,.json,application/json,text/plain">
+        </label>
+      </div>
+      <div class="tc-row">
+        <label class="tc-field tc-field-wide"><span>YouTube link <span class="tc-opt">(optional — the video these subtitles are from)</span></span>
+          <input id="tcYt" type="url" placeholder="https://www.youtube.com/watch?v=…" spellcheck="false">
+        </label>
+      </div>
+      <div class="tc-row tc-checks">
+        <label><input type="checkbox" id="tcExNames" checked> Ignore proper nouns (names, places)</label>
+        <label><input type="checkbox" id="tcExLoan" checked> Ignore transparent katakana loanwords</label>
+      </div>
+      <button type="button" class="tc-btn" id="tcAnalyze" disabled>Measure coverage</button>
+      <p class="tc-status" id="tcMediaStatus" role="status"></p>
+    </section>
+
+    <!-- results -->
+    <section id="tcResults" hidden>
+      <div class="tc-tiles" id="tcTiles"></div>
+
+      <div class="tc-player" id="tcPlayerWrap" hidden>
+        <div class="tc-video" id="tcVideo">
+          <div id="tcPlayer"></div>
+          <!-- primed listening: click/key catcher (YouTube's control bar below it stays usable), subs, toast -->
+          <div class="tc-pl-catch" id="tcPlCatch" tabindex="0" role="button"
+               aria-label="Video: click or press Space to play or pause, n for primed listening"></div>
+          <div class="tc-pl-overlay" id="tcPlOverlay" lang="ja" hidden></div>
+          <div class="tc-pl-osd" id="tcPlOsd" aria-live="polite"></div>
+        </div>
+        <div class="tc-pl" id="tcPl">
+          <div class="tc-pl-row">
+            <label class="tc-pl-on"><input type="checkbox" id="tcPlOn"> Primed listening <kbd>n</kbd></label>
+            <span class="tc-pl-num"><span class="tc-pl-lbl">pause per char</span>
+              <button type="button" class="tc-pl-step" id="tcPpcDn" aria-label="Shorter pause">−</button>
+              <input type="number" id="tcPpc" step="0.005" min="0.005" inputmode="decimal" aria-label="Pause per character, in seconds">
+              <button type="button" class="tc-pl-step" id="tcPpcUp" aria-label="Longer pause">+</button>
+              <span class="tc-pl-unit">s</span></span>
+            <span class="tc-pl-num"><span class="tc-pl-lbl">sub offset</span>
+              <button type="button" class="tc-pl-step" id="tcOffDn" aria-label="Subtitles earlier">−</button>
+              <input type="number" id="tcOff" step="0.25" inputmode="decimal" aria-label="Subtitle offset, in seconds">
+              <button type="button" class="tc-pl-step" id="tcOffUp" aria-label="Subtitles later">+</button>
+              <span class="tc-pl-unit">s</span></span>
+            <button type="button" class="tc-btn tc-btn-ghost tc-btn-sm tc-pl-fs" id="tcFs">Fullscreen <kbd>f</kbd></button>
+          </div>
+          <p class="tc-pl-hint">Pauses as each line starts, long enough to read it, then plays it so you hear it.
+            While it's paused, <kbd>Space</kbd> or a click on the video holds the pause; press again to carry on.
+            <span class="tc-nw"><kbd>←</kbd>/<kbd>→</kbd> skip 5 s</span> ·
+            <span class="tc-nw"><kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> nudge the subtitles.</span></p>
+        </div>
+        <div class="tc-live" aria-live="off">
+          <div class="tc-live-head">
+            <span class="tc-live-time" id="tcLiveTime">0:00</span>
+            <span class="tc-live-cov"><span class="tc-live-lbl">around here</span> <b id="tcLiveWin">—</b></span>
+            <span class="tc-live-cov"><span class="tc-live-lbl">so far</span> <b id="tcLiveSoFar">—</b></span>
+          </div>
+          <p class="tc-line" id="tcLine" lang="ja"></p>
+          <p class="tc-legend-inline">
+            <span class="tc-tok tc-unk">unknown</span>
+            <span class="tc-tok tc-young">learned, not mature</span>
+            <span class="tc-tok tc-ign">not counted</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="tc-chart-card">
+        <div class="tc-chart-top">
+          <h2 class="tc-h3">Coverage over time</h2>
+          <div class="tc-chart-ctl">
+            <label class="tc-key"><input type="checkbox" id="tcShowL" checked><span class="tc-sw tc-sw-l"></span>Learned</label>
+            <label class="tc-key"><input type="checkbox" id="tcShowM" checked><span class="tc-sw tc-sw-m"></span>Mature</label>
+            <label class="tc-win">window
+              <select id="tcWin">
+                <option value="60">1 min</option>
+                <option value="180" selected>3 min</option>
+                <option value="300">5 min</option>
+                <option value="600">10 min</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="tc-chart" id="tcChart"></div>
+        <p class="tc-note" id="tcChartNote"></p>
+      </div>
+
+      <div class="tc-unk-card">
+        <div class="tc-chart-top">
+          <h2 class="tc-h3">Unknown words in this video</h2>
+          <button type="button" class="tc-btn tc-btn-ghost tc-btn-sm" id="tcCsvOut">Download CSV</button>
+        </div>
+        <p class="tc-note">Ranked by how often they're said — learning the top few lifts your coverage the most.</p>
+        <table class="tc-table">
+          <thead><tr><th>#</th><th>Word</th><th>Reading</th><th class="tc-r">Times</th><th class="tc-r">Coverage gain</th><th class="tc-r">First said</th></tr></thead>
+          <tbody id="tcUnkBody"></tbody>
+        </table>
+        <button type="button" class="tc-btn tc-btn-ghost tc-btn-sm" id="tcUnkMore" hidden>Show all</button>
+      </div>
+    </section>
+  </div>
+
+  <p style="text-align:center;margin-top:40px;">
+    <a href="{{ relURL "tools" }}">← Back to Tools</a>
+  </p>
+
+  <link rel="stylesheet" href="{{ relURL "css/token-coverage.css" }}">
+  <script src="https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js" defer></script>
+  <script src="{{ relURL "js/primed-listening.js" }}" defer></script>
+  <script src="{{ relURL "js/token-coverage.js" }}" defer></script>
+{{ end }}
