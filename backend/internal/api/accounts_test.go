@@ -513,6 +513,7 @@ func refs(t *testing.T, e *env, id int64, email string) map[string]int {
 		"page_likes":      "user_id = ?1",
 		"notifications":   "user_id = ?1 OR actor_id = ?1",
 		"kyotsu_sessions": "user_id = ?1",
+		"watch_sessions":  "user_id = ?1",
 		"avatars":         "user_id = ?1",
 		"track_subcats":   "user_id = ?1",
 		"track_weeks":     "user_id = ?1",
@@ -593,12 +594,13 @@ func TestDeleteAccount(t *testing.T) {
 	_ = v3
 	_ = c5
 
-	// Track, Kyōtsu, avatar, API key, a pending login link and a stray sign-up link.
+	// Track, Kyōtsu, watch time, avatar, API key, a pending login link and a stray sign-up link.
 	sub := vic.subcat("active", "Anime")
 	vic.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", sub, 2), hrs("passive", nil, 1)},
 		"summary": "my week", "ratings": map[string]any{"active": 4}})
 	eq(t, "goals", vic.goals(thisWeek, map[string]any{"active": 5}), 200)
 	e.kyotsuAt(vic, e.clock.Add(-time.Hour), 10, 7)
+	vic.watch(201, "watch-vic-01", e.clock.Add(-time.Hour), 600, "")
 	eq(t, "avatar", vic.do("POST", "/v1/me/avatar", encodeJPEG(t, banded(64, 64)), "Content-Type", "image/jpeg").Code, 200)
 	vic.newKey("script", "write")
 	db.CreateLoginToken(context.Background(), e.db, vic.id, "/", e.clock, LoginTokenTTL)

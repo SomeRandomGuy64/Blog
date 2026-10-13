@@ -1,6 +1,6 @@
 // Package api is the fazon.nexus HTTP API: magic-link accounts with open sign-up, roles and
 // moderation, article comments with likes and notifications, article likes, Kyōtsu trainer
-// sessions, Track and personal API keys.
+// sessions, video watch time, Track and personal API keys.
 package api
 
 import (
@@ -49,6 +49,7 @@ type Server struct {
 
 	ipLimit, emailLimit    *limiter // login-link requests
 	commentLimit, kyoLimit *limiter // per user
+	watchLimit             *limiter // per user: watch-session heartbeats
 	pageLikeLimit          *limiter // per user: article like/unlike
 	avatarLimit, nameLimit *limiter // per user
 	weekLimit, trackLimit  *limiter // per user: week saves; subcat/settings changes
@@ -76,6 +77,8 @@ func New(db *sql.DB, cfg Config) *Server {
 		emailLimit:   newLimiter(3, 15*time.Minute),
 		commentLimit: newLimiter(30, 10*time.Minute),
 		kyoLimit:     newLimiter(60, time.Hour),
+		// a heartbeat a minute per playing video plus one per pause: room for several tabs
+		watchLimit:   newLimiter(300, time.Hour),
 		avatarLimit:  newLimiter(20, time.Hour),
 		nameLimit:    newLimiter(20, time.Hour),
 		weekLimit:    newLimiter(120, time.Hour),
@@ -129,6 +132,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/kyotsu/sessions", s.authed(s.postKyotsu))
 	mux.HandleFunc("GET /v1/kyotsu/sessions", s.authed(s.listKyotsu))
 	mux.HandleFunc("GET /v1/kyotsu/sessions/{id}", s.authed(s.getKyotsu))
+	mux.HandleFunc("POST /v1/watch/sessions", s.authed(s.postWatch))
 	mux.HandleFunc("GET /v1/hyojungo/pairs", s.hyojungoAccess(s.hyojungoPairs))
 	mux.HandleFunc("GET /v1/hyojungo/audio/{name}", s.hyojungoAccess(s.hyojungoAudio))
 
@@ -178,7 +182,7 @@ func (s *Server) Wait() { s.mailWG.Wait() }
 // Sweep forgets rate-limit entries whose windows have passed.
 func (s *Server) Sweep() {
 	now := s.now()
-	for _, l := range []*limiter{s.ipLimit, s.emailLimit, s.commentLimit, s.pageLikeLimit, s.kyoLimit, s.avatarLimit, s.nameLimit, s.weekLimit, s.trackLimit,
+	for _, l := range []*limiter{s.ipLimit, s.emailLimit, s.commentLimit, s.pageLikeLimit, s.kyoLimit, s.watchLimit, s.avatarLimit, s.nameLimit, s.weekLimit, s.trackLimit,
 		s.keyMgmtLimit, s.keyReadLimit, s.keyWriteLimit, s.exportLimit} {
 		l.sweep(now)
 	}

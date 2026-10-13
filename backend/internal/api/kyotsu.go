@@ -4,14 +4,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"maps"
 	"math"
 	"net/http"
-	"regexp"
-	"slices"
 	"strconv"
-	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -64,14 +59,6 @@ type kyotsuSummary struct {
 	Answers       json.RawMessage `json:"answers,omitempty"`
 }
 
-// trackAdded is what a session added to its owner's Track: phonetic hours in the week it ended in.
-type trackAdded struct {
-	Week   string  `json:"week"`
-	Hours  float64 `json:"hours"`
-	Subcat *string `json:"subcat"` // the sub-category's name at the time; null = unassigned
-	Note   string  `json:"note,omitempty"`
-}
-
 // kyotsuCols are the columns scanKyotsu reads (answers_json not included).
 const kyotsuCols = `id, started_at, ended_at, layout, mode, advanced, total, correct, active_seconds, track_centihours, track_subcat, track_note`
 
@@ -103,15 +90,6 @@ var kyotsuSubcats = map[string][]string{
 }
 
 const kyotsuCategory = "phonetic"
-
-var clientIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{8,64}$`)
-
-// practiceCents turns active seconds into hundredths of an hour like the site's stopwatch does:
-// rounded to whole minutes first.
-func practiceCents(sec int64) int64 {
-	min := (sec + 30) / 60
-	return int64(math.Round(float64(min) * 100 / 60))
-}
 
 // postKyotsu stores a finished trainer session and, in the same transaction, adds its active
 // practice time to the user's Track: Phonetic training, the "Kyōtsu" sub-category ("Kotu" for
@@ -253,124 +231,18 @@ func (s *Server) postKyotsu(w http.ResponseWriter, r *http.Request, u *user) {
 	writeJSON(w, status, map[string]any{"id": out.ID, "active_seconds": out.ActiveSeconds, "track_added": out.TrackAdded})
 }
 
-// addKyotsuTime adds cents of phonetic time from session id (in mode) to the user's week key and
-// records on the session what it added, where, and why there if it wasn't the mode's sub-category.
-// It never fails the session over Track's rules: a sub-category that can't be created means
-// the unassigned bucket, and the 168 h caps shrink the addition (possibly to nothing).
+// addKyotsuTime adds cents of phonetic time from session id (in mode) to the user's week key
+// (creditTrackTx) and records on the session what it added, where, and why there if it wasn't
+// the mode's sub-category.
 func (s *Server) addKyotsuTime(tx *sql.Tx, userID, id int64, mode, key string, cents, now int64) error {
-	hours, err := weekHoursTx(tx, userID, key)
+	c, err := creditTrackTx(tx, userID, kyotsuCategory, kyotsuSubcats[mode], key, cents, now)
 	if err != nil {
 		return err
-	}
-	var sub int64
-	var name, note string
-	if catCents(hours, kyotsuCategory) < maxWeekCents { // no sub-category made for time that can't be added
-		if sub, name, note, err = kyotsuSubcatTx(tx, userID, kyotsuSubcats[mode], now); err != nil {
-			return err
-		}
-	}
-	before := maps.Clone(hours)
-	added := addCapped(hours, hourSlot{kyotsuCategory, sub}, cents)
-	switch {
-	case added == 0:
-		note = "Nothing was added: Phonetic training already has 168 h this week."
-	case added < cents:
-		note = joinNote(note, fmt.Sprintf("Only %s h of %s h was added: Phonetic training can't go over 168 h in a week.",
-			fmtCents(added), fmtCents(cents)))
-	}
-	if err := writeWeekHoursTx(tx, userID, key, now, before, hours); err != nil {
-		return err
-	}
-	var subName any
-	if added > 0 && sub != 0 {
-		subName = name
 	}
 	_, err = tx.Exec(`UPDATE kyotsu_sessions SET track_centihours = track_centihours + ?,
 			track_subcat = COALESCE(track_subcat, ?), track_note = CASE WHEN ? = '' THEN track_note ELSE ? END
-		WHERE id = ?`, added, subName, note, note, id)
+		WHERE id = ?`, c.added, c.subcat, c.note, c.note, id)
 	return err
-}
-
-func joinNote(a, b string) string {
-	if a == "" {
-		return b
-	}
-	return a + " " + b
-}
-
-// kyotsuSubcatTx finds the user's Phonetic training sub-category for trainer time: an active
-// one with one of names (any case; the exact names[0] first, then display order), else an
-// archived one restored, else a new names[0] — by the same rules as the site's sub-category
-// edits. When the rules don't allow it (30 active / 100 in all), the time goes to the
-// unassigned bucket (sub 0) and note says why.
-func kyotsuSubcatTx(tx *sql.Tx, userID int64, names []string, now int64) (sub int64, name, note string, err error) {
-	type cand struct {
-		id       int64
-		name     string
-		archived bool
-	}
-	var active, archived []cand
-	rows, err := tx.Query(`SELECT id, name, archived FROM track_subcats WHERE user_id = ? AND category = ?
-		ORDER BY position, id`, userID, kyotsuCategory)
-	if err != nil {
-		return 0, "", "", err
-	}
-	for rows.Next() {
-		var c cand
-		if err := rows.Scan(&c.id, &c.name, &c.archived); err != nil {
-			rows.Close()
-			return 0, "", "", err
-		}
-		if slices.ContainsFunc(names, func(n string) bool { return strings.EqualFold(c.name, n) }) {
-			if c.archived {
-				archived = append(archived, c)
-			} else {
-				active = append(active, c)
-			}
-		}
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return 0, "", "", err
-	}
-	pick := func(cs []cand) cand { // the exact name if there is one, else the first
-		for _, c := range cs {
-			if c.name == names[0] {
-				return c
-			}
-		}
-		return cs[0]
-	}
-	fallback := func(err error) (int64, string, string, error) {
-		var es errStatus
-		if !errors.As(err, &es) {
-			return 0, "", "", err
-		}
-		return 0, "", "Your Phonetic training sub-categories are at their limit (" + strings.TrimSuffix(es.msg, ".") +
-			"), so it went to Other / unassigned.", nil
-	}
-	switch {
-	case len(active) > 0:
-		c := pick(active)
-		return c.id, c.name, "", nil
-	case len(archived) > 0:
-		// Restoring is unarchiving, which the site allows within the 30-active limit; the name
-		// can't clash (no active sub-category matches it).
-		c := pick(archived)
-		if err := subcatConflict(tx, userID, kyotsuCategory, c.name, c.id, true); err != nil {
-			return fallback(err)
-		}
-		if _, err := tx.Exec(`UPDATE track_subcats SET archived = 0 WHERE id = ?`, c.id); err != nil {
-			return 0, "", "", err
-		}
-		return c.id, c.name, "Restored your archived “" + c.name + "” sub-category under Phonetic training for it.", nil
-	default:
-		c, err := insertSubcatTx(tx, userID, kyotsuCategory, names[0], now)
-		if err != nil {
-			return fallback(err)
-		}
-		return c.ID, c.Name, "Created a “" + names[0] + "” sub-category under Phonetic training for it.", nil
-	}
 }
 
 // listKyotsu returns the newest sessions (up to maxSessionsList), oldest first for charting.

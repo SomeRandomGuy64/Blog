@@ -25,6 +25,12 @@ func (c *client) kyoSession(want int, span time.Duration, active any, clientID s
 // in the API's order.
 func (c *client) phonetic(key string) string {
 	c.e.t.Helper()
+	return c.catHours("phonetic", key)
+}
+
+// catHours is phonetic for any category.
+func (c *client) catHours(cat, key string) string {
+	c.e.t.Helper()
 	names := map[string]string{}
 	for _, x := range c.mustStatus(200, "GET", "/v1/track/config", nil)["subcats"].([]any) {
 		sc := x.(map[string]any)
@@ -33,7 +39,7 @@ func (c *client) phonetic(key string) string {
 	var out []string
 	for _, x := range c.mustStatus(200, "GET", "/v1/track/weeks/"+key, nil)["hours"].([]any) {
 		h := x.(map[string]any)
-		if h["category"] != "phonetic" {
+		if h["category"] != cat {
 			continue
 		}
 		n := "-"
@@ -47,10 +53,16 @@ func (c *client) phonetic(key string) string {
 
 func (c *client) phoneticSubcats() string {
 	c.e.t.Helper()
+	return c.catSubcats("phonetic")
+}
+
+// catSubcats lists a category's sub-categories in display order, archived ones marked.
+func (c *client) catSubcats(cat string) string {
+	c.e.t.Helper()
 	var out []string
 	for _, x := range c.mustStatus(200, "GET", "/v1/track/config", nil)["subcats"].([]any) {
 		sc := x.(map[string]any)
-		if sc["category"] == "phonetic" {
+		if sc["category"] == cat {
 			out = append(out, fmt.Sprint(sc["name"], map[bool]string{true: "(archived)", false: ""}[sc["archived"].(bool)]))
 		}
 	}

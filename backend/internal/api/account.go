@@ -257,6 +257,16 @@ func (s *Server) export(ctx context.Context, r *http.Request, u *user) (map[stri
 		return nil, err
 	}
 
+	watch := []watchSummary{}
+	err = s.each(ctx, func(rows *sql.Rows) error {
+		ws, err := scanWatch(rows)
+		watch = append(watch, ws)
+		return err
+	}, `SELECT `+watchCols+` FROM watch_sessions WHERE user_id = ? ORDER BY started_at, id`, u.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	keys, err := s.apiKeys(ctx, u.ID)
 	if err != nil {
 		return nil, err
@@ -272,6 +282,7 @@ func (s *Server) export(ctx context.Context, r *http.Request, u *user) (map[stri
 		"notifications":   notifications,
 		"track":           map[string]any{"public": public, "subcats": subcats, "weeks": weeks},
 		"kyotsu_sessions": kyotsu,
+		"watch_sessions":  watch,
 		"api_keys":        keys,
 	}, nil
 }
