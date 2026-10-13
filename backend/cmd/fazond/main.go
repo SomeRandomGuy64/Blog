@@ -27,6 +27,7 @@ import (
 
 	"fazon.nexus/backend/internal/api"
 	"fazon.nexus/backend/internal/db"
+	"fazon.nexus/backend/internal/week"
 )
 
 const (
@@ -123,6 +124,17 @@ func serve(args []string) error {
 		defer close(maintDone)
 		maintenance(ctx, d, srv, filepath.Join(cfg.dataDir, "backups"))
 	}()
+	mvjDone := make(chan struct{})
+	go func() {
+		defer close(mvjDone)
+		if cfg.mvj.email == "" {
+			return
+		}
+		from, _ := week.Parse(cfg.mvj.from, time.Now()) // checked in configFlags
+		slog.Info("mvj sync on", "account", cfg.mvj.email, "from", cfg.mvj.from)
+		srv.RunMvJSync(ctx, api.MvJConfig{Supabase: cfg.mvj.supabase, AnonKey: cfg.mvj.anonKey, Email: cfg.mvj.email,
+			Password: cfg.mvj.password, LocalEmail: cfg.adminEmail, From: from})
+	}()
 	go func() {
 		slog.Info("listening", "addr", cfg.listen, "data", cfg.dataDir, "site", cfg.site, "mail", cfg.mailMode,
 			"origins", strings.Join(cfg.origins, " "), "cookie_secure", cfg.cookieSecure)
@@ -146,6 +158,7 @@ func serve(args []string) error {
 		slog.Warn("pending emails did not finish in time")
 	}
 	<-maintDone
+	<-mvjDone
 	return nil
 }
 
