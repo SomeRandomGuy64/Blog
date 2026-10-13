@@ -78,9 +78,13 @@
     <section class="tc-step" id="tcStepMedia" hidden>
       <h2 class="tc-h2"><span class="tc-num">3</span> The video</h2>
       <div class="tc-row">
-        <label class="tc-field"><span>Subtitles <span class="tc-opt">(.srt, .vtt or .json)</span></span>
+        <label class="tc-field"><span>Japanese subtitles <span class="tc-opt">(.srt, .vtt or .json — used for coverage)</span></span>
           <input id="tcSubs" type="file" accept=".srt,.vtt,.json,application/json,text/plain">
         </label>
+        <label class="tc-field"><span>Primed-listening subtitles <span class="tc-opt">(optional — a translation in any language, .srt/.vtt/.json)</span></span>
+          <input id="tcTrSubs" type="file" accept=".srt,.vtt,.json,application/json,text/plain">
+        </label>
+        <button type="button" class="tc-x" id="tcTrClear" title="Remove the translation" aria-label="Remove the translation" hidden>×</button>
       </div>
       <div class="tc-row">
         <label class="tc-field tc-field-wide"><span>YouTube link <span class="tc-opt">(optional — the video these subtitles are from)</span></span>
@@ -121,10 +125,17 @@
               <input type="number" id="tcOff" step="0.25" inputmode="decimal" aria-label="Subtitle offset, in seconds">
               <button type="button" class="tc-pl-step" id="tcOffUp" aria-label="Subtitles later">+</button>
               <span class="tc-pl-unit">s</span></span>
+            <label class="tc-pl-num tc-pl-trk" id="tcTrackWrap" hidden><span class="tc-pl-lbl">subtitles</span>
+              <select id="tcTrack" aria-label="Subtitles primed listening pauses for">
+                <option value="tr" id="tcTrackTr"></option>
+                <option value="ja">Japanese</option>
+              </select></label>
             <button type="button" class="tc-btn tc-btn-ghost tc-btn-sm tc-pl-fs" id="tcFs">Fullscreen <kbd>f</kbd></button>
           </div>
           <p class="tc-pl-hint">Pauses as each line starts, long enough to read it, then plays it so you hear it.
             While it's paused, <kbd>Space</kbd> or a click on the video holds the pause; press again to carry on.
+            With a translation loaded it primes you with that instead (switch under <em>subtitles</em>), and the
+            offset moves whichever subtitles it's using.
             <span class="tc-nw"><kbd>←</kbd>/<kbd>→</kbd> skip 5 s</span> ·
             <span class="tc-nw"><kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> nudge the subtitles.</span></p>
         </div>

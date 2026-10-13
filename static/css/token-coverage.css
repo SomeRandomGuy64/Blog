@@ -141,6 +141,9 @@
   background: transparent; color: var(--text-color); border: 1px solid var(--tc-line); border-radius: 6px;
 }
 .tc-pl-step:hover { border-color: var(--tc-accent); }
+.tc-pl-trk { max-width: 100%; }
+.tc-pl-trk[hidden] { display: none; }
+.tc .tc-pl-trk select { width: auto; min-width: 0; max-width: 16em; padding: 3px 6px; font-size: 0.85rem; text-overflow: ellipsis; }
 .tc-pl-fs { margin-left: auto; }
 .tc-pl-fs kbd { margin-left: 4px; }
 .tc-nw { white-space: nowrap; }

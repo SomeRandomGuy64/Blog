@@ -3,7 +3,8 @@
 // family as the AnkiMorphs Japanese mecab, so lemmas line up), and reports how much of the
 // media's content vocabulary is known: overall, sentence-level i+N, a rolling coverage-over-time
 // chart, and — given a YouTube link — a live readout synced to the playing video, plus primed
-// listening (auto-pause before each line; see primed-listening.js) driven by the same subtitles.
+// listening (auto-pause before each line; see primed-listening.js) driven by the same subtitles,
+// or by an optional second track (a translation in any language) that's never tokenised.
 //
 // Content-word rules follow the coverage recalc: particles, auxiliaries, conjunctions, symbols,
 // interjections, fillers, numerals, single-hiragana fragments and words the dictionary doesn't
@@ -208,10 +209,12 @@
   // ---------------------------------------------------------------- known words
   var known = null;   // {learned:Set, mature:Set}
 
+  function entities(s) {
+    return s.replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+  }
   function cleanField(html) {
-    return String(html || "")
-      .replace(/\[sound:[^\]]*\]/g, " ").replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "")
-      .replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&")
+    return entities(String(html || "")
+      .replace(/\[sound:[^\]]*\]/g, " ").replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, ""))
       .replace(/\{\{c\d+::(.*?)(::[^}]*)?\}\}/g, "$1").replace(/\[[^\]]*\]/g, "");
   }
   // AnkiMorphs note filters: a note needs ALL the include tags and NONE of the exclude tags
@@ -325,13 +328,14 @@
     if (!m) return NaN;
     return (+(m[1] || 0)) * 3600 + (+m[2]) * 60 + (+m[3]) + (m[4] ? +(m[4] + "00").slice(0, 3) / 1000 : 0);
   }
-  function parseSrt(txt) {
+  // SRT or VTT; a cue's lines are joined with sep (a space for the Japanese, "\n" for a translation)
+  function parseSrt(txt, sep) {
     var out = [];
     txt.replace(/\r/g, "").split(/\n\s*\n/).forEach(function (block) {
       var lines = block.split("\n"), ti = lines.findIndex(function (l) { return l.indexOf("-->") >= 0; });
       if (ti < 0) return;
       var p = lines[ti].split("-->"), s = parseTime(p[0]), e = parseTime(p[1]);
-      var text = lines.slice(ti + 1).join(" ").replace(/<[^>]+>/g, "").replace(/\{\\[^}]*\}/g, "");
+      var text = lines.slice(ti + 1).join(sep || " ").replace(/<[^>]+>/g, "").replace(/\{\\[^}]*\}/g, "");
       if (isFinite(s)) out.push({ s: s, e: isFinite(e) ? e : s + 2, text: text });
     });
     return out;
@@ -394,6 +398,9 @@
     if (cur) out.push(cur);
     return out;
   }
+  function parseSubs(name, txt, sep) {
+    return /\.json$/i.test(name) || /^\s*[\[{]/.test(txt) ? parseJson(txt) : parseSrt(txt, sep);
+  }
 
   // ---------------------------------------------------------------- analysis
   var media = null;   // {cues:[{s,e,text,toks}], dur}
@@ -407,7 +414,7 @@
     $("tcAnalyze").disabled = true;
     status(st, "Reading subtitles…");
     file.text().then(function (txt) {
-      var cues = /\.json$/i.test(file.name) || /^\s*[\[{]/.test(txt) ? parseJson(txt) : parseSrt(txt);
+      var cues = parseSubs(file.name, txt);
       cues = cues.map(function (c) { return { s: c.s, e: Math.max(c.e, c.s), text: c.text.replace(BRACKET, "").replace(/　/g, " ").trim() }; })
         .filter(function (c) { return c.text; }).sort(function (a, b) { return a.s - b.s; });
       if (!cues.length) throw new Error("no subtitle lines found in " + file.name + ".");
@@ -425,7 +432,7 @@
         media = { cues: cues, dur: cues.reduce(function (m, c) { return Math.max(m, c.e); }, 0), name: file.name };
         status(st, "✓ " + fmtN(cues.length) + " lines from " + file.name + ".", "ok");
         reclassify();
-        if (prim) prim.setCues(cues);   // after reclassify: resetting the offset refreshes the live readout
+        offs.ja = 0; applyTrack();   // after reclassify: (re)setting the offset refreshes the live readout
         setupVideo();
         $("tcResults").hidden = false;
         $("tcResults").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -690,15 +697,49 @@
 
   // ---------------------------------------------------------------- YouTube
   var player = null, playerVid = null, pollTimer = null, lastT = 0, lastCue = -2;
-  // primed listening (null if its script didn't load); its subtitle offset shifts cue times onto
-  // the video's clock, so media time = video time − subOff()
+  // Primed listening runs off the translation (trans: {cues, name}) when one is loaded and picked,
+  // else the Japanese. Each track keeps its own subtitle offset, which shifts its cue times onto the
+  // video's clock; coverage always follows the Japanese one, so media time = video time − subOff()
+  var trans = null, track = "ja", offs = { ja: 0, tr: 0 };
+  // (null if its script didn't load)
   var prim = window.PrimedListening ? window.PrimedListening({
     ppc: S.ppc,
     onPpc: function (v) { S.ppc = v; save(); },
-    onOffset: function () { if (player && calc) updateLive(true); },
+    onOffset: function (v) { offs[track] = v; if (player && calc) updateLive(true); },
     onLine: function (show) { $("tcLine").classList.toggle("tc-line-hid", !show); }
   }) : null;
-  function subOff() { return prim ? prim.offset() : 0; }
+  function subOff() { return offs.ja; }
+
+  // hand primed listening the active track's cues + offset (the Japanese until analysed)
+  function applyTrack() {
+    if (!trans) track = "ja";
+    $("tcTrackWrap").hidden = !trans;
+    $("tcTrack").value = track;
+    $("tcPlOverlay").lang = track === "ja" ? "ja" : "";   // the translation's language is unknown
+    if (prim && media) prim.setCues(track === "tr" ? trans.cues : media.cues, offs[track]);
+  }
+  // the translation: same parsers, no tokenising; keep a cue's own line breaks for the overlay
+  function loadTrans(file) {
+    var st = $("tcMediaStatus");
+    file.text().then(function (txt) {
+      var cues = parseSubs(file.name, txt, "\n").map(function (c) {
+        var text = entities(String(c.text).replace(/<[^>]+>/g, "")).split("\n")
+          .map(function (l) { return l.trim(); }).filter(Boolean).join("\n");
+        return { s: c.s, e: Math.max(c.e, c.s), text: text };
+      }).filter(function (c) { return c.text; }).sort(function (a, b) { return a.s - b.s; });
+      if (!cues.length) throw new Error("no subtitle lines found in " + file.name + ".");
+      trans = { cues: cues, name: file.name }; track = "tr"; offs.tr = 0;
+      $("tcTrackTr").textContent = file.name;
+      $("tcTrClear").hidden = false;
+      applyTrack();
+      status(st, "✓ " + fmtN(cues.length) + " lines from " + file.name + " — primed listening will use these.", "ok");
+    }).catch(function (e) { clearTrans(); status(st, "✗ " + e.message, "err"); });
+  }
+  function clearTrans() {
+    trans = null; offs.tr = 0;
+    $("tcTrSubs").value = ""; $("tcTrClear").hidden = true;
+    applyTrack();
+  }
 
   function ytId(u) {
     u = (u || "").trim();
@@ -815,6 +856,11 @@
   $("tcKnownCsv").addEventListener("change", function (e) { if (e.target.files.length) readCsv(e.target.files); e.target.value = ""; });
   $("tcClearCsv").addEventListener("click", function () { S.csvLemmas = []; save(); showCsv(); status($("tcKnownStatus"), "CSV words forgotten — press “Read my known words” again to refresh.", "ok"); });
   $("tcSubs").addEventListener("change", updateAnalyzeBtn);
+  $("tcTrSubs").addEventListener("change", function (e) { if (e.target.files.length) loadTrans(e.target.files[0]); else clearTrans(); });
+  $("tcTrClear").addEventListener("click", function () {
+    clearTrans(); status($("tcMediaStatus"), "Translation removed — primed listening uses the Japanese subtitles.", "ok");
+  });
+  $("tcTrack").addEventListener("change", function (e) { track = e.target.value; applyTrack(); });
   $("tcAnalyze").addEventListener("click", analyze);
   $("tcYt").addEventListener("change", function () { if (media) setupVideo(); });
   $("tcExNames").addEventListener("change", function (e) { S.exNames = e.target.checked; save(); reclassify(); });
