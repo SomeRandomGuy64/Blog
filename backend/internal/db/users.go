@@ -269,6 +269,7 @@ func DeleteUser(ctx context.Context, tx *sql.Tx, id int64, now time.Time) error 
 		`DELETE FROM track_ratings WHERE user_id = ?`,
 		`DELETE FROM track_weeks WHERE user_id = ?`,
 		`DELETE FROM track_goals WHERE user_id = ?`,
+		`DELETE FROM track_week_subcats WHERE user_id = ?`,
 		`DELETE FROM track_subcats WHERE user_id = ?`,
 		`UPDATE users SET muted_by = NULL WHERE muted_by = ?`,
 		`DELETE FROM users WHERE id = ?`,

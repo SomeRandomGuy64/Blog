@@ -193,14 +193,9 @@ func TestWatchTimeSubcatChoice(t *testing.T) {
 	eq(t, "restored note", added(out)["note"], any("Restored your archived “Primed Listening” sub-category under Active immersion for it."))
 	eq(t, "unarchived", b.catSubcats("active"), "Primed Listening")
 
-	// 30 active sub-categories: no room to create one, so the unassigned bucket.
+	// A full register of active sub-category names: no room to create one, so the unassigned bucket.
 	c := e.admin
-	for i := range maxActiveSubcats {
-		if _, err := e.db.Exec(`INSERT INTO track_subcats (user_id, category, name, position, created_at) VALUES (?, 'active', ?, ?, 0)`,
-			c.id, fmt.Sprint("S", i), i); err != nil {
-			t.Fatal(err)
-		}
-	}
+	fillSubcats(t, e, c.id, "active", maxAllSubcats)
 	ta := added(c.watch(201, "choice-admin", e.clock.Add(-time.Hour), 600, ""))
 	eq(t, "unassigned", ta["subcat"], any(nil))
 	eq(t, "unassigned hours", ta["hours"], any(0.17))

@@ -6,6 +6,7 @@
 //	fazond user list
 //	fazond login-link -email X [-next /path/]       print a fresh magic link, no email sent
 //	fazond mvj-token < token                        store the MvJ sync's session (deploy/mvj_login.py)
+//	fazond track fold-subcats -email X [-apply]     fold sub-categories from before this week into their category
 //
 // Config: flags, or the FAZOND_* env vars named in each flag's help (flags win).
 package main
@@ -44,6 +45,9 @@ const usage = `usage:
   fazond user hyojungo -email X [-off] [flags]   give (or take) the trainer's Tokyo mode
   fazond login-link -email X [-next /path/] [flags]
   fazond mvj-token [flags] < refresh-token       store the MvJ sync's session (see deploy/mvj_login.py)
+  fazond track fold-subcats -email X [-before WEEK] [-apply] [flags]
+                                                 fold Track sub-categories created before a week into
+                                                 their category's unassigned hours (dry run without -apply)
 run "fazond serve -h" for the shared config flags`
 
 func main() {
@@ -53,8 +57,8 @@ func main() {
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		cmd, args = args[0], args[1:]
 	}
-	if cmd == "user" && len(args) > 0 {
-		cmd, args = "user "+args[0], args[1:]
+	if (cmd == "user" || cmd == "track") && len(args) > 0 {
+		cmd, args = cmd+" "+args[0], args[1:]
 	}
 	var err error
 	switch cmd {
@@ -70,6 +74,8 @@ func main() {
 		err = loginLink(args)
 	case "mvj-token":
 		err = mvjToken(args)
+	case "track fold-subcats":
+		err = trackFoldSubcats(args)
 	case "help":
 		fmt.Println(usage)
 	default:
@@ -279,6 +285,58 @@ func loginLink(args []string) error {
 		return err
 	}
 	fmt.Println(api.MagicLink(cfg.site, tok, next))
+	return nil
+}
+
+// trackFoldSubcats folds an account's Track sub-categories created before a week (default: this
+// week) into their categories: every week keeps its category totals, the hours move to the
+// unassigned bucket and the sub-categories are deleted. Without -apply it only lists them.
+func trackFoldSubcats(args []string) error {
+	var email, before string
+	var apply bool
+	_, d, err := open("track fold-subcats", args, func(fs *flag.FlagSet) {
+		fs.StringVar(&email, "email", "", "account email (required)")
+		fs.StringVar(&before, "before", "", "fold sub-categories created before this week (a Saturday key; default: the current week)")
+		fs.BoolVar(&apply, "apply", false, "make the change (otherwise a dry run)")
+	})
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	ctx := context.Background()
+	u, err := db.UserByEmail(ctx, d, email)
+	if err != nil {
+		return fmt.Errorf("%s: %w", email, err)
+	}
+	k := week.Of(time.Now())
+	if before != "" {
+		if k, err = week.Parse(before, time.Now()); err != nil {
+			return err
+		}
+	}
+	folded, err := db.FoldSubcats(ctx, d, u.ID, k.Start(), apply)
+	if err != nil {
+		return err
+	}
+	tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(tw, "ID\tCATEGORY\tNAME\tCREATED\tWEEKS\tHOURS")
+	var total int64
+	for _, f := range folded {
+		total += f.Centihours
+		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%d\t%.2f\n", f.ID, f.Category, f.Name, f.Created.Format(time.DateOnly), f.Weeks, float64(f.Centihours)/100)
+	}
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	verb := "would fold"
+	if apply {
+		verb = "folded"
+	}
+	fmt.Printf("%s <%s>: %s %d sub-categories created before the week of %s (%.2f h moved to unassigned)\n",
+		u.Name, u.Email, verb, len(folded), k, float64(total)/100)
+	if !apply && len(folded) > 0 {
+		fmt.Println("dry run: add -apply to make the change")
+	}
 	return nil
 }
 

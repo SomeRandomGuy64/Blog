@@ -91,51 +91,12 @@ func joinNote(a, b string) string {
 	return a + " " + b
 }
 
-// trackSubcatTx finds the user's sub-category of cat for a tool's time: an active one with one
-// of names (any case; the exact names[0] first, then display order), else an archived one
-// restored, else a new names[0] — by the same rules as the site's sub-category edits. When the
-// rules don't allow it (30 active / 100 in all), the time goes to the unassigned bucket (sub 0)
-// and note says why.
+// trackSubcatTx finds the user's sub-category of cat for a tool's time (see subcatByNameTx).
+// When the rules don't allow one, the time goes to the unassigned bucket (sub 0) and note says why.
 func trackSubcatTx(tx *sql.Tx, userID int64, cat string, names []string, now int64) (sub int64, name, note string, err error) {
-	type cand struct {
-		id       int64
-		name     string
-		archived bool
-	}
-	var active, archived []cand
-	rows, err := tx.Query(`SELECT id, name, archived FROM track_subcats WHERE user_id = ? AND category = ?
-		ORDER BY position, id`, userID, cat)
-	if err != nil {
-		return 0, "", "", err
-	}
-	for rows.Next() {
-		var c cand
-		if err := rows.Scan(&c.id, &c.name, &c.archived); err != nil {
-			rows.Close()
-			return 0, "", "", err
-		}
-		if slices.ContainsFunc(names, func(n string) bool { return strings.EqualFold(c.name, n) }) {
-			if c.archived {
-				archived = append(archived, c)
-			} else {
-				active = append(active, c)
-			}
-		}
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return 0, "", "", err
-	}
-	pick := func(cs []cand) cand { // the exact name if there is one, else the first
-		for _, c := range cs {
-			if c.name == names[0] {
-				return c
-			}
-		}
-		return cs[0]
-	}
 	label := catLabel(cat)
-	fallback := func(err error) (int64, string, string, error) {
+	c, how, err := subcatByNameTx(tx, userID, cat, names, now)
+	if err != nil {
 		var es errStatus
 		if !errors.As(err, &es) {
 			return 0, "", "", err
@@ -143,26 +104,65 @@ func trackSubcatTx(tx *sql.Tx, userID int64, cat string, names []string, now int
 		return 0, "", "Your " + label + " sub-categories are at their limit (" + strings.TrimSuffix(es.msg, ".") +
 			"), so it went to Other / unassigned.", nil
 	}
+	switch how {
+	case "restored":
+		note = "Restored your archived “" + c.Name + "” sub-category under " + label + " for it."
+	case "created":
+		note = "Created a “" + c.Name + "” sub-category under " + label + " for it."
+	}
+	return c.ID, c.Name, note, nil
+}
+
+// subcatByNameTx finds the user's sub-category of cat named one of names: an active one (any
+// case; the exact names[0] first, then display order), else an archived one restored, else a new
+// names[0] — by the same rules as the site's sub-category edits. how is "", "restored" or
+// "created"; a rule that doesn't allow it (the per-category cap) is an errStatus.
+func subcatByNameTx(tx *sql.Tx, userID int64, cat string, names []string, now int64) (c subcatJSON, how string, err error) {
+	var active, archived []subcatJSON
+	rows, err := tx.Query(`SELECT id, name, archived, position FROM track_subcats WHERE user_id = ? AND category = ?
+		ORDER BY position, id`, userID, cat)
+	if err != nil {
+		return c, "", err
+	}
+	for rows.Next() {
+		x := subcatJSON{Category: cat}
+		if err := rows.Scan(&x.ID, &x.Name, &x.Archived, &x.Position); err != nil {
+			rows.Close()
+			return c, "", err
+		}
+		if slices.ContainsFunc(names, func(n string) bool { return strings.EqualFold(x.Name, n) }) {
+			if x.Archived {
+				archived = append(archived, x)
+			} else {
+				active = append(active, x)
+			}
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return c, "", err
+	}
+	pick := func(cs []subcatJSON) subcatJSON { // the exact name if there is one, else the first
+		for _, x := range cs {
+			if x.Name == names[0] {
+				return x
+			}
+		}
+		return cs[0]
+	}
 	switch {
 	case len(active) > 0:
-		c := pick(active)
-		return c.id, c.name, "", nil
+		return pick(active), "", nil
 	case len(archived) > 0:
-		// Restoring is unarchiving, which the site allows within the 30-active limit; the name
-		// can't clash (no active sub-category matches it).
-		c := pick(archived)
-		if err := subcatConflict(tx, userID, cat, c.name, c.id, true); err != nil {
-			return fallback(err)
+		// The name can't clash: no active sub-category matches it.
+		c = pick(archived)
+		if _, err := tx.Exec(`UPDATE track_subcats SET archived = 0 WHERE id = ?`, c.ID); err != nil {
+			return c, "", err
 		}
-		if _, err := tx.Exec(`UPDATE track_subcats SET archived = 0 WHERE id = ?`, c.id); err != nil {
-			return 0, "", "", err
-		}
-		return c.id, c.name, "Restored your archived “" + c.name + "” sub-category under " + label + " for it.", nil
+		c.Archived = false
+		return c, "restored", nil
 	default:
-		c, err := insertSubcatTx(tx, userID, cat, names[0], now)
-		if err != nil {
-			return fallback(err)
-		}
-		return c.ID, c.Name, "Created a “" + names[0] + "” sub-category under " + label + " for it.", nil
+		c, err = insertSubcatTx(tx, userID, cat, names[0], now)
+		return c, "created", err
 	}
 }

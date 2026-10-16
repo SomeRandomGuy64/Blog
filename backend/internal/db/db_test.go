@@ -18,7 +18,7 @@ import (
 )
 
 // latestVersion is the number of the newest migration.
-const latestVersion = 12
+const latestVersion = 13
 
 func open(t *testing.T, path string) *sql.DB {
 	t.Helper()
@@ -936,9 +936,9 @@ func TestMigrateFromV10(t *testing.T) {
 		`SELECT id, email, name, is_admin, created_at, track_public, bio, role, muted_at, muted_by FROM users ORDER BY id`,
 		`SELECT id, user_id, started_at, ended_at, layout, advanced, total, correct, answers_json, active_seconds,
 			track_centihours, track_subcat, track_note, client_id FROM kyotsu_sessions ORDER BY id`,
-		// (watch_sessions: new in 0012)
+		// (watch_sessions: new in 0012; track_week_subcats: new in 0013)
 		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT IN ('users', 'kyotsu_sessions')
-			AND tbl_name != 'watch_sessions' ORDER BY name`,
+			AND tbl_name NOT IN ('watch_sessions', 'track_week_subcats') ORDER BY name`,
 	}
 	before := make([]string, len(queries))
 	raw, err := sql.Open("sqlite", path)
@@ -980,7 +980,7 @@ func TestMigrateFromV11(t *testing.T) {
 			VALUES (4, 2, 10, 20, 'kotu', 3, 2, '[]', 9, 'abc12345', 'tokyo')`,
 	)
 	queries := []string{
-		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE tbl_name != 'watch_sessions' ORDER BY name`,
+		`SELECT type, name, tbl_name, sql FROM sqlite_master WHERE tbl_name NOT IN ('watch_sessions', 'track_week_subcats') ORDER BY name`,
 		`SELECT * FROM users ORDER BY id`, `SELECT * FROM kyotsu_sessions ORDER BY id`,
 	}
 	before := make([]string, len(queries))

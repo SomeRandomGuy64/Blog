@@ -149,7 +149,7 @@ now, `week.Of`). Clamped to 0 … the session's wall-clock span (`started` → n
 minutes, then to hundredths of an hour like the stopwatch (12:34 → 13 min → 0.22 h); under half
 a minute adds nothing. It goes into the user's active Phonetic sub-category named `Kyōtsu` or
 `Kyotsu` (any case; the exact `Kyōtsu` first); if there is none, an archived one is restored,
-else a `Kyōtsu` sub-category is created — by the site's rules (30 active / 100 in all per
+else a `Kyōtsu` sub-category is created — by the site's rules (at most 1000 names per
 category); when they don't allow it, into the unassigned bucket. The 168 h per category cap
 shrinks the addition instead of failing the save. The week gets a `track_weeks` row / a new
 `updated_at` like any save (`touchWeek`, the same add-to-row code as `PATCH …/hours`). The

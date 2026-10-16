@@ -54,11 +54,19 @@
         .sort(function (a, b) { return (a.position || 0) - (b.position || 0) || a.id - b.id; });
     }
     function subById(id) { return (cfg.subcats || []).filter(function (s) { return s.id === id; })[0] || null; }
+    // sub-categories belong to weeks: the form shows those added to this week, or with hours in it
+    function shownSubs(cat) { return subs(cat).filter(function (s) { return st.subs[s.id] || st.hours[hk(cat, s.id)]; }); }
+    function upsertSub(n) { var x = subById(n.id); if (x) { Object.assign(x, n); return x; } cfg.subcats.push(n); return n; }
 
     function fromServer(w) {
-      var s = { hours: {}, kotu: [], kyotsu: [], summary: w.summary || "", priv: !!w.summary_private, ratings: {} };
+      var s = { hours: {}, subs: {}, kotu: [], kyotsu: [], summary: w.summary || "", priv: !!w.summary_private, ratings: {} };
+      (w.subcats || []).forEach(function (id) { s.subs[id] = true; });
       CATS.forEach(function (c) { var v = w.ratings && w.ratings[c.id]; if (v >= 1 && v <= 4) s.ratings[c.id] = v | 0; });
-      (w.hours || []).forEach(function (h) { if (num(h.hours) && h.hours > 0) s.hours[hk(h.category, h.subcat)] = inputH(h.hours); });
+      (w.hours || []).forEach(function (h) {
+        if (!(num(h.hours) && h.hours > 0)) return;
+        s.hours[hk(h.category, h.subcat)] = inputH(h.hours);
+        if (h.subcat != null) s.subs[h.subcat] = true;   // stays in the form while its hours are edited
+      });
       for (var i = 0; i < 7; i++) {
         s.kotu.push(num(w.kotu && w.kotu[i]) ? String(w.kotu[i]) : "");
         s.kyotsu.push(num(w.kyotsu && w.kyotsu[i]) ? String(w.kyotsu[i]) : "");
@@ -253,26 +261,23 @@
       var tot = ui.tot[c.id] = el("span", { class: "tk-cat-tot" });
       sec.appendChild(el("div", { class: "tk-cat-h" }, el("h3", {}, (function () { var d = el("span", { class: "tk-dotc" }); d.style.background = T.catColor(c.id); return d; })(), c.label), tot));
       var gl = goalLine(c); if (gl) sec.appendChild(gl);
-      var all = subs(c.id), live = all.filter(function (s) { return !s.archived; });
-      var archived = all.filter(function (s) { return s.archived; });
-      // archived ones still show when this week has hours for them; unknown ids too
-      var shown = live.slice();
-      archived.forEach(function (s) { if (st.hours[hk(c.id, s.id)]) shown.push(s); });
+      var shown = shownSubs(c.id);
+      // hours for an id we don't know (deleted meanwhile) still show
       Object.keys(st.hours).forEach(function (k) {
         var p = k.split("|");
         if (p[0] === c.id && p[1] !== "none" && st.hours[k] && !subById(+p[1])) shown.push({ id: +p[1], category: c.id, name: "Sub-category #" + p[1], archived: true, unknown: true });
       });
       shown.forEach(function (s) { sec.appendChild(row(c, s)); });
-      sec.appendChild(row(c, null, live.length || shown.length ? "Other / unassigned" : "Hours"));
+      sec.appendChild(row(c, null, shown.length ? "Other / unassigned" : "Hours"));
       sec.appendChild(ui.catErr[c.id] = el("div", { class: "tk-err", role: "alert" }));
       sec.appendChild(rateRow(c));
 
-      // footer: + add, archived list
+      // footer: + add (to this week only)
       var foot = el("div", { class: "tk-cat-foot" });
-      var addBtn = el("button", { type: "button", class: "fz-linkbtn", text: "+ Add sub-category" });
+      var addBtn = el("button", { type: "button", class: "fz-linkbtn", text: "+ Add sub-category to this week" });
       foot.appendChild(addBtn);
       addBtn.addEventListener("click", function () {
-        if (live.length >= SUB_MAX) { alert("You can have up to " + SUB_MAX + " sub-categories here. Archive one first."); return; }
+        if (shown.length >= SUB_MAX) { alert("A week can have up to " + SUB_MAX + " sub-categories here. Remove one first."); return; }
         var inp = el("input", { type: "text", class: "fz-input tk-input-sm", maxlength: "60", placeholder: c.id === "active" ? "e.g. YouTube, Anime, Games" : "Name", "aria-label": "New sub-category name for " + c.label });
         var ok = el("button", { type: "button", class: "fz-btn primary tk-small", text: "Add" });
         var no = el("button", { type: "button", class: "fz-btn tk-small", text: "Cancel" });
@@ -283,29 +288,16 @@
         function submit() {
           var name = inp.value.trim();
           if (!name || runes(name) > 40) { err.textContent = "Names are 1–40 characters."; return; }
-          if (live.some(function (s) { return s.name.toLowerCase() === name.toLowerCase(); })) { err.textContent = "You already have “" + name + "” here."; return; }
+          if (shown.some(function (s) { return s.name.toLowerCase() === name.toLowerCase(); })) { err.textContent = "“" + name + "” is already in this week."; return; }
           ok.disabled = true; err.textContent = "";
-          F.api("/v1/track/subcats", { method: "POST", body: { category: c.id, name: name } }).then(function (s) {
-            cfg.subcats.push(s); rerenderCat(c);
+          F.api("/v1/track/weeks/" + key + "/subcats", { method: "POST", body: { category: c.id, name: name } }).then(function (n) {
+            var s = upsertSub(n); st.subs[s.id] = true; rerenderCat(c);
             var f = ui.cats[c.id].querySelector('[data-f="h:' + hk(c.id, s.id) + '"]'); if (f) f.focus();
           }, function (e) { ok.disabled = false; err.textContent = e.message; });
         }
         ok.addEventListener("click", submit);
         inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); submit(); } else if (e.key === "Escape") { e.preventDefault(); no.click(); } });
       });
-      if (archived.length) {
-        var list = el("div", { class: "tk-arch", hidden: true });
-        var tog = el("button", { type: "button", class: "fz-linkbtn", "aria-expanded": "false", text: "Archived (" + archived.length + ")" });
-        tog.addEventListener("click", function () { list.hidden = !list.hidden; tog.setAttribute("aria-expanded", String(!list.hidden)); });
-        archived.forEach(function (s) {
-          var un = el("button", { type: "button", class: "fz-linkbtn", text: "Unarchive" });
-          var del = el("button", { type: "button", class: "fz-linkbtn", text: "Delete" });
-          un.addEventListener("click", function () { patchSub(c, s, { archived: false }); });
-          del.addEventListener("click", function () { deleteSub(c, s); });
-          list.appendChild(el("div", { class: "tk-arch-row" }, el("span", { text: s.name }), un, del));
-        });
-        foot.append(tog, list);
-      }
       sec.appendChild(foot);
       return sec;
     }
@@ -325,8 +317,7 @@
         showErrs = true; refresh();
       });
       ui.fields[f] = inp;
-      var name = el("span", { class: "tk-row-name" + (s ? "" : " none") }, s ? s.name : noneLabel,
-        s && s.archived ? el("span", { class: "tk-tag", text: "archived" }) : null);
+      var name = el("span", { class: "tk-row-name" + (s ? "" : " none") }, s ? s.name : noneLabel);
       var r = el("div", { class: "tk-row" }, name);
       var swRow = key === cur ? swRowControls(c, s, noneLabel, k) : null;   // stopwatch: the current week only
       if (swRow) r.appendChild(swRow.start);
@@ -336,8 +327,7 @@
         var menu = el("div", { class: "tk-menu", hidden: true, role: "menu" });
         var mk = function (label, fn, cls) { var b = el("button", { type: "button", role: "menuitem", class: cls || null, text: label }); b.addEventListener("click", function () { closeMenu(); fn(); }); menu.appendChild(b); };
         mk("Rename", function () { renameSub(c, s, name, r); });
-        mk(s.archived ? "Unarchive" : "Archive", function () { patchSub(c, s, { archived: !s.archived }); });
-        mk("Delete", function () { deleteSub(c, s); }, "danger");
+        mk("Remove from this week", function () { removeSub(c, s); }, "danger");
         btn.addEventListener("click", function (e) {
           e.stopPropagation();
           var was = openMenu && openMenu.menu === menu; closeMenu();
@@ -364,33 +354,29 @@
         if (!v || runes(v) > 40) { err.textContent = "Names are 1–40 characters."; return; }
         if (v === s.name) { close(); return; }
         ok.disabled = true; err.textContent = "";
-        F.api("/v1/track/subcats/" + s.id, { method: "POST", body: { name: v } }).then(function (n) {
-          Object.assign(s, n); rerenderCat(c);
+        // this week only: the server renames it in place if no other week has it, else this week
+        // switches to a sub-category with the new name and its hours move over (saved with the form)
+        F.api("/v1/track/weeks/" + key + "/subcats", { method: "POST", body: { category: c.id, name: v, replace: s.id } }).then(function (n) {
+          upsertSub(n);
+          if (n.id !== s.id) {
+            var ok = hk(c.id, s.id), nk = hk(c.id, n.id);
+            if (st.hours[ok]) { st.hours[nk] = st.hours[ok]; delete st.hours[ok]; }
+            delete st.subs[s.id];
+          }
+          st.subs[n.id] = true; rerenderCat(c);
         }, function (e) { ok.disabled = false; err.textContent = e.message; });
       }
       ok.addEventListener("click", submit);
       inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); submit(); } else if (e.key === "Escape") { e.preventDefault(); close(); } });
     }
-    function patchSub(c, s, body) {
-      if (body.archived === false && subs(c.id).filter(function (x) { return !x.archived; }).length >= SUB_MAX) { alert("You can have up to " + SUB_MAX + " active sub-categories here. Archive another one first."); return; }
-      return F.api("/v1/track/subcats/" + s.id, { method: "POST", body: body }).then(function (n) {
-        Object.assign(s, n); rerenderCat(c);
-      }, function (e) { alert(e.message); });
-    }
-    function deleteSub(c, s) {
+    function removeSub(c, s) {
       var v = st.hours[hk(c.id, s.id)];
-      if (v && parseHours(v).v) { alert("“" + s.name + "” has hours in this week. Clear them (and save) first, or archive it instead."); return; }
-      if (!confirm("Delete “" + s.name + "”? This can't be undone.")) return;
-      F.api("/v1/track/subcats/" + s.id, { method: "DELETE" }).then(function () {
-        cfg.subcats = cfg.subcats.filter(function (x) { return x.id !== s.id; });
-        delete st.hours[hk(c.id, s.id)];
+      if (v && parseHours(v).v) { alert("“" + s.name + "” has hours in this week. Clear them first (they can go under Other / unassigned)."); return; }
+      F.api("/v1/track/weeks/" + key + "/subcats/" + s.id, { method: "DELETE" }).then(function (r) {
+        delete st.subs[s.id]; delete st.hours[hk(c.id, s.id)];
+        if (r && r.deleted) cfg.subcats = cfg.subcats.filter(function (x) { return x.id !== s.id; });
         rerenderCat(c);
-      }, function (e) {
-        if (e.status === 409) {
-          if (s.archived) { alert("“" + s.name + "” has hours logged in other weeks, so it can't be deleted. It stays archived — its hours remain in past weeks and charts."); return; }
-          if (confirm("“" + s.name + "” has hours logged in other weeks, so it can't be deleted.\n\nArchive it instead? It disappears from the form for new weeks; its hours stay in past weeks and charts.")) patchSub(c, s, { archived: true });
-        } else alert(e.message);
-      });
+      }, function (e) { alert(e.message); });
     }
 
     function scoresSection() {
@@ -837,10 +823,9 @@
       if (k === cfg.current_week && cfg.current_week_end) { var e = Date.parse(cfg.current_week_end); if (!isNaN(e)) return e; }
       return T.weekStartMs(k) + 7 * 864e5;
     }
-    function liveSubs(cat) { return subs(cat).filter(function (s) { return !s.archived; }); }
     function swName(it) {
       var c = CAT[it.cat], s = it.sub != null ? subById(it.sub) : null;
-      return c.short + (it.sub != null ? " › " + (s ? s.name : "Sub-category") : liveSubs(it.cat).length ? " › Other" : "");
+      return c.short + (it.sub != null ? " › " + (s ? s.name : "Sub-category") : st && it.week === key && shownSubs(it.cat).length ? " › Other" : "");
     }
     function swWeekNote(it) { return it.week === key ? "" : " (week of " + T.fmtKeyShort(it.week) + ")"; }
     function note(text, bad, item) {
