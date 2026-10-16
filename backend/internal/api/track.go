@@ -4,16 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 
 	"fazon.nexus/backend/internal/db"
 )
 
 const (
-	maxActiveSubcats = 30  // per category, non-archived
-	maxAllSubcats    = 100 // per category, archived included: bounds what archiving can pile up
+	maxWeekSubcats = 30   // per category in one week's form
+	maxAllSubcats  = 1000 // per category, archived included: bounds the register of names
 )
 
 type trackCategory struct {
@@ -110,22 +112,20 @@ func (s *Server) trackSettings(w http.ResponseWriter, r *http.Request, u *user) 
 	writeJSON(w, http.StatusOK, map[string]bool{"public": *in.Public})
 }
 
-// subcatConflict reports a clash with the per-category limits or an existing non-archived name
-// (case-insensitive), ignoring the subcat self.
-func subcatConflict(tx *sql.Tx, userID int64, category, name string, self int64, unarchiving bool) error {
-	var active, all, dup int
-	err := tx.QueryRow(`SELECT COUNT(*) FILTER (WHERE archived = 0), COUNT(*),
-			COUNT(*) FILTER (WHERE archived = 0 AND name = ? COLLATE NOCASE AND id != ?)
-		FROM track_subcats WHERE user_id = ? AND category = ?`, name, self, userID, category).Scan(&active, &all, &dup)
+// subcatConflict reports a clash with an existing non-archived name (case-insensitive), ignoring
+// the subcat self, or, for a new one (self 0), the cap on a category's register of names. How
+// many a week shows is limited separately (maxWeekSubcats, addWeekSubcat).
+func subcatConflict(tx *sql.Tx, userID int64, category, name string, self int64) error {
+	var all, dup int
+	err := tx.QueryRow(`SELECT COUNT(*), COUNT(*) FILTER (WHERE archived = 0 AND name = ? COLLATE NOCASE AND id != ?)
+		FROM track_subcats WHERE user_id = ? AND category = ?`, name, self, userID, category).Scan(&all, &dup)
 	switch {
 	case err != nil:
 		return err
 	case dup > 0:
 		return errStatus{http.StatusConflict, "you already have a sub-category with that name"}
 	case self == 0 && all >= maxAllSubcats:
-		return errStatus{http.StatusConflict, "too many sub-categories in this category (delete some archived ones)"}
-	case (self == 0 || unarchiving) && active >= maxActiveSubcats:
-		return errStatus{http.StatusConflict, "at most 30 active sub-categories per category"}
+		return errStatus{http.StatusConflict, "too many sub-categories in this category"}
 	}
 	return nil
 }
@@ -183,7 +183,7 @@ func (s *Server) insertSubcat(ctx context.Context, userID int64, category, name 
 // sub-category in the transaction that saves the session).
 func insertSubcatTx(tx *sql.Tx, userID int64, category, name string, now int64) (subcatJSON, error) {
 	c := subcatJSON{Category: category, Name: name}
-	if err := subcatConflict(tx, userID, category, name, 0, false); err != nil {
+	if err := subcatConflict(tx, userID, category, name, 0); err != nil {
 		return c, err
 	}
 	err := tx.QueryRow(`INSERT INTO track_subcats (user_id, category, name, position, created_at)
@@ -231,7 +231,6 @@ func (s *Server) updateSubcat(w http.ResponseWriter, r *http.Request, u *user) {
 		if err != nil {
 			return err
 		}
-		unarchiving := in.Archived != nil && !*in.Archived && c.Archived
 		if in.Name != nil {
 			c.Name = *in.Name
 		}
@@ -242,7 +241,7 @@ func (s *Server) updateSubcat(w http.ResponseWriter, r *http.Request, u *user) {
 			c.Position = *in.Position
 		}
 		if !c.Archived {
-			if err := subcatConflict(tx, u.ID, c.Category, c.Name, c.ID, unarchiving); err != nil {
+			if err := subcatConflict(tx, u.ID, c.Category, c.Name, c.ID); err != nil {
 				return err
 			}
 		}
@@ -281,4 +280,202 @@ func (s *Server) deleteSubcat(w http.ResponseWriter, r *http.Request, u *user) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// ---- a week's sub-categories ----
+
+// weekSubcatIDs lists the sub-categories added to a week (track_week_subcats). The week's form
+// shows these plus every sub-category the week has hours for.
+func weekSubcatIDs(ctx context.Context, q interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}, userID int64, key string) ([]int64, error) {
+	rows, err := q.QueryContext(ctx, `SELECT subcat_id FROM track_week_subcats WHERE user_id = ? AND week = ? ORDER BY subcat_id`, userID, key)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// subcatUnusedTx reports whether a sub-category is in no week: no hours and not added to any.
+func subcatUnusedTx(tx *sql.Tx, id int64) (bool, error) {
+	var used bool
+	err := tx.QueryRow(`SELECT EXISTS (SELECT 1 FROM track_hours WHERE subcat_id = ?1)
+		OR EXISTS (SELECT 1 FROM track_week_subcats WHERE subcat_id = ?1)`, id).Scan(&used)
+	return !used, err
+}
+
+// POST /v1/track/weeks/{key}/subcats {category, name, replace?} adds a sub-category to one week:
+// the user's sub-category with that name (an archived one is restored), or a new one. Names are
+// shared between weeks, so "Anime" is the same sub-category in every week that has it.
+//
+// With replace (a sub-category id in the week) it is a rename in this week only: a sub-category
+// no other week uses is renamed in place; otherwise this week switches from it to the named one
+// (its hours move over when the form is saved; the answer's id differs from replace).
+func (s *Server) addWeekSubcat(w http.ResponseWriter, r *http.Request, u *user) {
+	k, ok := s.pathWeek(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Category string `json:"category"`
+		Name     string `json:"name"`
+		Replace  int64  `json:"replace"`
+	}
+	if !decode(w, r, maxBody, &in) {
+		return
+	}
+	name, err := validSubcat(in.Category, in.Name)
+	if err != nil {
+		writeTxErr(w, "add week subcat", err)
+		return
+	}
+	if !s.trackLimit.allow(strconv.FormatInt(u.ID, 10), s.now()) {
+		writeErr(w, http.StatusTooManyRequests, "too many changes, slow down")
+		return
+	}
+	key := k.String()
+	var c subcatJSON
+	err = s.tx(r.Context(), func(tx *sql.Tx) error {
+		// What the week shows in this category now, the sub-category being renamed aside.
+		shown := map[int64]bool{}
+		rows, err := tx.Query(`SELECT subcat_id FROM track_week_subcats ws JOIN track_subcats s ON s.id = ws.subcat_id
+				WHERE ws.user_id = ?1 AND ws.week = ?2 AND s.category = ?3
+			UNION SELECT subcat_id FROM track_hours WHERE user_id = ?1 AND week = ?2 AND category = ?3 AND subcat_id IS NOT NULL`,
+			u.ID, key, in.Category)
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var id int64
+			if err := rows.Scan(&id); err != nil {
+				rows.Close()
+				return err
+			}
+			shown[id] = true
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		if in.Replace != 0 {
+			var old subcatJSON
+			err := tx.QueryRow(`SELECT id, category, name, archived, position FROM track_subcats WHERE id = ? AND user_id = ?`,
+				in.Replace, u.ID).Scan(&old.ID, &old.Category, &old.Name, &old.Archived, &old.Position)
+			if errors.Is(err, sql.ErrNoRows) || err == nil && (old.Category != in.Category || !shown[old.ID]) {
+				return errStatus{http.StatusNotFound, "that sub-category isn't in this week"}
+			}
+			if err != nil {
+				return err
+			}
+			if old.Name == name {
+				c = old
+				return nil
+			}
+			delete(shown, old.ID)
+			// Only this week has it, and the new name is free (or differs only in case): rename it.
+			// A change of case alone renames it everywhere: names are the same in any case, so
+			// there is no other sub-category to switch to.
+			var elsewhere, taken bool
+			if err := tx.QueryRow(`SELECT EXISTS (SELECT 1 FROM track_hours WHERE subcat_id = ?1 AND week != ?2)
+					OR EXISTS (SELECT 1 FROM track_week_subcats WHERE subcat_id = ?1 AND week != ?2),
+				EXISTS (SELECT 1 FROM track_subcats WHERE user_id = ?3 AND category = ?4 AND archived = 0 AND id != ?1
+					AND name = ?5 COLLATE NOCASE)`, old.ID, key, u.ID, in.Category, name).Scan(&elsewhere, &taken); err != nil {
+				return err
+			}
+			if !taken && (!elsewhere || strings.EqualFold(old.Name, name)) {
+				if _, err := tx.Exec(`UPDATE track_subcats SET name = ?, archived = 0 WHERE id = ?`, name, old.ID); err != nil {
+					return err
+				}
+				if _, err := tx.Exec(`INSERT OR IGNORE INTO track_week_subcats (user_id, week, subcat_id) VALUES (?, ?, ?)`,
+					u.ID, key, old.ID); err != nil {
+					return err
+				}
+				old.Name, old.Archived, c = name, false, old
+				return nil
+			}
+		}
+		if c, _, err = subcatByNameTx(tx, u.ID, in.Category, []string{name}, s.now().Unix()); err != nil {
+			return err
+		}
+		switch {
+		case shown[c.ID]:
+			return errStatus{http.StatusConflict, "“" + c.Name + "” is already in this week"}
+		case len(shown) >= maxWeekSubcats:
+			return errStatus{http.StatusConflict, fmt.Sprintf("at most %d sub-categories per category in a week", maxWeekSubcats)}
+		}
+		if _, err := tx.Exec(`INSERT OR IGNORE INTO track_week_subcats (user_id, week, subcat_id) VALUES (?, ?, ?)`,
+			u.ID, key, c.ID); err != nil {
+			return err
+		}
+		if in.Replace != 0 && in.Replace != c.ID {
+			if _, err := tx.Exec(`DELETE FROM track_week_subcats WHERE user_id = ? AND week = ? AND subcat_id = ?`, u.ID, key, in.Replace); err != nil {
+				return err
+			}
+			// In no week now (no hours to move here either): delete it, as removeWeekSubcat would.
+			unused, err := subcatUnusedTx(tx, in.Replace)
+			if err != nil || !unused {
+				return err
+			}
+			_, err = tx.Exec(`DELETE FROM track_subcats WHERE id = ?`, in.Replace)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		writeTxErr(w, "add week subcat", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, c)
+}
+
+// DELETE /v1/track/weeks/{key}/subcats/{id} takes a sub-category out of one week's form. Hours
+// still show it until they are cleared and saved. A sub-category that is then in no week at all
+// is deleted (deleted: true); other weeks keep theirs.
+func (s *Server) removeWeekSubcat(w http.ResponseWriter, r *http.Request, u *user) {
+	k, ok := s.pathWeek(w, r)
+	if !ok {
+		return
+	}
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	if !s.trackLimit.allow(strconv.FormatInt(u.ID, 10), s.now()) {
+		writeErr(w, http.StatusTooManyRequests, "too many changes, slow down")
+		return
+	}
+	var deleted bool
+	err := s.tx(r.Context(), func(tx *sql.Tx) error {
+		var owned bool
+		if err := tx.QueryRow(`SELECT EXISTS (SELECT 1 FROM track_subcats WHERE id = ? AND user_id = ?)`, id, u.ID).Scan(&owned); err != nil {
+			return err
+		}
+		if !owned {
+			return errStatus{http.StatusNotFound, "not found"}
+		}
+		if _, err := tx.Exec(`DELETE FROM track_week_subcats WHERE user_id = ? AND week = ? AND subcat_id = ?`, u.ID, k.String(), id); err != nil {
+			return err
+		}
+		unused, err := subcatUnusedTx(tx, id)
+		if err != nil || !unused {
+			return err
+		}
+		deleted = true
+		_, err = tx.Exec(`DELETE FROM track_subcats WHERE id = ?`, id)
+		return err
+	})
+	if err != nil {
+		writeTxErr(w, "remove week subcat", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true, "deleted": deleted})
 }

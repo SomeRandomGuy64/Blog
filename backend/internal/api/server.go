@@ -152,6 +152,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/track/weeks/{key}", s.authed(s.getWeek))
 	mux.HandleFunc("POST /v1/track/weeks/{key}", s.authed(s.saveWeek))
 	mux.HandleFunc("POST /v1/track/weeks/{key}/goals", s.authed(s.setGoals))
+	mux.HandleFunc("POST /v1/track/weeks/{key}/subcats", s.authed(s.addWeekSubcat))
+	mux.HandleFunc("DELETE /v1/track/weeks/{key}/subcats/{id}", s.authed(s.removeWeekSubcat))
 	mux.HandleFunc("POST /v1/track/admin/end-week", s.authed(s.endWeek))
 	mux.HandleFunc("DELETE /v1/track/admin/end-week", s.authed(s.reopenWeek))
 	mux.HandleFunc("GET /v1/track/leaderboard", s.leaderboard)

@@ -504,25 +504,26 @@ func TestModeratorDeletesAnyComment(t *testing.T) {
 func refs(t *testing.T, e *env, id int64, email string) map[string]int {
 	t.Helper()
 	where := map[string]string{
-		"users":           "id = ?1 OR muted_by = ?1",
-		"sessions":        "user_id = ?1",
-		"login_tokens":    "user_id = ?1",
-		"signup_tokens":   "email = ?2",
-		"comments":        "user_id = ?1",
-		"comment_likes":   "user_id = ?1",
-		"page_likes":      "user_id = ?1",
-		"notifications":   "user_id = ?1 OR actor_id = ?1",
-		"kyotsu_sessions": "user_id = ?1",
-		"watch_sessions":  "user_id = ?1",
-		"avatars":         "user_id = ?1",
-		"track_subcats":   "user_id = ?1",
-		"track_weeks":     "user_id = ?1",
-		"track_hours":     "user_id = ?1",
-		"track_ratings":   "user_id = ?1",
-		"track_goals":     "user_id = ?1",
-		"api_keys":        "user_id = ?1",
-		"pages":           "",
-		"settings":        "",
+		"users":              "id = ?1 OR muted_by = ?1",
+		"sessions":           "user_id = ?1",
+		"login_tokens":       "user_id = ?1",
+		"signup_tokens":      "email = ?2",
+		"comments":           "user_id = ?1",
+		"comment_likes":      "user_id = ?1",
+		"page_likes":         "user_id = ?1",
+		"notifications":      "user_id = ?1 OR actor_id = ?1",
+		"kyotsu_sessions":    "user_id = ?1",
+		"watch_sessions":     "user_id = ?1",
+		"avatars":            "user_id = ?1",
+		"track_subcats":      "user_id = ?1",
+		"track_weeks":        "user_id = ?1",
+		"track_hours":        "user_id = ?1",
+		"track_ratings":      "user_id = ?1",
+		"track_goals":        "user_id = ?1",
+		"track_week_subcats": "user_id = ?1",
+		"api_keys":           "user_id = ?1",
+		"pages":              "",
+		"settings":           "",
 	}
 	rows, err := e.db.Query(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
 	if err != nil {
@@ -596,6 +597,7 @@ func TestDeleteAccount(t *testing.T) {
 
 	// Track, Kyōtsu, watch time, avatar, API key, a pending login link and a stray sign-up link.
 	sub := vic.subcat("active", "Anime")
+	vic.mustStatus(200, "POST", "/v1/track/weeks/"+thisWeek+"/subcats", map[string]any{"category": "active", "name": "Anime"})
 	vic.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", sub, 2), hrs("passive", nil, 1)},
 		"summary": "my week", "ratings": map[string]any{"active": 4}})
 	eq(t, "goals", vic.goals(thisWeek, map[string]any{"active": 5}), 200)

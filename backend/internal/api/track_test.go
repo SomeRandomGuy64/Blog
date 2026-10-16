@@ -23,6 +23,26 @@ func (c *client) saveWeek(key string, body map[string]any) map[string]any {
 	return c.mustStatus(200, "POST", "/v1/track/weeks/"+key, body)
 }
 
+// fillSubcats gives a user n sub-categories "S0"… of cat directly in the database (created at 0,
+// in no week).
+func fillSubcats(t *testing.T, e *env, userID int64, cat string, n int) {
+	t.Helper()
+	tx, err := e.db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	for i := range n {
+		if _, err := tx.Exec(`INSERT INTO track_subcats (user_id, category, name, position, created_at) VALUES (?, ?, ?, ?, 0)`,
+			userID, cat, fmt.Sprint("S", i), i); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func hrs(cat string, sub any, h float64) map[string]any {
 	return map[string]any{"category": cat, "subcat": sub, "hours": h}
 }
@@ -94,22 +114,25 @@ func TestTrackSubcats(t *testing.T) {
 	_ = yt2
 	eq(t, "anki rename", upd(e.alice, deck, map[string]any{"name": "Core 2k/6k"}), 200)
 
-	// Limits: 30 active per category; 100 including archived.
+	// Limits: no cap on active ones (a week's form has its own, see TestTrackWeekSubcats), but at
+	// most maxAllSubcats per category, archived included.
 	for i := 0; i < 30; i++ {
 		e.admin.subcat("output", fmt.Sprint("o", i))
 	}
-	eq(t, "31st active", create(e.admin, "output", "one more"), 409)
+	eq(t, "31st active", create(e.admin, "output", "one more"), 201)
 	cfg = e.admin.mustStatus(200, "GET", "/v1/track/config", nil)
 	first := int64(cfg["subcats"].([]any)[0].(map[string]any)["id"].(float64))
 	eq(t, "archive one", upd(e.admin, first, map[string]any{"archived": true}), 200)
-	eq(t, "room again", create(e.admin, "output", "one more"), 201)
-	eq(t, "unarchive over limit", upd(e.admin, first, map[string]any{"archived": false}), 409)
-	for i := 0; i < 98; i++ {
-		e.db.Exec(`INSERT INTO track_subcats (user_id, category, name, archived, created_at) VALUES (?, 'soroban', ?, 1, 0)`, e.admin.id, fmt.Sprint("old", i))
+	eq(t, "unarchive", upd(e.admin, first, map[string]any{"archived": false}), 200)
+	if _, err := e.db.Exec(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
+		INSERT INTO track_subcats (user_id, category, name, archived, created_at) SELECT ?, 'soroban', 'old' || i, 1, 0 FROM n`,
+		maxAllSubcats-2, e.admin.id); err != nil {
+		t.Fatal(err)
 	}
 	eq(t, "under total limit", create(e.admin, "soroban", "x"), 201)
 	e.db.Exec(`INSERT INTO track_subcats (user_id, category, name, archived, created_at) VALUES (?, 'soroban', 'old-extra', 1, 0)`, e.admin.id)
-	eq(t, "100 including archived", create(e.admin, "soroban", "y"), 409)
+	eq(t, "cap including archived", create(e.admin, "soroban", "y"), 409)
+	eq(t, "cap message", e.admin.last.Body.String(), `{"error":"too many sub-categories in this category"}`+"\n")
 
 	// Delete: only when unused.
 	e.alice.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("passive", podcast, 2)}})

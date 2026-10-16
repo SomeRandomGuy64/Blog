@@ -193,7 +193,7 @@ func (s *Server) apiListSubcats(w http.ResponseWriter, r *http.Request, u *user)
 }
 
 // POST /v1/api/track/subcats {category, name}: the site's rules (name 1–40 characters, unique
-// among the category's active sub-categories ignoring case, at most 30 active per category).
+// among the category's active sub-categories ignoring case, at most maxAllSubcats per category).
 func (s *Server) apiCreateSubcat(w http.ResponseWriter, r *http.Request, u *user) {
 	var in struct {
 		Category string `json:"category"`

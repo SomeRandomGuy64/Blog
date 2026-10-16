@@ -152,29 +152,24 @@ func TestKyotsuTimeSubcatChoice(t *testing.T) {
 func TestKyotsuTimeSubcatLimit(t *testing.T) {
 	e := newEnv(t)
 	a := e.alice
-	// 30 active phonetic sub-categories: no room to create one, so the unassigned bucket.
-	for i := range maxActiveSubcats {
-		if _, err := e.db.Exec(`INSERT INTO track_subcats (user_id, category, name, position, created_at) VALUES (?, 'phonetic', ?, ?, 0)`,
-			a.id, fmt.Sprint("S", i), i); err != nil {
-			t.Fatal(err)
-		}
-	}
+	// A full register of phonetic sub-category names: no room to create one, so the unassigned bucket.
+	fillSubcats(t, e, a.id, "phonetic", maxAllSubcats)
 	out := a.kyoSession(201, time.Hour, 600, "", 4)
 	ta := added(out)
 	eq(t, "unassigned", ta["subcat"], any(nil))
 	eq(t, "hours", ta["hours"], any(0.17))
-	if n, _ := ta["note"].(string); !strings.Contains(n, "at most 30 active") || !strings.Contains(n, "Other / unassigned") {
+	if n, _ := ta["note"].(string); !strings.Contains(n, "too many sub-categories in this category") || !strings.Contains(n, "Other / unassigned") {
 		t.Fatalf("note %q", n)
 	}
 	eq(t, "track", a.phonetic(thisWeek), "-:0.17")
 
-	// Same with an archived Kyōtsu: it can't be restored past the limit either.
+	// An archived Kyōtsu is still restored: that adds nothing to the register.
 	if _, err := e.db.Exec(`INSERT INTO track_subcats (user_id, category, name, archived, created_at) VALUES (?, 'phonetic', 'Kyōtsu', 1, 0)`, a.id); err != nil {
 		t.Fatal(err)
 	}
 	out = a.kyoSession(201, time.Hour, 600, "", 4)
-	eq(t, "still unassigned", added(out)["subcat"], any(nil))
-	eq(t, "track", a.phonetic(thisWeek), "-:0.34")
+	eq(t, "restored past the cap", added(out)["subcat"], any("Kyōtsu"))
+	eq(t, "track", a.phonetic(thisWeek), "Kyōtsu:0.17 -:0.17")
 }
 
 func TestKyotsuTimeWeekBoundary(t *testing.T) {

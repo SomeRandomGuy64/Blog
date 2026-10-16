@@ -360,6 +360,7 @@ type weekDoc struct {
 	End               string             `json:"end"`
 	Days              []string           `json:"days"`
 	Hours             []hourJSON         `json:"hours"`
+	Subcats           []int64            `json:"subcats"` // added to this week; the form also shows those with hours
 	Kotu              scores             `json:"kotu"`
 	Kyotsu            scores             `json:"kyotsu"`
 	KyotsuAuto        scores             `json:"kyotsu_auto"`
@@ -421,6 +422,9 @@ func (s *Server) weekDoc(ctx context.Context, userID int64, k week.Key) (weekDoc
 		return weekDoc{}, err
 	}
 	doc.Summary, doc.SummaryPrivate = d.summary, d.summaryPrivate
+	if doc.Subcats, err = weekSubcatIDs(ctx, s.db, userID, k.String()); err != nil {
+		return weekDoc{}, err
+	}
 	return doc, nil
 }
 
@@ -571,7 +575,7 @@ func (s *Server) saveWeek(w http.ResponseWriter, r *http.Request, u *user) {
 		return
 	}
 	key := k.String()
-	err := s.tx(r.Context(), func(tx *sql.Tx) error {
+	err := s.tx(r.Context(), func(tx *sql.Tx) (err error) {
 		if ifUpdated != nil {
 			var cur int64
 			err := tx.QueryRow(`SELECT updated_at FROM track_weeks WHERE user_id = ? AND week = ?`, u.ID, key).Scan(&cur)
@@ -607,6 +611,38 @@ func (s *Server) saveWeek(w http.ResponseWriter, r *http.Request, u *user) {
 			}
 			hasHours = hasHours || c > 0
 		}
+		// Sub-categories that had hours here: one left in no week at all after the save (a rename
+		// in this week moved its hours to another name) is deleted — also when the save empties
+		// the week (its hours go with the track_weeks row).
+		var hadHours []int64
+		if err := func() error {
+			rows, err := tx.Query(`SELECT subcat_id FROM track_hours WHERE user_id = ? AND week = ? AND subcat_id IS NOT NULL`, u.ID, key)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var id int64
+				if err := rows.Scan(&id); err != nil {
+					return err
+				}
+				hadHours = append(hadHours, id)
+			}
+			return rows.Err()
+		}(); err != nil {
+			return err
+		}
+		defer func() {
+			for _, id := range hadHours {
+				if err != nil {
+					return
+				}
+				var unused bool
+				if unused, err = subcatUnusedTx(tx, id); err == nil && unused {
+					_, err = tx.Exec(`DELETE FROM track_subcats WHERE id = ?`, id)
+				}
+			}
+		}()
 		if !hasHours && kotu.empty() && kyotsu.empty() && summary == "" && len(ratings) == 0 {
 			_, err := tx.Exec(`DELETE FROM track_weeks WHERE user_id = ? AND week = ?`, u.ID, key)
 			return err

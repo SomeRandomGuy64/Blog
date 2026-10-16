@@ -92,7 +92,9 @@ immersion), `phonetic` (phonetic training), `output`, `soroban`, `anki`.
 
 **Sub-categories** are yours to define per category (say *Anime* and *YouTube* under `active`).
 Hours go either to a sub-category or to the category's **unassigned** bucket. Sub-categories can be
-renamed, reordered and archived on the site; archived ones keep their hours in old weeks.
+added to one week at a time on the site, and a week's form shows only the ones added to it or with
+hours in it. Names are shared between weeks: "Anime" is the same sub-category (one `id`) in every
+week that uses it, and giving a week hours for a sub-category puts it in that week.
 
 **Hours** come back as decimal hours built from exact hundredths of an hour (`1.17` = 1 h 10.2 min),
 so `round(hours * 60)` gives whole minutes. When you send hours you can use:
@@ -226,7 +228,7 @@ Your sub-categories, archived ones included, in display order (by category, then
 
 *Read & write.* Create a sub-category, with the site's rules: a name of 1–40 characters (trimmed,
 no control characters) that isn't already used by an active sub-category of that category (ignoring
-case), and at most 30 active sub-categories per category. Answers `201` with the new sub-category.
+case). It isn't added to any week until it gets hours there. Answers `201` with the new sub-category.
 A taken name or a full category is a `409`.
 
 ```sh
@@ -238,7 +240,7 @@ curl -s -X POST -H "Authorization: Bearer $FAZON_API_KEY" -H "Content-Type: appl
 {"id": 12, "category": "active", "name": "Anime", "archived": false, "position": 0}
 ```
 
-Renaming, reordering, archiving and deleting sub-categories is done on the site.
+Adding sub-categories to a week, renaming them and removing them is done on the site.
 
 ### `PATCH /v1/api/track/weeks/{week}/hours`
 
