@@ -2,7 +2,7 @@
 title = "Developer API"
 description = "Script your own Track data with a personal API key: read your weeks, log hours, write summaries and set goals."
 # Rendered by layouts/developers/section.html. Not in the main menu (linked from the Developers
-# section of your own profile and the footer). Keep in step with backend/internal/api/trackapi.go.
+# section of your own profile and the footer). Keep in step with internal/api/trackapi.go in the Fazon-Backend repo.
 outputs = ["html"]
 +++
 
