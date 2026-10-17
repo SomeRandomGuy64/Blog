@@ -1,6 +1,0 @@
-# Caddy sets X-Forwarded-For to the real client IP (it discards any client-sent value unless
-# trusted_proxies is configured), and fazond trusts that header only from loopback peers.
-api.fazon.nexus {
-	encode zstd gzip
-	reverse_proxy 127.0.0.1:8091
-}

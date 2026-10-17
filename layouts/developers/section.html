@@ -1,7 +1,7 @@
 {{ define "main" }}
   {{/* /developers/ — the personal API key docs (content/developers/_index.md). Not in the main
        menu; linked from the Developers section of your own profile and from the footer. Keep it
-       in step with backend/internal/api/trackapi.go and apikeys.go. */}}
+       in step with internal/api/trackapi.go and apikeys.go in the Fazon-Backend repo. */}}
   <article class="dev-docs">
     <h1>{{ .Title }}</h1>
     {{ with .Description }}<p class="dev-lead">{{ . }}</p>{{ end }}

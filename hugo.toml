@@ -6,7 +6,7 @@ enableRobotsTXT = true
 [params]
   description = "Notes, logs, and tools from my Japanese language-learning journey — with the occasional WebGL experiment."
   author = "Faizan"
-  # Accounts / comments / notifications / Kyōtsu sessions API (backend/). On localhost the
+  # Accounts / comments / notifications / Kyōtsu sessions API (repo Fazon-Backend). On localhost the
   # client uses http://localhost:8091 instead (static/js/fazon-api.js).
   api = "https://api.fazon.nexus"
   # Shown on /privacy/ ("contact the site owner at …"); left empty, the page just says
@@ -25,7 +25,7 @@ enableRobotsTXT = true
   category = "categories"
 
 # Generate an RSS feed for the home page and each section (e.g. /articles/), plus
-# /comment-pages.json: every page with a comment thread and its title. The API (backend/) only
+# /comment-pages.json: every page with a comment thread and its title. The API (repo Fazon-Backend) only
 # accepts comments on those pages and takes their titles from there (layouts/home.commentpages.json).
 [outputs]
   home = ["html", "rss", "commentpages"]
