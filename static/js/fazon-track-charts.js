@@ -39,16 +39,23 @@
   // fixed English formatting (Intl's en-GB output varies: "Sat, 10 Oct", "Sept")
   var WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], MO = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   function parts(ms) { var d = new Date(ms); return { wd: WD[d.getUTCDay()], d: d.getUTCDate(), m: MO[d.getUTCMonth()], y: d.getUTCFullYear() }; }
-  T.fmtKeyLong = function (k) { var p = parts(keyToMs(k)); return p.wd + " " + p.d + " " + p.m + " " + p.y; };    // Sat 10 Oct 2026
   T.fmtKeyShort = function (k) { var p = parts(keyToMs(k)); return p.d + " " + p.m; };                            // 10 Oct
-  T.fmtKeyAxis = function (k, multiYear) { var p = parts(keyToMs(k)); return multiYear ? p.m + " " + String(p.y).slice(2) : p.d + " " + p.m; };
+  // week dates are shown in the viewer's own time zone: the local date of the week's start (Sunday
+  // 03:00 UTC, so Sun 11 Oct in Europe/Asia, Sat 10 Oct in the Americas) plus n days. Keys, URLs and
+  // the UTC range (T.utcRange) stay UTC; so do the daily score labels (fmtDayLabel, fmtKeyShort).
+  function localParts(k, n) { var d = new Date(T.weekStartMs(k) + (n || 0) * DAY); return { wd: WD[d.getDay()], d: d.getDate(), m: MO[d.getMonth()], y: d.getFullYear() }; }
+  T.fmtWeekLong = function (k, n) { var p = localParts(k, n); return p.wd + " " + p.d + " " + p.m + " " + p.y; };  // Sun 11 Oct 2026
+  T.fmtWeekDay = function (k, n) { var p = localParts(k, n); return p.wd + " " + p.d + " " + p.m; };               // Sun 11 Oct
+  T.fmtWeekShort = function (k) { var p = localParts(k); return p.d + " " + p.m; };                                  // 11 Oct
+  T.fmtKeyAxis = function (k, multiYear) { var p = localParts(k); return multiYear ? p.m + " " + String(p.y).slice(2) : p.d + " " + p.m; };
+  // date pickers, in the same local dates: a week shows as its start date … start + 6 days, and a
+  // picked day maps to the week holding that day's last local moment (which is always that week)
+  function localISO(ms) { var d = new Date(ms); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  T.weekPickerValue = function (k) { return localISO(T.weekStartMs(k)); };
+  T.weekPickerMax = function (k) { return localISO(T.weekStartMs(k) + 6 * DAY); };
+  T.weekOfLocalDate = function (d) { return T.currentWeekKey(new Date(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10) + 1).getTime() - 1); };
   T.fmtDayLabel = function (k) { var p = parts(keyToMs(k)); return p.wd + " " + p.d + " " + p.m; };              // Sat 10 Oct
-  // the week's start (Sunday 03:00 UTC) as a date in the viewer's own time zone: "Week of Sun 11 Oct
-  // 2026" in Europe/Asia, "Week of Sat 10 Oct 2026" in the Americas (the UTC range stays in T.utcRange)
-  T.weekTitle = function (k) {
-    var d = new Date(T.weekStartMs(k));
-    return "Week of " + WD[d.getDay()] + " " + d.getDate() + " " + MO[d.getMonth()] + " " + d.getFullYear();
-  };
+  T.weekTitle = function (k) { return "Week of " + T.fmtWeekLong(k); };
   T.utcRange = function (k) {
     var a = T.weekStartMs(k);
     var f = function (ms) { var p = parts(ms); return p.wd + " " + p.d + " " + p.m + " 03:00"; };

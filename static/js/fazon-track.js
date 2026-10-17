@@ -113,7 +113,7 @@
       if (k > cur) k = cur;
       if (k < "2000-01-01") k = "2000-01-01";
       if (k === key) return;
-      if (dirty() && !confirm("You have unsaved changes for the week of " + T.fmtKeyLong(key) + ". Discard them?")) return;
+      if (dirty() && !confirm("You have unsaved changes for the week of " + T.fmtWeekLong(key) + ". Discard them?")) return;
       loadWeek(k);
     }
     function loadWeek(k) {
@@ -172,7 +172,7 @@
         var w = stripData && stripData[k], tot = w ? T.sumTotals(w.totals) : 0;
         var chip = el("button", { type: "button", class: "tk-chip" + (w ? " filled" : "") + (k === key ? " cur" : ""),
           "aria-current": k === key ? "true" : null, title: T.weekTitle(k) + (w ? " · " + T.fmtH(tot) + " logged" : " · nothing logged"), "data-k": k },
-          el("span", { text: T.fmtKeyShort(k) }), el("b", { text: w ? (tot ? T.fmtNum(tot, 1) + "h" : "✓") : "—" }));
+          el("span", { text: T.fmtWeekShort(k) }), el("b", { text: w ? (tot ? T.fmtNum(tot, 1) + "h" : "✓") : "—" }));
         chip.addEventListener("click", (function (kk) { return function () { go(kk); }; })(k));
         box.appendChild(chip);
       }
@@ -200,14 +200,14 @@
       var next = el("button", { type: "button", class: "tk-nav-btn", "aria-label": "Next week", text: "›", disabled: key >= cur });
       prev.addEventListener("click", function () { go(T.addWeeks(key, -1)); });
       next.addEventListener("click", function () { go(T.addWeeks(key, 1)); });
-      var date = el("input", { type: "date", class: "fz-input tk-input-sm", value: key, min: "2000-01-01", max: T.addDays(cur, 6), "aria-label": "Jump to the week containing a date" });
+      var date = el("input", { type: "date", class: "fz-input tk-input-sm", value: T.weekPickerValue(key), min: "2000-01-01", max: T.weekPickerMax(cur), "aria-label": "Jump to the week containing a date" });
       date.addEventListener("change", function () {
         if (!T.isKey(date.value)) return;
-        var k = T.weekOfDate(date.value);
+        var k = T.weekOfLocalDate(date.value);
         if (k > cur) { k = cur; }
-        if (k === key) { date.value = key; return; }
+        if (k === key) { date.value = T.weekPickerValue(key); return; }
         go(k);
-        if (key !== k) date.value = key;   // navigation cancelled
+        if (key !== k) date.value = T.weekPickerValue(key);   // navigation cancelled
       });
       var thisWeek = el("button", { type: "button", class: "fz-btn tk-small", text: "This week", disabled: key === cur });
       thisWeek.addEventListener("click", function () { go(cur); });
@@ -827,7 +827,7 @@
       var c = CAT[it.cat], s = it.sub != null ? subById(it.sub) : null;
       return c.short + (it.sub != null ? " › " + (s ? s.name : "Sub-category") : st && it.week === key && shownSubs(it.cat).length ? " › Other" : "");
     }
-    function swWeekNote(it) { return it.week === key ? "" : " (week of " + T.fmtKeyShort(it.week) + ")"; }
+    function swWeekNote(it) { return it.week === key ? "" : " (week of " + T.fmtWeekShort(it.week) + ")"; }
     function note(text, bad, item) {
       swMsg = { text: text, bad: !!bad, item: item || null, at: Date.now() };
       if (!bad) setTimeout(function () { if (swMsg && swMsg.text === text && !swMsg.bad) { swMsg = null; paintSw(); } }, 8000);
@@ -896,7 +896,7 @@
       swAdd(it).then(function (res) {
         swBusy = false;
         if (swMsg && swMsg.bad && swMsg.item && swMsg.item.week === it.week && swMsg.item.cat === it.cat && swMsg.item.sub === it.sub && swMsg.item.ms === it.ms) swMsg = null;
-        if (res && res.other) note("Added " + T.fmtHM(res.min / 60) + " to " + swName(it) + " in the week of " + T.fmtKeyShort(it.week) + " ✓");
+        if (res && res.other) note("Added " + T.fmtHM(res.min / 60) + " to " + swName(it) + " in the week of " + T.fmtWeekShort(it.week) + " ✓");
         paintSw(); swFlush();
       }, function (e) {
         swBusy = false;
@@ -1099,11 +1099,11 @@
       b.addEventListener("click", function () { metric = m.id; paintSeg(metricSeg, metric); syncUrl(); paint(); });
       metricSeg.appendChild(b);
     });
-    var date = el("input", { type: "date", class: "fz-input tk-input-sm", id: "lbDate", min: "2000-01-01", max: T.addDays(pub, 6), "aria-label": "Period ends with the week containing this date (published weeks only)" });
+    var date = el("input", { type: "date", class: "fz-input tk-input-sm", id: "lbDate", min: "2000-01-01", max: T.weekPickerMax(pub), "aria-label": "Period ends with the week containing this date (published weeks only)" });
     var latest = el("button", { type: "button", class: "fz-btn tk-small", text: "Latest" });
     date.addEventListener("change", function () {
       if (!T.isKey(date.value)) return;
-      var k = T.weekOfDate(date.value);
+      var k = T.weekOfLocalDate(date.value);
       week = k >= pub ? null : k;   // nothing after published_through
       load();
     });
@@ -1156,9 +1156,9 @@
         data = d || { users: [], weeks: [] };
         if (T.isKey(data.published_through)) {
           pub = data.published_through;
-          date.max = T.addDays(pub, 6);
+          date.max = T.weekPickerMax(pub);
           if (week && week >= pub) { week = null; syncUrl(); }
-          date.value = week || pub; latest.disabled = !week;
+          date.value = T.weekPickerValue(week || pub); latest.disabled = !week;
         }
         paint();
         loadGoals();
@@ -1185,16 +1185,16 @@
     function paintRange() {
       var P = PERIODS.filter(function (p) { return p.id === period; })[0];
       var to = shownWeek(), from = data.from || (data.weeks && data.weeks[0]) || to;
-      var span = T.fmtKeyLong(from) + " → " + T.fmtKeyLong(T.addDays(to, 6));
-      range.textContent = period === "last" ? (week ? "" : "Last week: ") + T.weekTitle(to) + " (" + T.fmtDayLabel(to) + " → " + T.fmtDayLabel(T.addDays(to, 6)) + ")"
+      var span = T.fmtWeekLong(from) + " → " + T.fmtWeekLong(to, 6);
+      range.textContent = period === "last" ? (week ? "" : "Last week: ") + T.weekTitle(to) + " (" + T.fmtWeekDay(to) + " → " + T.fmtWeekDay(to, 6) + ")"
         : period === "all" ? "All time: " + span
         : P.label + ": " + span;
       // the running week is never shown until it ends (or the admin ends it early)
       var cw = T.isKey(data.current_week) ? data.current_week : cur, endMs = Date.parse(data.current_week_end);
       if (!isFinite(endMs)) endMs = T.weekStartMs(cw) + 7 * 864e5;
       note.textContent = data.ended_early
-        ? "The admin released this week's results (week of " + T.fmtDayLabel(cw) + ") early, so they're included. The following week's results appear once it ends: " + localTime(endMs + 7 * 864e5) + " your time."
-        : "This week's results (week of " + T.fmtDayLabel(cw) + ") appear once it ends: " + localTime(endMs) + " your time.";
+        ? "The admin released this week's results (week of " + T.fmtWeekDay(cw) + ") early, so they're included. The following week's results appear once it ends: " + localTime(endMs + 7 * 864e5) + " your time."
+        : "This week's results (week of " + T.fmtWeekDay(cw) + ") appear once it ends: " + localTime(endMs) + " your time.";
     }
 
     function paint() {
@@ -1255,7 +1255,7 @@
 
       // graph 1: the metric per user
       var unit = M.pct ? "" : " (h:mm)";
-      g1h.textContent = M.long + unit + " — " + (isLast ? "week of " + T.fmtDayLabel(to) : P.label.toLowerCase());
+      g1h.textContent = M.long + unit + " — " + (isLast ? "week of " + T.fmtWeekDay(to) : P.label.toLowerCase());
       var top = rows.slice(0, 20);
       var o1 = { rows: top.map(function (r) { return { label: (r.u.user && r.u.user.name) || "Someone", value: r.v, href: F.profileHref ? F.profileHref(r.u.user) : null, me: me && r.u.user && r.u.user.id === me.id, note: isLast ? null : (r.u.weeks_logged | 0) + " week" + ((r.u.weeks_logged | 0) === 1 ? "" : "s") + " logged" }; }),
         color: M.color, fmt: fmt, max: M.pct ? 100 : 0, valueLabel: M.pct ? M.label : M.label + " (h:mm)", ariaLabel: M.long + " per person" };
@@ -1303,7 +1303,7 @@
       if (u.summary && String(u.summary).trim()) {
         var txt = el("div", { class: "sm-text" });
         T.mdFill(txt, String(u.summary));   // Markdown (sanitized); shown in full here (the feed clamps long ones)
-        sum = el("div", { class: "lb-sum" }, el("p", { class: "lb-sum-h", text: isLast || !T.isKey(u.summary_week) ? "Summary" : "Summary — week of " + T.fmtDayLabel(u.summary_week) }), txt);
+        sum = el("div", { class: "lb-sum" }, el("p", { class: "lb-sum-h", text: isLast || !T.isKey(u.summary_week) ? "Summary" : "Summary — week of " + T.fmtWeekDay(u.summary_week) }), txt);
       } else sum = el("p", { class: "fz-muted tk-small lb-sum-none", text: isLast ? "No public summary for this week." : "No public summary in this period." });
       return el("div", { class: "lb-det" }, stats, all > 0 ? bar : null, list, sum);
     }
@@ -1314,7 +1314,7 @@
       if (period !== "last" || !data) { goals.hidden = true; return; }
       var wk = shownWeek(), my = ++gseq;
       goals.hidden = false;
-      goalsIntro.textContent = "Who met the goals they set for the week of " + T.fmtKeyLong(wk) + ", ranked by how far they beat them (all goal hours together). Meeting every goal ranks above meeting only some, whatever the percentage.";
+      goalsIntro.textContent = "Who met the goals they set for the week of " + T.fmtWeekLong(wk) + ", ranked by how far they beat them (all goal hours together). Meeting every goal ranks above meeting only some, whatever the percentage.";
       goalsBody.style.opacity = "0.5";
       var p = gcache[wk] || F.api("/v1/track/leaderboard/goals?week=" + wk);
       gcache[wk] = p;
