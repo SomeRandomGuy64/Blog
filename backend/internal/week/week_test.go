@@ -46,7 +46,7 @@ func TestWindows(t *testing.T) {
 		t.Fatalf("start %v end %v", k.Start(), k.End())
 	}
 	labels := k.DayLabels()
-	want := []string{"2026-10-10", "2026-10-11", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16"}
+	want := []string{"2026-10-11", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16", "2026-10-17"}
 	for i := range want {
 		if labels[i] != want[i] {
 			t.Fatalf("labels %v", labels)

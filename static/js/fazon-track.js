@@ -388,7 +388,7 @@
         ". Blank days use your saved Kyōtsu sessions automatically (Kotu from its Tokyo mode, if you have it)."));
       var grid = el("div", { class: "tk-scores" },
         el("span", { class: "hd", text: "Day" }), el("span", { class: "hd", style: "text-align:right", text: "Kotu %" }), el("span", { class: "hd", style: "text-align:right", text: "Kyōtsu %" }));
-      var days = wk.days && wk.days.length === 7 ? wk.days : [0, 1, 2, 3, 4, 5, 6].map(function (i) { return T.addDays(key, i); });
+      var days = wk.days && wk.days.length === 7 ? wk.days : [1, 2, 3, 4, 5, 6, 7].map(function (i) { return T.addDays(key, i); });   // Sunday … Saturday
       // automatic values from saved trainer sessions: Kyōtsu ← Keihan mode, Kotu ← Tokyo mode
       var AUTO = { kotu: wk.kotu_auto || [], kyotsu: wk.kyotsu_auto || [] }, ANS = { kotu: wk.kotu_auto_answers || [], kyotsu: wk.kyotsu_auto_answers || [] };
       days.forEach(function (d, i) {

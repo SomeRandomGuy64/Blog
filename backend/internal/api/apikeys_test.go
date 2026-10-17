@@ -340,7 +340,7 @@ func TestAPIReadWeeks(t *testing.T) {
 	// Single week, with days; an unlogged week with trainer sessions still has its Kyōtsu.
 	one := e.keyJSON(200, key, "GET", "/v1/api/track/weeks/2026-10-03?days=1", nil)
 	eq(t, "same as in the list", jsonOf(one["totals"]), jsonOf(w["totals"]))
-	eq(t, "days", jsonOf(one["days"]), `["2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09"]`)
+	eq(t, "days", jsonOf(one["days"]), `["2026-10-04","2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09","2026-10-10"]`)
 	eq(t, "kotu_days", jsonOf(one["kotu_days"]), `[80,null,90,null,null,null,null]`)
 	eq(t, "kyotsu_days", jsonOf(one["kyotsu_days"]), `[null,70,90,null,null,null,null]`)
 	eq(t, "kyotsu_source", jsonOf(one["kyotsu_source"]), `[null,"manual","auto",null,null,null,null]`)

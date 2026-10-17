@@ -281,8 +281,9 @@
     var firstWeek = T.isKey(d.first_score_week) && byKey[d.first_score_week] ? d.first_score_week : scored[0].week;
     var wkeys = [];
     for (var k = firstWeek; k <= lastWeek; k = T.addWeeks(k, 1)) wkeys.push(k);
-    // days run to the end of the last returned week, but never past today's label date
-    var cur = T.currentWeekKey(), today = T.addDays(cur, Math.max(0, Math.min(6, Math.floor((Date.now() - T.weekStartMs(cur)) / DAY))));
+    // days run to the end of the last returned week, but never past today's label date (day i of
+    // a week is labelled key + 1 + i: Sunday … Saturday)
+    var cur = T.currentWeekKey(), today = T.addDays(cur, 1 + Math.max(0, Math.min(6, Math.floor((Date.now() - T.weekStartMs(cur)) / DAY))));
     if (lastDay && lastDay > today) lastDay = today;
     var dkeys = [];
     if (firstDay) for (var dk = firstDay; dk <= lastDay; dk = T.addDays(dk, 1)) dkeys.push(dk);
