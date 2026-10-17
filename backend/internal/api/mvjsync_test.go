@@ -488,13 +488,13 @@ func TestMvJSyncResults(t *testing.T) {
 		"kotu": nums(96.2, 90.9, nil, nil, nil, nil, 95), "kyotsu": nums(84.7), "summary": "my summary"})
 	m := e.newMvJ(f, thisWeek)
 	e.mustPass(m)
-	eq(t, "notes", f.upserts()[0].Body["notes"], any("Kotu Results:\n\nSunday 11 Oct: 96.2%\nMonday 12 Oct: 90.9%\nSaturday 17 Oct: 95.0%"+
-		"\n\nKyōtsu Results:\n\nSunday 11 Oct: 84.7%\n\nmy summary"))
+	eq(t, "notes", f.upserts()[0].Body["notes"], any("Kotu Results:\n\n96.2%, 90.9%, –, –, –, –, 95.0%"+
+		"\n\nKyōtsu Results:\n\n84.7%\n\nmy summary"))
 
 	// A score change alone is pushed; no summary, no Kyōtsu scores: just the Kotu block.
 	e.admin.saveWeek(thisWeek, map[string]any{"hours": []any{hrs("active", nil, 1)}, "kotu": nums(nil, 91)})
 	e.mustPass(m)
 	ups := f.upserts()
 	eq(t, "pushed", len(ups), 2)
-	eq(t, "results only", ups[1].Body["notes"], any("Kotu Results:\n\nMonday 12 Oct: 91.0%"))
+	eq(t, "results only", ups[1].Body["notes"], any("Kotu Results:\n\n–, 91.0%"))
 }

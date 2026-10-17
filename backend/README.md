@@ -310,18 +310,18 @@ user and week, upserted whole), as the owner's MvJ account.
   zeros. After a restart every logged week in range is pushed once more (harmless: an upsert).
 - The MvJ tracker has no Kotu / Kyōtsu scores, so the notes pushed are a results block, then the
   summary underneath (a blank line between). One `Kotu Results:` / `Kyōtsu Results:` section per
-  test with any score that week, each day with a score (the effective one, manual else the
-  trainer's) on its own line, blank days left out:
+  test with any score that week: its days Sunday … Saturday on one line, comma-separated (the
+  effective score, manual else the trainer's), `–` for a blank day before the last scored one and
+  nothing after it:
 
   ```
   Kotu Results:
 
-  Sunday 11 Oct: 96.2%
-  Monday 12 Oct: 90.9%
+  96.2%, 90.9%, –, 93.7%
 
   Kyōtsu Results:
 
-  Sunday 11 Oct: 84.7%
+  84.7%, 84.0%
 
   <summary>
   ```
