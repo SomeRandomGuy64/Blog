@@ -124,37 +124,37 @@ func mvjLocalOf(d *weekData) mvjLocal {
 	return l
 }
 
-// mvjResults is the week's effective Kotu and Kyōtsu scores as the notes' leading block, one
-// section per test with any score, blank days left out ("" if neither has one):
+// mvjResults is the week's effective Kotu and Kyōtsu scores as the notes' leading block: one
+// section per test with any score, its days Sunday … Saturday on one line ("–" for a blank day
+// before the last scored one, nothing after it), "" if neither test has a score:
 //
 //	Kotu Results:
 //
-//	Sunday 11 Oct: 96.2%
-//	Monday 12 Oct: 90.9%
+//	96.2%, –, 97.0%
 //
 //	Kyōtsu Results:
 //
-//	Sunday 11 Oct: 84.7%
+//	84.7%
 func mvjResults(d *weekData) string {
-	labels := d.key.DayLabels()
 	var sections []string
 	for _, t := range []struct {
 		name string
 		sc   scores
 	}{{"Kotu", d.kotuEffective()}, {"Kyōtsu", d.kyotsuEffective()}} {
-		if t.sc.empty() {
-			continue
-		}
-		var b strings.Builder
-		b.WriteString(t.name + " Results:\n")
-		for i, v := range t.sc {
+		var days []string
+		for _, v := range t.sc {
 			if v == nil {
-				continue
+				days = append(days, "–")
+			} else {
+				days = append(days, fmt.Sprintf("%.1f%%", *v))
 			}
-			day, _ := time.Parse("2006-01-02", labels[i])
-			fmt.Fprintf(&b, "\n%s: %.1f%%", day.Format("Monday 2 Jan"), *v)
 		}
-		sections = append(sections, b.String())
+		for len(days) > 0 && days[len(days)-1] == "–" {
+			days = days[:len(days)-1]
+		}
+		if len(days) > 0 {
+			sections = append(sections, t.name+" Results:\n\n"+strings.Join(days, ", "))
+		}
 	}
 	return strings.Join(sections, "\n\n")
 }
