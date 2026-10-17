@@ -99,8 +99,8 @@ On the site, the like button sits above the comments, with a compact ♥ in the 
 line (`static/js/fazon-comments.js`).
 
 Track weeks run Sunday 03:00 UTC → Sunday 03:00 UTC and are keyed by the Saturday before
-(`internal/week`). Hours are stored in hundredths; a day's Kyōtsu score is the manual value, else
-the trainer sessions that ended that day. Summaries are public unless marked private; users with
+(`internal/week`); their days are labelled Sunday … Saturday. Hours are stored in hundredths; a
+day's Kyōtsu score is the manual value, else the trainer sessions that ended that day. Summaries are public unless marked private; users with
 `track_public` off expose nothing. Track details below.
 
 ## Track
@@ -246,7 +246,9 @@ tier 2 (met some) whatever the percentages; within a tier by exact percentage, t
 **Profiles** `GET /v1/users/{id}/track`: `{user, subcats, weeks, published_through,
 first_score_week}`; each week has `week, totals, subtotals, kotu, kyotsu` (weekly averages),
 `ratings`, `summary` (`""` if private, unless you're the owner, who also gets `summary_private`),
-and day-by-day scores: `days` (the 7 label dates, Saturday … Friday as in the week view),
+and day-by-day scores: `days` (the 7 label dates, Sunday … Saturday as in the week view: day i
+of the week keyed by Saturday `k` is labelled `k` + 1 + i days, the UTC date most of its window
+falls on),
 `kotu_days` / `kyotsu_days` (7 effective values: manual, else the trainer's Tokyo / Keihan mode)
 and `kotu_source` / `kyotsu_source` (`"manual"`, `"auto"` or null per day). `first_score_week` is the first
 returned week with any Kotu or Kyōtsu value (null if none). Only logged weeks are listed, so
@@ -306,6 +308,26 @@ user and week, upserted whole), as the owner's MvJ account.
   ratings or summary changed since its last push (whatever changed it: a save, the API, the
   Kyōtsu trainer). Weeks never logged here are never pushed; a week emptied here is pushed as
   zeros. After a restart every logged week in range is pushed once more (harmless: an upsert).
+- The MvJ tracker has no Kotu / Kyōtsu scores, so the notes pushed are a results block, then the
+  summary underneath (a blank line between). One `Kotu Results:` / `Kyōtsu Results:` section per
+  test with any score that week, each day with a score (the effective one, manual else the
+  trainer's) on its own line, blank days left out:
+
+  ```
+  Kotu Results:
+
+  Sunday 11 Oct: 96.2%
+  Monday 12 Oct: 90.9%
+
+  Kyōtsu Results:
+
+  Sunday 11 Oct: 84.7%
+
+  <summary>
+  ```
+
+  The summary on Track stays as written; the block exists only in what's pushed. A score change
+  is a change, so it's pushed within a minute.
 - Track wins: edits made on the MvJ site to a mirrored week are overwritten by the next change
   here. Exceptions, taken from the MvJ row: the notes when our summary is private, and the rating
   of a category not rated here (🔥, the MvJ form's default, if it has none either).
@@ -353,7 +375,7 @@ the range oldest first, logged or not; default the last 12 weeks through the cur
  "totals":{"active":13.75,"passive":4,"phonetic":0,"output":0,"soroban":0,"anki":1,"all":18.75,"nopassive":14.75},
  "hours":{"active":{"unassigned":2,"subcats":[{"id":3,"name":"Anime","archived":false,"hours":10.5}]},"passive":{…},…},
  "ratings":{"active":4},"goals":{},"summary":"…","private":true,"kotu":85,"kyotsu":80,"updated":"2026-10-04T12:00:00Z",
- "days":["2026-10-03",…],"kotu_days":[80,null,…],"kyotsu_days":[null,70,…],"kyotsu_source":[null,"manual",…]}
+ "days":["2026-10-04",…],"kotu_days":[80,null,…],"kyotsu_days":[null,70,…],"kyotsu_source":[null,"manual",…]}
 ```
 
 `PATCH …/hours` entries are `{"category", "subcat" (name) | "subcat_id" | neither (the

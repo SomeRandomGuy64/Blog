@@ -100,7 +100,9 @@ func TestPublishedThrough(t *testing.T) {
 		t.Helper()
 		for _, c := range []*client{e.anon(), e.bob, e.admin} {
 			body := public(c)
-			for _, leak := range []string{"CURRENT-SECRET", "BOB-CURRENT", `"week":"` + thisWeek, `"` + thisWeek + `"]`, `"active":50`, `"kotu":99`, `"passive":7`} {
+			// `"<thisWeek>"]}` ends a weeks list; a days list may end on that date legitimately (last
+			// week's Saturday label), so it isn't matched
+			for _, leak := range []string{"CURRENT-SECRET", "BOB-CURRENT", `"week":"` + thisWeek, `"` + thisWeek + `"]}`, `"active":50`, `"kotu":99`, `"passive":7`} {
 				if strings.Contains(body, leak) {
 					t.Fatalf("%s: %q leaked: %s", what, leak, body)
 				}
@@ -244,7 +246,7 @@ func TestProfileDays(t *testing.T) {
 	eq(t, "weeks", len(ws), 3)
 	w0, w2 := ws[0].(map[string]any), ws[2].(map[string]any)
 	eq(t, "no scores", fmt.Sprint(w0["kotu_days"], w0["kyotsu_source"]), "[<nil> <nil> <nil> <nil> <nil> <nil> <nil>] [<nil> <nil> <nil> <nil> <nil> <nil> <nil>]")
-	eq(t, "days", fmt.Sprint(w2["days"]), "[2026-10-03 2026-10-04 2026-10-05 2026-10-06 2026-10-07 2026-10-08 2026-10-09]")
+	eq(t, "days", fmt.Sprint(w2["days"]), "[2026-10-04 2026-10-05 2026-10-06 2026-10-07 2026-10-08 2026-10-09 2026-10-10]")
 	eq(t, "kotu_days", fmt.Sprint(w2["kotu_days"]), "[<nil> <nil> 80.5 <nil> <nil> <nil> <nil>]")
 	eq(t, "kyotsu_days", fmt.Sprint(w2["kyotsu_days"]), "[90 60 <nil> <nil> <nil> <nil> <nil>]")
 	eq(t, "kyotsu_source", fmt.Sprint(w2["kyotsu_source"]), "[auto manual <nil> <nil> <nil> <nil> <nil>]")

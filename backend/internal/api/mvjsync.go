@@ -15,7 +15,8 @@ package api
 // a week is pushed whole whenever what we'd send for it changes, so edits made on the MvJ site
 // to a mirrored week are overwritten by the next change here. Weeks never logged here are never
 // pushed. Two things are kept from the MvJ row instead: the notes when our summary is private,
-// and the rating of a category not rated here.
+// and the rating of a category not rated here. The MvJ tracker has no Kotu / Kyōtsu scores, so
+// the notes we push are the week's day-by-day results (mvjResults) with the summary underneath.
 
 import (
 	"bytes"
@@ -105,6 +106,7 @@ func newMvJSync(s *Server, cfg MvJConfig) *mvjSync {
 type mvjLocal struct {
 	Cents          []int64        `json:"cents"` // per trackCategories
 	Ratings        map[string]int `json:"ratings"`
+	Results        string         `json:"results"` // mvjResults, prepended to the notes
 	Summary        string         `json:"summary"`
 	SummaryPrivate bool           `json:"summary_private"`
 }
@@ -118,7 +120,51 @@ func mvjLocalOf(d *weekData) mvjLocal {
 		l.Cents[i] = d.total(c.ID)
 	}
 	l.Ratings, l.Summary, l.SummaryPrivate = d.ratingsOut(), d.summary, d.summaryPrivate
+	l.Results = mvjResults(d)
 	return l
+}
+
+// mvjResults is the week's effective Kotu and Kyōtsu scores as the notes' leading block, one
+// section per test with any score, blank days left out ("" if neither has one):
+//
+//	Kotu Results:
+//
+//	Sunday 11 Oct: 96.2%
+//	Monday 12 Oct: 90.9%
+//
+//	Kyōtsu Results:
+//
+//	Sunday 11 Oct: 84.7%
+func mvjResults(d *weekData) string {
+	labels := d.key.DayLabels()
+	var sections []string
+	for _, t := range []struct {
+		name string
+		sc   scores
+	}{{"Kotu", d.kotuEffective()}, {"Kyōtsu", d.kyotsuEffective()}} {
+		if t.sc.empty() {
+			continue
+		}
+		var b strings.Builder
+		b.WriteString(t.name + " Results:\n")
+		for i, v := range t.sc {
+			if v == nil {
+				continue
+			}
+			day, _ := time.Parse("2006-01-02", labels[i])
+			fmt.Fprintf(&b, "\n%s: %.1f%%", day.Format("Monday 2 Jan"), *v)
+		}
+		sections = append(sections, b.String())
+	}
+	return strings.Join(sections, "\n\n")
+}
+
+// mvjNotes puts the results block above the summary, a blank line between.
+func mvjNotes(results, summary string) string {
+	if results == "" || summary == "" {
+		return results + summary
+	}
+	return results + "\n\n" + summary
 }
 
 func (l mvjLocal) hash() [32]byte {
@@ -210,7 +256,7 @@ func (m *mvjSync) push(ctx context.Context, key string, l mvjLocal) error {
 		cats[c.ID] = mvjCategory{Hours: float64(l.Cents[i]) / 100, Rating: rating}
 		total += l.Cents[i]
 	}
-	notes := l.Summary
+	notes := mvjNotes(l.Results, l.Summary)
 	if l.SummaryPrivate {
 		notes = old.Notes
 	}

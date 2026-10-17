@@ -155,7 +155,7 @@ func TestTrackWeekSave(t *testing.T) {
 	empty := e.alice.mustStatus(200, "GET", "/v1/track/weeks/"+thisWeek, nil)
 	eq(t, "start", empty["start"], any("2026-10-11T03:00:00Z"))
 	eq(t, "end", empty["end"], any("2026-10-18T03:00:00Z"))
-	eq(t, "days", fmt.Sprint(empty["days"]), "[2026-10-10 2026-10-11 2026-10-12 2026-10-13 2026-10-14 2026-10-15 2026-10-16]")
+	eq(t, "days", fmt.Sprint(empty["days"]), "[2026-10-11 2026-10-12 2026-10-13 2026-10-14 2026-10-15 2026-10-16 2026-10-17]")
 	eq(t, "no hours", len(empty["hours"].([]any)), 0)
 	eq(t, "kotu", fmt.Sprint(empty["kotu"]), "[<nil> <nil> <nil> <nil> <nil> <nil> <nil>]")
 	eq(t, "auto answers", fmt.Sprint(empty["kyotsu_auto_answers"]), "[0 0 0 0 0 0 0]")
