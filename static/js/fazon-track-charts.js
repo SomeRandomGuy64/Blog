@@ -43,7 +43,12 @@
   T.fmtKeyShort = function (k) { var p = parts(keyToMs(k)); return p.d + " " + p.m; };                            // 10 Oct
   T.fmtKeyAxis = function (k, multiYear) { var p = parts(keyToMs(k)); return multiYear ? p.m + " " + String(p.y).slice(2) : p.d + " " + p.m; };
   T.fmtDayLabel = function (k) { var p = parts(keyToMs(k)); return p.wd + " " + p.d + " " + p.m; };              // Sat 10 Oct
-  T.weekTitle = function (k) { return "Week of " + T.fmtKeyLong(k); };
+  // the week's start (Sunday 03:00 UTC) as a date in the viewer's own time zone: "Week of Sun 11 Oct
+  // 2026" in Europe/Asia, "Week of Sat 10 Oct 2026" in the Americas (the UTC range stays in T.utcRange)
+  T.weekTitle = function (k) {
+    var d = new Date(T.weekStartMs(k));
+    return "Week of " + WD[d.getDay()] + " " + d.getDate() + " " + MO[d.getMonth()] + " " + d.getFullYear();
+  };
   T.utcRange = function (k) {
     var a = T.weekStartMs(k);
     var f = function (ms) { var p = parts(ms); return p.wd + " " + p.d + " " + p.m + " 03:00"; };
