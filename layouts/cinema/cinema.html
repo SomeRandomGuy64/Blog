@@ -34,12 +34,12 @@
          <div class="ol">Start &amp; finish at</div>
          <div class="srow"><input type="text" id="ppc" placeholder="Postcode, e.g. M1 1AE" autocomplete="postal-code" aria-label="Starting postcode"><button id="ppcgo">Set</button>
           <div class="pcst" id="ppcst"></div>
-          <label class="chk"><input type="checkbox" id="pnohome"> No home — just start at the first cinema</label></div>
+          <label class="chk"><input type="checkbox" id="pnohome"> No home, just start at the first cinema</label></div>
          <div class="ol" style="margin-top:10px">Dates</div>
          <div class="srow"><label class="dsel">From <select id="pstart" aria-label="First day of the plan"></select></label><label class="dsel">for <select id="plen" aria-label="Number of days"></select></label>
           <div class="pcst" id="pdnote"></div></div>
-         <div class="ol" style="margin-top:10px">Cinemas for all films <span class="meta">— none ticked = any; each film’s own Options can narrow it further</span></div>
-         <details class="gcin" id="pgc"><summary><span id="pgcsum">Any cinema</span> <span class="meta">— choose…</span></summary>
+         <div class="ol" style="margin-top:10px">Cinemas for all films <span class="meta">(none ticked = any; each film’s own Options can narrow it further)</span></div>
+         <details class="gcin" id="pgc"><summary><span id="pgcsum">Any cinema</span> <span class="meta">· choose…</span></summary>
           <div class="srow" style="margin:6px 0 0"><input type="search" class="cf" id="pgcf" placeholder="Filter cinemas or chains…" aria-label="Filter cinemas">
            <button type="button" class="ib" id="pgcall">Tick all shown</button><button type="button" class="ib" id="pgcclr">Any cinema</button></div>
           <div class="clist" id="pgclist"></div></details>
@@ -52,7 +52,7 @@
           <label>Max single journey (min)<input type="number" id="pmaxl" min="5" max="300" step="5" placeholder="No limit"></label>
           <label class="wide">Goal<select id="pobj"><option value="most">Most films (then priority, then least travel)</option><option value="strict">Strict priority (a higher pick always wins)</option></select></label>
          </div>
-         <div class="ol" style="margin-top:12px">Google Maps API key <span class="meta">— optional, for real public-transport times</span></div>
+         <div class="ol" style="margin-top:12px">Google Maps API key <span class="meta">(optional, for real public-transport times)</span></div>
          <div class="srow"><input type="password" id="pkey" placeholder="Paste your own key" autocomplete="off" spellcheck="false" autocapitalize="off" aria-label="Google Maps API key" data-lpignore="true" data-1p-ignore>
           <button id="pkeyshow" type="button" aria-pressed="false">Show</button><button id="pkeyforget" type="button" title="Remove the key and the cached journey times from this browser">Forget key</button>
           <div class="pcst" id="pkeyst"></div></div>
@@ -90,7 +90,7 @@
 
     <section class="pane fb" id="cfb" aria-labelledby="cfbh" hidden>
      <div class="ph"><h2 id="cfbh">Feedback</h2><span class="meta" id="fbcount"></span></div>
-     <p class="fbrules">No account needed — posts are public and appear below. To keep it manageable there’s a limit of
+     <p class="fbrules">No account needed. Posts are public and appear below. To keep it manageable there’s a limit of
       <b id="fblimit">5</b> posts a day <b>in total, shared by everyone</b>, resetting at <b>00:00 UTC</b>, and each post can be up to <b id="fbmaxc">1000</b> characters.</p>
      <div class="fbquota" id="fbquota" role="status"></div>
      <form id="fbform" novalidate>

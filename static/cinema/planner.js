@@ -130,7 +130,7 @@ if(!PS.set.pc&&D.home&&D.home.postcode&&hasLL(D.home)){PS.set.pc=fmtPC(D.home.po
 const OPEN=new Set();let lastRes=null,dirty=false;
 function save(){store.set(LSK,{picks:PS.picks,set:PS.set})}
 function changed(){save();if(lastRes&&!dirty){dirty=true;$('pout').classList.add('stale');
-  $('pout').insertAdjacentHTML('afterbegin','<div class="stalenote" id="pstale">Picks or settings changed — press “Plan my schedule” again.</div>')}updGo()}
+  $('pout').insertAdjacentHTML('afterbegin','<div class="stalenote" id="pstale">Picks or settings changed. Press “Plan my schedule” again.</div>')}updGo()}
 
 // ---------- mode toggle ----------
 const HASH={plan:'#schedule',dev:'#in-development'};
@@ -206,18 +206,18 @@ function optsHTML(p,pi){const F=FI[p.k];if(!F)return '<div class="meta">This fil
   const fdays=[...new Set(F.shows.map(h=>h.day))].sort();
   const dchips=DAYS.map(day=>{const has=fdays.includes(day),on=!p.dd||!p.dd.includes(day);
     return `<button class="chip${on?'':' off'}" data-act="dd" data-v="${day}" title="${esc(dayLbl(day))}${has?'':' · no showings this day'}"${has?'':' disabled'}>${esc(dshort(day))}</button>`}).join('');
-  return `<div class="opt"><div class="ol">Cinemas <span class="meta">— none ticked = any${g?' in your Settings list':''}${ht&&!ht.none?' · sorted by distance from home':''}</span></div>
+  return `<div class="opt"><div class="ol">Cinemas <span class="meta">(none ticked = any${g?' in your Settings list':''}${ht&&!ht.none?' · sorted by distance from home':''})</span></div>
    ${cins.length>8?`<input type="search" class="cf" placeholder="Filter cinemas…" data-act="cf">`:''}<div class="clist">${cl}</div>
    ${p.cin.length?'<button class="ib" data-act="cinclr" style="margin-top:4px">Clear (any cinema)</button>':''}</div>
-   <div class="opt"><div class="ol">Screen type <span class="meta">— none ticked = any</span></div><div class="chips stc">${stchips}</div></div>
-   <div class="opt"><div class="ol">Other tags <span class="meta">— click: <span style="color:var(--ok)">require</span> → <span style="color:var(--err)">exclude</span> → either</span></div><div class="chips">${fchips}</div></div>
+   <div class="opt"><div class="ol">Screen type <span class="meta">(none ticked = any)</span></div><div class="chips stc">${stchips}</div></div>
+   <div class="opt"><div class="ol">Other tags <span class="meta">(click: <span style="color:var(--ok)">require</span> → <span style="color:var(--err)">exclude</span> → either)</span></div><div class="chips">${fchips}</div></div>
    <div class="opt" style="margin-bottom:0"><div class="ol">Days</div><div class="chips">${dchips}</div></div>`}
 const limEl=document.createElement('div');limEl.id='plimit';limEl.className='pcst bad plimit';limEl.setAttribute('role','status');limEl.hidden=true;$('picks').before(limEl);
 function renderPicks(){
   const L=PS.picks,N=limit(),over=L.length>N;$('pcount').textContent=`${L.length}/${N}`;$('pcount').classList.toggle('over',over);
   $('pcount').title=`Up to ${PERDAY} films per plan day, ${MAXP} at most (${N} for ${ndays(DAYS.length)})`;
   $('pq').disabled=L.length>=N;$('pq').placeholder=L.length>=N?`Maximum of ${N} films`:'Add a film…';
-  limEl.hidden=!over;limEl.textContent=over?`Only the top ${N} picks are planned for ${ndays(DAYS.length)} — lengthen the plan or remove some.`:'';
+  limEl.hidden=!over;limEl.textContent=over?`Only the top ${N} picks are planned for ${ndays(DAYS.length)}. Lengthen the plan or remove some.`:'';
   $('picks').innerHTML=L.map((p,i)=>{const gone=!FI[p.k],open=OPEN.has(p.k),ov=i>=N;
     return `<li class="pick${gone?' gone':''}${ov?' over':''}" data-i="${i}"${ov?` title="Over the ${N}-film limit: not planned"`:''}><div class="prow"><span class="grip" draggable="true" title="Drag to reorder">⋮⋮</span><span class="rk">${i+1}</span>
      <div class="pt"><b title="${esc(p.t)}">${esc(gone?p.t:title(p.k))}</b><span class="meta">${esc(pickMeta(p))}</span></div>
@@ -225,7 +225,7 @@ function renderPicks(){
      <button data-act="opt" class="${open?'on':''}" title="Cinemas, screen types, tags, days">Options</button><button data-act="rm" title="Remove" aria-label="Remove">✕</button></div></div>
      ${open?`<div class="popts">${optsHTML(p,i)}</div>`:''}</li>`}).join('');
   $('phint').hidden=!L.length;
-  if(!L.length)$('picks').innerHTML=`<li class="meta" style="padding:8px 2px">No films yet — search above and add up to ${N}, most wanted first.</li>`;
+  if(!L.length)$('picks').innerHTML=`<li class="meta" style="padding:8px 2px">No films yet. Search above and add up to ${N}, most wanted first.</li>`;
   updGo()}
 function refreshMeta(li,p){li.querySelector('.pt .meta').textContent=pickMeta(p)}
 function move(i,j){const L=PS.picks;if(j<0||j>=L.length||i===j)return;const [x]=L.splice(i,1);L.splice(j,0,x);renderPicks();changed()}
@@ -310,7 +310,7 @@ $('pobj').value=PS.set.obj;$('pobj').onchange=()=>{PS.set.obj=$('pobj').value;ch
 // postcode
 function pcStatus(){const s=PS.set,el=$('ppcst');$('pnohome').checked=!!s.noHome;$('ppc').disabled=$('ppcgo').disabled=!!s.noHome;
   if(s.noHome){el.className='pcst';el.textContent='Each day starts at the first cinema; times are for the first film and the last film’s end.';return}
-  if(s.geo&&normPC(s.geo.pc)===normPC(s.pc)){el.className='pcst ok';el.textContent='✓ '+fmtPC(s.geo.pc)+(s.geo.area?' — '+s.geo.area:'')}
+  if(s.geo&&normPC(s.geo.pc)===normPC(s.pc)){el.className='pcst ok';el.textContent='✓ '+fmtPC(s.geo.pc)+(s.geo.area?' · '+s.geo.area:'')}
   else if(!s.pc){el.className='pcst';el.textContent='Enter the postcode you’ll leave from and return to.'}}
 let pcBusy=false;
 async function setPC(){const raw=$('ppc').value,n=normPC(raw),s=PS.set,el=$('ppcst');if(pcBusy)return;
@@ -446,14 +446,14 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
     if(x.reason==='window')return `None of its ${x.match} matching showing${x.match>1?'s':''}${p.st.length?' ('+p.st.join(' / ')+')':''} fit your available times${noHome?'':' with travel from and back home'}${+PS.set.maxLeg?' and journey limit':''}.`;
     const u=r.unfit[x.si];if(!u)return '';
     if(ctx.mode==='strict'||!u.higher)return 'Clashes with your higher-priority picks.';
-    return 'Only fits by dropping other picks — leaving it out lets you see more films (or higher-ranked ones).'};
+    return 'Only fits by dropping other picks. Leaving it out lets you see more films (or higher-ranked ones).'};
   const miss=ctx.info.filter(x=>x.si<0||!r.chosen.includes(x.si));
   const st=r.status==='optimal'?`<span class="st opt" title="Search finished: no plan sees more (or higher-priority) films, and none of those needs less travel and waiting">optimal</span>`
     :r.status==='films'?`<span class="st opt" title="Proven: no plan sees more (or higher-priority) films. Travel and waiting were minimised as far as the time limit allowed">best films · travel near-optimal</span>`
     :`<span class="st part" title="The search stopped at the time limit before it could prove this is the best possible; it is the best plan it found">best found in time</span>`;
   const head=`<div class="rsum"><div class="big">Seeing ${nGot} of ${nPick} film${nPick>1?'s':''}${days.length?` over ${days.length} day${days.length>1?'s':''}`:''}${st}</div>
     <div class="meta">${noHome||!days.length?'':(nEst?'~':'')+dur(totTr)+' total travel · '}${PS.set.obj==='strict'?'strict priority':'most films'} · solved in ${(r.wall/1000).toFixed(2)} s</div></div>`;
-  html=head+(days.length?html:'<div class="pempty">Nothing could be scheduled — see below.</div>');
+  html=head+(days.length?html:'<div class="pempty">Nothing could be scheduled. See below.</div>');
   if(miss.length)html+=`<div class="unf"><h3>Not scheduled (${miss.length})</h3>${miss.map(x=>`<div><b>${x.pi+1}. ${esc(FI[x.p.k]?title(x.p.k):x.p.t)}</b><span class="meta">${esc(why(x))}</span></div>`).join('')}</div>`;
   out.innerHTML=`<div class="res">${html}</div>`;banner()}
 
