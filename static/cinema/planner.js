@@ -108,7 +108,7 @@ function rawTravel(ht){const T=new Int32Array(NC1*NC1).fill(-1),E=new Uint8Array
 
 // ---------- persisted state ----------
 // availability: set.days[0..6] = per-weekday template, set.dates["YYYY-MM-DD"] = a date the user edited (wins)
-const DEF={days:{},dates:{},start:'',len:7,buf:10,late:0,maxDay:'',maxLeg:'',obj:'most',pc:'',geo:null,gc:{},noHome:false,cin:[]};
+const DEF={days:{},dates:{},start:'',len:7,buf:10,late:0,maxDay:'',maxLeg:'',obj:'most',pc:'',geo:null,gc:{},noHome:false,cin:[],ch:[],st:[]};
 for(let w=0;w<7;w++)DEF.days[w]={on:true,e:'10:00',l:'00:00'};
 const saved=store.get(LSK)||{};
 const PS={picks:[],set:Object.assign({},DEF,saved.set||{})};
@@ -116,6 +116,11 @@ PS.set.days=Object.assign({},DEF.days,PS.set.days||{});if(!PS.set.gc||typeof PS.
 {const o=PS.set.dates,n={};if(o&&typeof o==='object')for(const d in o)if(isDay(d)&&d>=TD&&o[d]&&typeof o[d]==='object')n[d]=Object.assign({},DEF.days[0],o[d]);PS.set.dates=n}
 // global cinema list (Settings): names of the cinemas every film is limited to ([] = any); unknown names are dropped
 PS.set.cin=Array.isArray(PS.set.cin)?[...new Set(PS.set.cin.filter(n=>CIDX.has(n)))]:[];
+// global cinema types (= chains) and screen types (Settings) every film is limited to ([] = any). Screen types not in
+// the current listings are kept (they come and go) and stay clearable.
+const CHAINS=[...new Set(D.cinemas.map(c=>c.chain||''))].sort((a,b)=>(b==='Independent')-(a==='Independent')||a.localeCompare(b));
+PS.set.ch=Array.isArray(PS.set.ch)?[...new Set(PS.set.ch.filter(n=>CHAINS.includes(n)))]:[];
+PS.set.st=Array.isArray(PS.set.st)?[...new Set(PS.set.st.filter(v=>typeof v==='string'))]:[];
 const avail=day=>PS.set.dates[day]||PS.set.days[wdOf(day)];
 // per-pick excluded dates (p.dd, null = any); an old weekday list (p.wd = allowed weekdays) becomes the dates it excluded
 const ddOf=p=>{let r=null;if(Array.isArray(p.dd))r=p.dd.filter(d=>isDay(d)&&d>=TD);
@@ -154,12 +159,12 @@ function banner(){const msgs=[],L=lastRes&&!dirty&&lastRes.legs;
 let hl=0;
 function sugg(){const q=$('pq').value.trim().toLowerCase(),have=new Set(PS.picks.map(p=>p.k)),N=limit();
   if(PS.picks.length>=N){$('psugg').innerHTML=`<div class="meta">Maximum of ${N} films${PS.picks.length>N?'':' reached'} for a ${Math.max(1,DAYS.length)}-day plan.</div>`;$('psugg').hidden=false;return}
-  // with a Settings cinema list: counts are at those cinemas, most-shown first; films with none there only show up when searched
+  // with Settings cinemas / cinema types / screen types: counts are the showings they allow, most first; films with none only show up when searched
   const g=gSet(),gc=new Map(FILMS.map(k=>[k,gCount(FI[k],g)]));
   let l=FILMS.filter(k=>!have.has(k)&&(!q||title(k).toLowerCase().includes(q))&&(q||gc.get(k)[0]>0));
-  if(g)l.sort((a,b)=>gc.get(b)[0]-gc.get(a)[0]);l=l.slice(0,q?40:15);
+  if(g||PS.set.st.length)l.sort((a,b)=>gc.get(b)[0]-gc.get(a)[0]);l=l.slice(0,q?40:15);
   hl=Math.min(hl,Math.max(0,l.length-1));
-  $('psugg').innerHTML=l.length?l.map((k,i)=>{const [n,c]=gc.get(k);return `<div data-k="${esc(k)}" class="${i===hl?'hl':''}${n?'':' dim'}"><span>${esc(title(k))}</span><span class="meta">${n?`${n} · ${c} cin.`:'none at your cinemas'}</span></div>`}).join(''):'<div class="meta">No matching films with showings.</div>';
+  $('psugg').innerHTML=l.length?l.map((k,i)=>{const [n,c]=gc.get(k);return `<div data-k="${esc(k)}" class="${i===hl?'hl':''}${n?'':' dim'}"><span>${esc(title(k))}</span><span class="meta">${n?`${n} · ${c} cin.`:'none allowed by your Settings'}</span></div>`}).join(''):'<div class="meta">No matching films with showings.</div>';
   $('psugg').hidden=false}
 function addFilm(k){if(!k||PS.picks.length>=limit()||PS.picks.some(p=>p.k===k))return;
   PS.picks.push({k,t:title(k),cin:[],st:[],req:[],exc:[],dd:null});$('pq').value='';hl=0;renderPicks();changed();sugg()}
@@ -172,16 +177,24 @@ $('psugg').onmousedown=e=>{e.preventDefault();const d=e.target.closest('[data-k]
 $('pq').onblur=()=>setTimeout(()=>{$('psugg').hidden=true},120);
 
 // ---------- pick list ----------
-// cinemas a pick may use: its own Options choice intersected with the Settings list (null = any; an empty Set = none)
-const gSet=()=>PS.set.cin.length?new Set(PS.set.cin.map(n=>CIDX.get(n))):null;
+// cinemas every film may use per Settings: the cinema list intersected with the cinema types (null = any)
+function gSet(){const s=PS.set;if(!s.cin.length&&!s.ch.length)return null;
+  const r=new Set(s.cin.length?s.cin.map(n=>CIDX.get(n)):D.cinemas.keys());
+  if(s.ch.length)for(const c of r)if(!s.ch.includes(D.cinemas[c].chain||''))r.delete(c);return r}
+// cinemas a pick may use: its own Options choice intersected with gSet() (null = any; an empty Set = none)
 const cinSet=p=>{const g=gSet();if(!p.cin.length)return g;const r=new Set();
   for(const n of p.cin){const c=CIDX.get(n);if(c!==undefined&&(!g||g.has(c)))r.add(c)}return r};
-const gCount=(F,g)=>{if(!g)return [F.shows.length,F.cin.size];let n=0,k=0;for(const [c,v] of F.cin)if(g.has(c)){n+=v;k++}return [n,k]};
-function gNote(p){const g=gSet(),F=FI[p.k];if(!g||!F)return null;   // why the Settings cinema list rules this pick out
-  if(p.cin.length&&!p.cin.some(n=>g.has(CIDX.get(n))))return 'None of this film’s chosen cinemas are in your Settings cinema list';
-  if(!gCount(F,g)[0])return 'No showings at the cinemas chosen in Settings';return null}
+const gstOK=x=>!PS.set.st.length||PS.set.st.includes(screenType(x));   // Settings screen types
+const allows=(p,x,c,day,cs)=>gstOK(x)&&pickAllows(p,x,c,day,cs);
+// [showings, cinemas] of film F that the Settings allow (g = gSet())
+const gCount=(F,g)=>{if(!PS.set.st.length){if(!g)return [F.shows.length,F.cin.size];let n=0,k=0;for(const [c,v] of F.cin)if(g.has(c)){n+=v;k++}return [n,k]}
+  let n=0;const k=new Set();for(const h of F.shows)if((!g||g.has(h.c))&&gstOK(D.shows[h.i].x)){n++;k.add(h.c)}return [n,k.size]};
+function gNote(p){const g=gSet(),gs=PS.set.st,F=FI[p.k];if((!g&&!gs.length)||!F)return null;   // why the Settings rule this pick out
+  if(g&&p.cin.length&&!p.cin.some(n=>g.has(CIDX.get(n))))return 'None of this film’s chosen cinemas are allowed by your Settings';
+  if(gs.length&&p.st.length&&!p.st.some(v=>gs.includes(v)))return 'None of this film’s chosen screen types are allowed by your Settings';
+  if(!gCount(F,g)[0])return `No showings at the ${g&&gs.length?'cinemas and screen types':g?'cinemas':'screen types'} chosen in Settings`;return null}
 function matchCount(p){const F=FI[p.k];if(!F)return [0,0];const cs=cinSet(p);let m=0;
-  for(const h of F.shows)if(pickAllows(p,D.shows[h.i].x,h.c,h.day,cs))m++;
+  for(const h of F.shows)if(allows(p,D.shows[h.i].x,h.c,h.day,cs))m++;
   return [m,F.shows.length]}
 const goneMsg=k=>!D.films[k]?'Not in the current listings':SH.some(h=>h.k===k&&!h.past)?'No showings in the chosen dates':'No upcoming showings left';
 const ddIn=p=>p.dd?DAYS.filter(d=>p.dd.includes(d)):[];   // excluded dates inside the plan's window
@@ -195,21 +208,21 @@ function pickMeta(p){const F=FI[p.k];if(!F)return goneMsg(p.k);
 function optsHTML(p,pi){const F=FI[p.k];if(!F)return '<div class="meta">This film has no showings in the chosen dates. It is skipped when planning; remove it, change the dates, or keep it for when it returns.</div>';
   const ht=homeTravel(),g=gSet(),cins=[...F.cin.keys()].sort((a,b)=>(g?(!g.has(a))-(!g.has(b)):0)||(ht&&!ht.none?((ht.to[a]<0?1e9:ht.to[a])-(ht.to[b]<0?1e9:ht.to[b])):D.cinemas[a].name.localeCompare(D.cinemas[b].name)));
   const sel=new Set(p.cin);
-  // cinemas outside the Settings list come last, greyed out; they can only be unticked
+  // cinemas / screen types the Settings rule out come last (cinemas) or struck through, greyed out; they can only be unticked
   const cl=cins.map(c=>{const nm=D.cinemas[c].name,[t,te]=ht&&!ht.none?homeLeg(ht,c,false):[null,0],out=g&&!g.has(c);
-    return `<label data-n="${esc(nm.toLowerCase())}"${out?' class="off" title="Not in your Settings cinema list"':''}><input type="checkbox" data-act="cin" value="${esc(nm)}"${sel.has(nm)?' checked':''}${out&&!sel.has(nm)?' disabled':''}> <span>${esc(nm)}</span><span class="meta">${out?'not in Settings list · ':''}${t!=null?(t<0?'no route · ':(te?'~':'')+t+' min · '):''}${F.cin.get(c)}</span></label>`}).join('');
-  const sts=[...F.stc.keys()];for(const v of p.st)if(!F.stc.has(v))sts.push(v);sts.sort(stCmp);
-  const stchips=sts.map(v=>{const on=p.st.includes(v);return `<button class="chip${on?' on':''}" data-act="st" data-v="${esc(v)}" aria-pressed="${on}">${esc(v)} <span class="cn">${F.stc.get(v)||0}</span></button>`}).join('');
+    return `<label data-n="${esc(nm.toLowerCase())}"${out?' class="off" title="Not allowed by your Settings cinemas / cinema types"':''}><input type="checkbox" data-act="cin" value="${esc(nm)}"${sel.has(nm)?' checked':''}${out&&!sel.has(nm)?' disabled':''}> <span>${esc(nm)}</span><span class="meta">${out?'not allowed in Settings · ':''}${t!=null?(t<0?'no route · ':(te?'~':'')+t+' min · '):''}${F.cin.get(c)}</span></label>`}).join('');
+  const gs=PS.set.st,sts=[...F.stc.keys()];for(const v of p.st)if(!F.stc.has(v))sts.push(v);sts.sort(stCmp);
+  const stchips=sts.map(v=>{const on=p.st.includes(v),out=gs.length&&!gs.includes(v);return `<button class="chip${on?' on':''}${out?' off':''}" data-act="st" data-v="${esc(v)}" aria-pressed="${on}"${out?` title="Not allowed by your Settings screen types"${on?'':' disabled'}`:''}>${esc(v)} <span class="cn">${F.stc.get(v)||0}</span></button>`}).join('');
   const fm=[...F.fmt.keys()];for(const v of p.req.concat(p.exc))if(!fm.includes(v))fm.push(v);   // keep old/absent tags clearable
   fm.sort((a,b)=>((b==='3D')-(a==='3D'))||(F.fmt.get(b)||0)-(F.fmt.get(a)||0)||a.localeCompare(b));
   const fchips=fm.length?fm.map(x=>`<button class="chip${p.req.includes(x)?' req':p.exc.includes(x)?' exc':''}" data-act="fmt" data-v="${esc(x)}" title="Click: require → exclude → either">${esc(x)}</button>`).join(''):'<span class="meta">No other tags</span>';
   const fdays=[...new Set(F.shows.map(h=>h.day))].sort();
   const dchips=DAYS.map(day=>{const has=fdays.includes(day),on=!p.dd||!p.dd.includes(day);
     return `<button class="chip${on?'':' off'}" data-act="dd" data-v="${day}" title="${esc(dayLbl(day))}${has?'':' · no showings this day'}"${has?'':' disabled'}>${esc(dshort(day))}</button>`}).join('');
-  return `<div class="opt"><div class="ol">Cinemas <span class="meta">(none ticked = any${g?' in your Settings list':''}${ht&&!ht.none?' · sorted by distance from home':''})</span></div>
+  return `<div class="opt"><div class="ol">Cinemas <span class="meta">(none ticked = any${g?' allowed by Settings':''}${ht&&!ht.none?' · sorted by distance from home':''})</span></div>
    ${cins.length>8?`<input type="search" class="cf" placeholder="Filter cinemas…" data-act="cf">`:''}<div class="clist">${cl}</div>
    ${p.cin.length?'<button class="ib" data-act="cinclr" style="margin-top:4px">Clear (any cinema)</button>':''}</div>
-   <div class="opt"><div class="ol">Screen type <span class="meta">(none ticked = any)</span></div><div class="chips stc">${stchips}</div></div>
+   <div class="opt"><div class="ol">Screen type <span class="meta">(none ticked = any${gs.length?' allowed by Settings':''})</span></div><div class="chips stc">${stchips}</div></div>
    <div class="opt"><div class="ol">Other tags <span class="meta">(click: <span style="color:var(--ok)">require</span> → <span style="color:var(--err)">exclude</span> → either)</span></div><div class="chips">${fchips}</div></div>
    <div class="opt" style="margin-bottom:0"><div class="ol">Days</div><div class="chips">${dchips}</div></div>`}
 const limEl=document.createElement('div');limEl.id='plimit';limEl.className='pcst bad plimit';limEl.setAttribute('role','status');limEl.hidden=true;$('picks').before(limEl);
@@ -278,17 +291,35 @@ function renderDays(){
      <td><input type="time" data-f="e" value="${esc(x.e)}"${x.on?'':' disabled'}></td><td><input type="time" data-f="l" value="${esc(x.l)}"${x.on?'':' disabled'} title="Earlier than the leave time = after midnight"></td></tr>`}).join('')+
    (DAYS.length>1?'<tr><td></td><td colspan="3"><button class="ib" id="pcopy">Copy first day’s times to all</button></td></tr>':'')}
 // cinemas for all films (Settings): sorted by distance from home when known, else grouped by chain
-function renderGC(){const sel=new Set(PS.set.cin),ht=homeTravel(),near=ht&&!ht.none,cnt=new Int32Array(NC);
-  for(const h of SH)if(h.di>=0&&!h.past)cnt[h.c]++;
+// (cinemas whose chain the Settings cinema types rule out are greyed; counts honour the Settings screen types)
+function renderGC(){const sel=new Set(PS.set.cin),ht=homeTravel(),near=ht&&!ht.none,cnt=new Int32Array(NC),gch=PS.set.ch;
+  for(const h of SH)if(h.di>=0&&!h.past&&gstOK(D.shows[h.i].x))cnt[h.c]++;
   const tt=c=>near?homeLeg(ht,c,false):null,ch=c=>D.cinemas[c].chain||'',nm=c=>D.cinemas[c].name;
   const ix=D.cinemas.map((_,i)=>i),T=near?ix.map(c=>tt(c)):null;
   ix.sort(near?(a,b)=>((T[a][0]<0?1e9:T[a][0])-(T[b][0]<0?1e9:T[b][0]))||nm(a).localeCompare(nm(b)):(a,b)=>ch(a).localeCompare(ch(b))||nm(a).localeCompare(nm(b)));
   let html='',last=null;
   for(const c of ix){if(!near&&ch(c)!==last){last=ch(c);html+=`<div class="chn">${esc(last||'Other')}</div>`}
-    const t=T&&T[c];
-    html+=`<label data-n="${esc((nm(c)+' '+ch(c)).toLowerCase())}" data-ch="${esc(ch(c))}"><input type="checkbox" data-act="gc" value="${esc(nm(c))}"${sel.has(nm(c))?' checked':''}> <span>${esc(nm(c))}</span><span class="meta">${t?(t[0]<0?'no route · ':(t[1]?'~':'')+t[0]+' min · '):''}${cnt[c]} showing${cnt[c]===1?'':'s'}</span></label>`}
-  $('pgclist').innerHTML=html;gcFilter();gcSum()}
-function gcSum(){const L=PS.set.cin;$('pgcsum').textContent=!L.length?'Any cinema':L.length===1?L[0]:L.length+' cinemas'}
+    const t=T&&T[c],out=gch.length&&!gch.includes(ch(c));
+    html+=`<label data-n="${esc((nm(c)+' '+ch(c)).toLowerCase())}" data-ch="${esc(ch(c))}"${out?' class="off" title="Its cinema type isn’t ticked below"':''}><input type="checkbox" data-act="gc" value="${esc(nm(c))}"${sel.has(nm(c))?' checked':''}> <span>${esc(nm(c))}</span><span class="meta">${t?(t[0]<0?'no route · ':(t[1]?'~':'')+t[0]+' min · '):''}${cnt[c]} showing${cnt[c]===1?'':'s'}</span></label>`}
+  $('pgclist').innerHTML=html;gcFilter();gcSum();renderGF()}
+// cinema types (chains) and screen types for all films (Settings); counts = upcoming showings in the plan's dates
+function renderGF(){const s=PS.set,nc=new Map(),ns=new Map();
+  for(const h of SH)if(h.di>=0&&!h.past){const c=D.cinemas[h.c].chain||'',v=screenType(D.shows[h.i].x);nc.set(c,(nc.get(c)||0)+1);ns.set(v,(ns.get(v)||0)+1)}
+  const chip=(v,on,n)=>`<button type="button" class="chip${on?' on':''}" data-v="${esc(v)}" aria-pressed="${on}" title="${n||0} upcoming showing${n===1?'':'s'} in the plan’s dates">${esc(v||'Other')} <span class="cn">${n||0}</span></button>`;
+  const chips=(L,on,n)=>`<div class="chips">${L.map(v=>chip(v,on.includes(v),n.get(v))).join('')}</div>`;
+  const clr=(L,t)=>L.length?`<button type="button" class="ib gclr" data-clr="1">${t}</button>`:'';
+  $('pgch').innerHTML=chips(CHAINS,s.ch,nc)+clr(s.ch,'Any type');
+  const sts=[...ns.keys()];for(const v of s.st)if(!ns.has(v))sts.push(v);sts.sort(stCmp);
+  const prem=sts.filter(v=>v!=='Standard');   // Standard alone, then the premium / special screens
+  $('pgst').innerHTML=(sts.includes('Standard')?chips(['Standard'],s.st,ns):'')+
+    (prem.length?`<div class="gsub">Premium &amp; special screens</div>${chips(prem,s.st,ns)}`:'')+clr(s.st,'Any screen')}
+for(const [id,k] of [['pgch','ch'],['pgst','st']])$(id).onclick=e=>{const b=e.target.closest('button');if(!b)return;const s=PS.set;
+  if(b.dataset.clr)s[k]=[];else{const v=b.dataset.v;s[k]=s[k].includes(v)?s[k].filter(x=>x!==v):s[k].concat(v)}
+  renderGC();gcChanged()};
+// one-line summaries on the collapsed "Limit every film to" rows: the choice itself when short, else a count
+function gcSum(){const s=PS.set,sum=(id,L,any,many)=>{const el=$(id);el.classList.toggle('any',!L.length);
+    el.textContent=!L.length?any:L.length<=2?L.join(', '):L.length+' '+many;el.title=L.join(', ')};
+  sum('pgcsum',s.cin,'Any cinema','cinemas');sum('pgchsum',s.ch,'Any type','types');sum('pgstsum',s.st,'Any screen','screen types')}
 function gcFilter(){const q=$('pgcf').value.trim().toLowerCase(),seen=new Set();
   $('pgclist').querySelectorAll('label').forEach(l=>{l.hidden=!!q&&!l.dataset.n.includes(q);if(!l.hidden)seen.add(l.dataset.ch)});
   $('pgclist').querySelectorAll('.chn').forEach(h=>{const n=h.nextElementSibling;h.hidden=!seen.has(n&&n.dataset.ch)})}
@@ -357,7 +388,7 @@ function candidates(){const s=PS.set,buf=+s.buf||0,late=+s.late||0;
   PS.picks.forEach((p,pi)=>{const F=FI[p.k],r={pi,p,match:0,win:0,reason:null,si:-1},L=[];info.push(r);per.push(L);
     if(pi>=N){r.reason='limit';return}   // past the pick limit for this plan length: not planned
     if(!F){r.reason='gone';return}const cs=cinSet(p);
-    for(const h of F.shows){if(!pickAllows(p,D.shows[h.i].x,h.c,h.day,cs))continue;r.match++;
+    for(const h of F.shows){if(!allows(p,D.shows[h.i].x,h.c,h.day,cs))continue;r.match++;
       const w=win[h.di];if(!w||w.e>h.st+late||h.en+buf>w.l)continue;L.push(h);used.add(h.c)}});
   return {win,used,info,per,buf,late}}
 // solver time limit: 2.5 s up to 28 films, then +0.625 s per film (14.4 s at 47) since bigger searches need longer to finish
@@ -442,7 +473,8 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
     if(x.reason==='limit')return `Over the ${ctx.lim}-film limit for a ${Math.max(1,ctx.days.length)}-day plan.`;
     if(x.reason==='gone')return goneMsg(p.k)+'.';
     if(x.reason==='constraints'&&gNote(p))return gNote(p)+'.';
-    if(x.reason==='constraints')return p.cin.length||p.st.length||p.req.length||p.exc.length||ddIn(p).length?'No upcoming showings match your cinema / screen type / tag / day choices.':'No upcoming showings.';
+    const s=PS.set;
+    if(x.reason==='constraints')return p.cin.length||p.st.length||p.req.length||p.exc.length||ddIn(p).length||s.cin.length||s.ch.length||s.st.length?'No upcoming showings match your cinema / screen type / tag / day choices.':'No upcoming showings.';
     if(x.reason==='window')return `None of its ${x.match} matching showing${x.match>1?'s':''}${p.st.length?' ('+p.st.join(' / ')+')':''} fit your available times${noHome?'':' with travel from and back home'}${+PS.set.maxLeg?' and journey limit':''}.`;
     const u=r.unfit[x.si];if(!u)return '';
     if(ctx.mode==='strict'||!u.higher)return 'Clashes with your higher-priority picks.';

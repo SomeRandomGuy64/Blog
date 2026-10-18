@@ -38,11 +38,17 @@
          <div class="ol" style="margin-top:10px">Dates</div>
          <div class="srow"><label class="dsel">From <select id="pstart" aria-label="First day of the plan"></select></label><label class="dsel">for <select id="plen" aria-label="Number of days"></select></label>
           <div class="pcst" id="pdnote"></div></div>
-         <div class="ol" style="margin-top:10px">Cinemas for all films <span class="meta">(none ticked = any; each film’s own Options can narrow it further)</span></div>
-         <details class="gcin" id="pgc"><summary><span id="pgcsum">Any cinema</span> <span class="meta">· choose…</span></summary>
-          <div class="srow" style="margin:6px 0 0"><input type="search" class="cf" id="pgcf" placeholder="Filter cinemas or chains…" aria-label="Filter cinemas">
-           <button type="button" class="ib" id="pgcall">Tick all shown</button><button type="button" class="ib" id="pgcclr">Any cinema</button></div>
-          <div class="clist" id="pgclist"></div></details>
+         <div class="ol" style="margin-top:10px">Limit every film to <span class="meta">(nothing ticked = any; each film’s Options can narrow it further)</span></div>
+         <div class="glim">
+          <details class="glr" id="pgc" name="glim"><summary><span class="gl">Cinemas</span><span class="gv" id="pgcsum">Any cinema</span></summary>
+           <div class="gb"><div class="srow"><input type="search" class="cf" id="pgcf" placeholder="Filter cinemas or chains…" aria-label="Filter cinemas">
+            <button type="button" class="ib" id="pgcall">Tick all shown</button><button type="button" class="ib" id="pgcclr">Any cinema</button></div>
+           <div class="clist" id="pgclist"></div></div></details>
+          <details class="glr" name="glim"><summary><span class="gl">Cinema types</span><span class="gv" id="pgchsum">Any type</span></summary>
+           <div class="gb" id="pgch" role="group" aria-label="Cinema types for all films"></div></details>
+          <details class="glr" name="glim"><summary><span class="gl">Screen types</span><span class="gv" id="pgstsum">Any screen</span></summary>
+           <div class="gb" id="pgst" role="group" aria-label="Screen types for all films"></div></details>
+         </div>
          <div class="ol" style="margin-top:10px">When you’re free</div>
          <table class="dtab" id="pdays"></table>
          <div class="sgrid">
