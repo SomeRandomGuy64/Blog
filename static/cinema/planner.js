@@ -133,11 +133,13 @@ function changed(){save();if(lastRes&&!dirty){dirty=true;$('pout').classList.add
   $('pout').insertAdjacentHTML('afterbegin','<div class="stalenote" id="pstale">Picks or settings changed — press “Plan my schedule” again.</div>')}updGo()}
 
 // ---------- mode toggle ----------
-function setMode(m){const plan=m==='plan';$('lbar').hidden=plan;$('lmain').hidden=plan;$('pmain').hidden=!plan;
+const HASH={plan:'#schedule',dev:'#in-development'};
+function setMode(m){if(!['list','plan','dev'].includes(m))m='list';
+  $('lbar').hidden=$('lmain').hidden=m!=='list';$('pmain').hidden=m!=='plan';$('dmain').hidden=m!=='dev';
   [...$('mode').children].forEach(b=>b.classList.toggle('on',b.dataset.m===m));store.set(MODEK,m);
-  try{history.replaceState(null,'',plan?'#schedule':location.pathname+location.search)}catch(e){}}
+  try{history.replaceState(null,'',HASH[m]||location.pathname+location.search)}catch(e){}}
 $('mode').onclick=e=>{const m=e.target.dataset.m;if(m)setMode(m)};
-setMode(location.hash==='#schedule'?'plan':(store.get(MODEK)||'list'));
+setMode(Object.keys(HASH).find(k=>HASH[k]===location.hash)||store.get(MODEK)||'list');
 
 // ---------- banner ----------
 function banner(){const msgs=[],L=lastRes&&!dirty&&lastRes.legs;

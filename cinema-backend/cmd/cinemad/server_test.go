@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"fazon.nexus/cinema/internal/feedback"
 	"fazon.nexus/cinema/internal/scrape"
 	"fazon.nexus/cinema/internal/store"
 )
@@ -19,8 +21,12 @@ func testServer(t *testing.T) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
+	fb, err := feedback.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg := config{token: "secret", origins: []string{"https://fazon.nexus"}, maxBody: 1 << 20, days: 7}
-	ts := httptest.NewServer(newServer(cfg, st).routes())
+	ts := httptest.NewServer(newServer(cfg, st, fb).routes())
 	t.Cleanup(ts.Close)
 	return ts
 }
@@ -138,5 +144,83 @@ func TestAcceptsGzip(t *testing.T) {
 		if got := originAllowed(allowed, o); got != want {
 			t.Errorf("originAllowed(%q) = %v", o, got)
 		}
+	}
+}
+
+func TestFeedback(t *testing.T) {
+	ts := testServer(t)
+	send := func(body string) (int, map[string]any) {
+		req, _ := http.NewRequest(http.MethodPost, ts.URL+"/v1/feedback", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Origin", "https://fazon.nexus")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		if res.Header.Get("Access-Control-Allow-Origin") != "https://fazon.nexus" {
+			t.Errorf("POST CORS: %v", res.Header)
+		}
+		var out map[string]any
+		json.NewDecoder(res.Body).Decode(&out)
+		return res.StatusCode, out
+	}
+	if code, _ := send(`{"text":"   "}`); code != 400 {
+		t.Errorf("empty: %d", code)
+	}
+	if code, _ := send(`{"text":"` + strings.Repeat("a", 1001) + `"}`); code != 400 {
+		t.Errorf("too long: %d", code)
+	}
+	if code, _ := send(`{"text":"spam","website":"x"}`); code != 400 {
+		t.Errorf("honeypot: %d", code)
+	}
+	var id string
+	for i := 0; i < feedback.Limit; i++ {
+		code, out := send(`{"name":"Bo","text":"great planner"}`)
+		if code != 201 {
+			t.Fatalf("post %d: %d %v", i, code, out)
+		}
+		id = out["item"].(map[string]any)["id"].(string)
+	}
+	if code, out := send(`{"text":"sixth"}`); code != 429 || out["remaining"].(float64) != 0 {
+		t.Errorf("sixth: %d %v", code, out)
+	}
+
+	res, err := http.Get(ts.URL + "/v1/feedback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st feedback.Status
+	json.NewDecoder(res.Body).Decode(&st)
+	res.Body.Close()
+	if len(st.Items) != feedback.Limit || st.Used != feedback.Limit || st.MaxChars != 1000 || res.Header.Get("Cache-Control") != "no-store" {
+		t.Errorf("list: %+v %v", st, res.Header)
+	}
+
+	req, _ := http.NewRequest(http.MethodOptions, ts.URL+"/v1/feedback", nil)
+	req.Header.Set("Origin", "https://fazon.nexus")
+	res, _ = http.DefaultClient.Do(req)
+	if res.StatusCode != 204 || res.Header.Get("Access-Control-Allow-Headers") != "Content-Type" {
+		t.Errorf("preflight: %d %v", res.StatusCode, res.Header)
+	}
+
+	del := func(token, id string) int {
+		req, _ := http.NewRequest(http.MethodDelete, ts.URL+"/v1/feedback/"+id, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res.StatusCode
+	}
+	if c := del("nope", id); c != 401 {
+		t.Errorf("delete bad token: %d", c)
+	}
+	if c := del("secret", id); c != 204 {
+		t.Errorf("delete: %d", c)
+	}
+	if c := del("secret", id); c != 404 {
+		t.Errorf("delete again: %d", c)
 	}
 }

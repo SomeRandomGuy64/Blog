@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"fazon.nexus/cinema/internal/feedback"
 	"fazon.nexus/cinema/internal/listings"
 	"fazon.nexus/cinema/internal/registry"
 	"fazon.nexus/cinema/internal/scrape"
@@ -26,8 +27,9 @@ import (
 const rebuildAfter = 5 * time.Minute
 
 type server struct {
-	cfg   config
-	store *store.Store
+	cfg      config
+	store    *store.Store
+	feedback *feedback.Store
 
 	mu    sync.Mutex
 	cache *doc
@@ -44,13 +46,19 @@ type doc struct {
 	lastMod time.Time
 }
 
-func newServer(cfg config, st *store.Store) *server { return &server{cfg: cfg, store: st} }
+func newServer(cfg config, st *store.Store, fb *feedback.Store) *server {
+	return &server{cfg: cfg, store: st, feedback: fb}
+}
 
 func (s *server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/listings.json", s.listings)
 	mux.HandleFunc("OPTIONS /v1/listings.json", s.preflight)
 	mux.HandleFunc("POST /v1/ingest", s.ingest)
+	mux.HandleFunc("GET /v1/feedback", s.feedbackList)
+	mux.HandleFunc("POST /v1/feedback", s.feedbackPost)
+	mux.HandleFunc("OPTIONS /v1/feedback", s.feedbackPreflight)
+	mux.HandleFunc("DELETE /v1/feedback/{id}", s.feedbackDelete)
 	mux.HandleFunc("GET /healthz", s.health)
 	return mux
 }
@@ -189,13 +197,7 @@ type ingestReply struct {
 }
 
 func (s *server) ingest(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.token == "" {
-		http.Error(w, "ingest disabled", http.StatusServiceUnavailable)
-		return
-	}
-	tok, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if !ok || subtle.ConstantTimeCompare([]byte(strings.TrimSpace(tok)), []byte(s.cfg.token)) != 1 {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	if !s.authorized(w, r) {
 		return
 	}
 	var body io.Reader = http.MaxBytesReader(w, r.Body, s.cfg.maxBody)
@@ -262,6 +264,21 @@ func (s *server) ingest(w http.ResponseWriter, r *http.Request) {
 	slog.Info("ingest", "cinemas", len(replies), "failed", failed, "remote", r.RemoteAddr)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"accepted": replies})
+}
+
+// authorized checks the ingest bearer token (also used for feedback moderation), answering the
+// request itself when it fails.
+func (s *server) authorized(w http.ResponseWriter, r *http.Request) bool {
+	if s.cfg.token == "" {
+		http.Error(w, "token not configured", http.StatusServiceUnavailable)
+		return false
+	}
+	tok, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !ok || subtle.ConstantTimeCompare([]byte(strings.TrimSpace(tok)), []byte(s.cfg.token)) != 1 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return false
+	}
+	return true
 }
 
 func (s *server) health(w http.ResponseWriter, r *http.Request) {

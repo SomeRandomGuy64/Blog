@@ -48,14 +48,14 @@
 .cinema-app table { border-spacing: 0; }
 
 /* ---- form controls ---- */
-.cinema-app input, .cinema-app select, .cinema-app button {
+.cinema-app input, .cinema-app select, .cinema-app button, .cinema-app textarea {
   font: inherit; color: var(--ink); background: var(--card); margin: 0;
   border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px;
 }
 .cinema-app input[type=checkbox] { padding: 0; width: 15px; height: 15px; flex: none; accent-color: var(--acc); }
 .cinema-app button { cursor: pointer; transition: var(--theme-fade); }
 .cinema-app button:hover:not(:disabled) { border-color: var(--acc); }
-.cinema-app input:focus, .cinema-app select:focus { outline: none; border-color: var(--acc); }
+.cinema-app input:focus, .cinema-app select:focus, .cinema-app textarea:focus { outline: none; border-color: var(--acc); }
 .cinema-app button:focus-visible, .cinema-app input[type=checkbox]:focus-visible, .cinema-app summary:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
 .cinema-app button.on { background: var(--accs); color: var(--acci); border-color: var(--acc); }
 
@@ -280,3 +280,52 @@
 /* plan dates (start + length) */
 .cinema-app .dsel { display: flex; gap: 6px; align-items: center; font-size: 13px; }
 .cinema-app .dsel select { padding: 4px 8px; font-size: 13.5px; }
+
+/* ---- In Development tab ---- */
+.cinema-app .devtab { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.cinema-app .devtab th, .cinema-app .devtab td { text-align: left; vertical-align: top; padding: 7px 8px; border-top: 1px solid var(--line); }
+.cinema-app .devtab thead th { border-top: 0; font-weight: 400; color: var(--mute); font-size: 12px; padding-top: 0; }
+.cinema-app .devtab .dt { font-weight: 600; width: 38%; }
+.cinema-app .devtab .dd { color: var(--mute); }
+.cinema-app .devtab tr.dsec th { padding-top: 14px; border-top: 0; }
+.cinema-app .devtab .dpri { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 99px; }
+.cinema-app .dev-high .dpri { background: var(--errb); color: var(--err); }
+.cinema-app .dev-medium .dpri { background: var(--warnb); color: var(--warn); }
+.cinema-app .dev-low .dpri { background: var(--okb); color: var(--ok); }
+.cinema-app .devtab .dnone { color: var(--mute); font-style: italic; }
+@media (max-width: 560px) {
+  .cinema-app .devtab thead { display: none; }
+  .cinema-app .devtab tr:not(.dsec) td { display: block; width: auto; }
+  .cinema-app .devtab tr:not(.dsec) td.dd { border-top: 0; padding-top: 0; }
+}
+
+/* ---- feedback (below every tab) ---- */
+.cinema-app .fb { margin: 24px 0 12px; }
+.cinema-app .fbrules { margin: 0 0 8px; font-size: 13px; }
+.cinema-app .fbquota { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 12.5px; color: var(--mute);
+  padding: 7px 10px; border-radius: 8px; background: var(--time); margin: 0 0 10px; }
+.cinema-app .fbquota b { color: var(--ink); }
+.cinema-app .fbquota.full { background: var(--warnb); color: var(--warn); }
+.cinema-app .fbquota.full b { color: var(--warn); }
+.cinema-app .fbdots { display: inline-flex; gap: 4px; }
+.cinema-app .fbdots i { width: 10px; height: 10px; border-radius: 50%; background: var(--acc); }
+.cinema-app .fbdots i.u { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
+.cinema-app #fbform { display: flex; flex-direction: column; gap: 8px; }
+.cinema-app #fbname { max-width: 260px; }
+.cinema-app #fbtext { width: 100%; resize: vertical; min-height: 84px; line-height: 1.45; }
+.cinema-app #fbform :disabled:not(button) { opacity: .5; }
+.cinema-app .fbhp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.cinema-app .fbfoot { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.cinema-app .fbchars { font-size: 12px; color: var(--mute); font-variant-numeric: tabular-nums; }
+.cinema-app .fbchars.over { color: var(--err); font-weight: 600; }
+.cinema-app .fbmsg { flex: 1 1 160px; font-size: 12.5px; color: var(--err); }
+.cinema-app .fbmsg.ok { color: var(--ok); }
+.cinema-app .fbgo { margin-left: auto; background: var(--acc); border-color: var(--acc); color: #fff; font-weight: 700; padding: 7px 16px; }
+.cinema-app .fbgo:hover:not(:disabled) { background: var(--acch); border-color: var(--acch); }
+.cinema-app .fbgo:disabled { opacity: .45; cursor: default; }
+.cinema-app .fblist { list-style: none; padding: 0; margin: 14px 0 0; }
+.cinema-app .fbitem { border-top: 1px solid var(--line); padding: 10px 0; }
+.cinema-app .fbh { display: flex; gap: 8px; align-items: baseline; margin-bottom: 3px; }
+.cinema-app .fbt { white-space: pre-wrap; overflow-wrap: anywhere; }
+.cinema-app .fbempty { color: var(--mute); border-top: 1px solid var(--line); padding: 14px 0 4px; }
+.cinema-app .fbmore { margin-top: 4px; }
