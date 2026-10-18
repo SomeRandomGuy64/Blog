@@ -2,6 +2,7 @@
 //
 //	cinema scrape [--only odeon,vue] [--days 7] [--from 2026-10-07] [--out listings.json] [--raw-out raw.json]
 //	cinema build --raw raw.json --out listings.json   # rebuild from a raw dump (no network)
+//	cinema discover [--out internal/registry/chains.json] [--only odeon,vue]   # re-list the chains' cinemas
 package main
 
 import (
@@ -35,13 +36,15 @@ func main() {
 		scrapeCmd(os.Args[2:])
 	case "build":
 		buildCmd(os.Args[2:])
+	case "discover":
+		discoverCmd(os.Args[2:])
 	default:
 		usage()
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: cinema scrape [--only x,y] [--days 7] [--from YYYY-MM-DD] [--out listings.json] [--raw-out raw.json] [--relay|--server]\n       cinema build --raw raw.json [--out listings.json]")
+	fmt.Fprintln(os.Stderr, "usage: cinema scrape [--only x,y] [--days 7] [--from YYYY-MM-DD] [--out listings.json] [--raw-out raw.json] [--relay|--server]\n       cinema build --raw raw.json [--out listings.json]\n       cinema discover [--out internal/registry/chains.json] [--only odeon,vue]")
 	os.Exit(2)
 }
 

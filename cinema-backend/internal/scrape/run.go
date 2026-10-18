@@ -22,6 +22,9 @@ type Cinema struct {
 	URL   string
 	Relay bool
 	Fetch Fetcher
+	// Location, for the travel matrix, and its region.All key.
+	Lat, Lng float64
+	Region   string
 }
 
 // Result is one cinema's scrape outcome (also the relay's upload format).

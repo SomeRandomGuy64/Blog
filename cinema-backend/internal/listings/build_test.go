@@ -30,13 +30,15 @@ type rawDump struct {
 
 func cinemasFor(rs []scrape.Result) []scrape.Cinema {
 	chain := map[string]string{"Odeon Oldham": "Odeon", "Vue Bury": "Vue"}
+	loc := map[string][2]float64{"Odeon Oldham": {53.5418, -2.1111}, "Vue Bury": {53.59423, -2.29161},
+		"Cultplex": {53.49161, -2.23792}, "Showroom Sheffield": {53.37706, -1.46566}}
 	var cs []scrape.Cinema
 	for _, r := range rs {
 		ch := chain[r.Name]
 		if ch == "" {
 			ch = "Independent"
 		}
-		cs = append(cs, scrape.Cinema{Name: r.Name, Chain: ch})
+		cs = append(cs, scrape.Cinema{Name: r.Name, Chain: ch, Lat: loc[r.Name][0], Lng: loc[r.Name][1]})
 	}
 	return cs
 }
@@ -111,12 +113,11 @@ func TestBuildUnescapesTitlesAndFlagsStale(t *testing.T) {
 
 func TestEstimateMinutes(t *testing.T) {
 	// Values from travel.estimate_minutes(travel.haversine_km(...)).
-	gn, home := Places["Odeon Manchester Great Northern"], Places["HOME Manchester"]
-	if got := EstimateMinutes(HaversineKm(gn.Lat, gn.Lng, home.Lat, home.Lng)); got != 9 {
+	// Odeon Manchester Great Northern -> HOME Manchester, Odeon Liverpool ONE -> City Screen York.
+	if got := EstimateMinutes(HaversineKm(53.4773, -2.249, 53.47293, -2.2466)); got != 9 {
 		t.Errorf("GN->HOME = %d, want 9", got)
 	}
-	york, liv := Places["City Screen Picturehouse York"], Places["Odeon Liverpool ONE"]
-	if got := EstimateMinutes(HaversineKm(liv.Lat, liv.Lng, york.Lat, york.Lng)); got != 210 {
+	if got := EstimateMinutes(HaversineKm(53.4043, -2.9868, 53.9591, -1.0848)); got != 210 {
 		t.Errorf("Liverpool ONE->York = %d, want 210", got)
 	}
 }

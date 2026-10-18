@@ -8,6 +8,10 @@ const dayName=d=>new Date(d+'T12:00').toLocaleDateString('en-GB',{weekday:'short
 const stBadge=st=>st==='Standard'?'':`<span class="b p">${esc(st)}</span>`;
 const tagBadges=x=>stBadge(screenType(x))+otherTags(x).map(t=>`<span class="b o">${esc(t)}</span>`).join('');
 const S={q:'',day:'',fmt:'',view:'film',chains:new Set(D.cinemas.map(c=>c.chain))};
+// region name of cinema i, only when the data spans several regions ('' otherwise, and with an older API)
+const RN=new Map((Array.isArray(D.regions)?D.regions:[]).map(r=>[r&&r.key,r&&r.name]));
+const multi=new Set(D.cinemas.map(c=>c.region).filter(Boolean)).size>1;
+const rgn=i=>{const k=multi&&D.cinemas[i]&&D.cinemas[i].region;return k?String(RN.get(k)||k):''};
 
 // ---------- data freshness ----------
 // ISO timestamps only (a free-text "generated" string is shown as-is); per-cinema `updated` / `stale` come from the API.
@@ -29,11 +33,14 @@ $('sub').innerHTML=esc(`${dayName(D.from)} – ${dayName(D.to)} · ${D.shows.len
   `${Object.keys(D.films).length} films · ${D.cinemas.filter(c=>!c.error).length}/${D.cinemas.length} cinemas · `)+
   (gen?`<span title="${esc(full(gen))}">updated ${esc(when(gen))}</span>`:D.generated?'updated '+esc(D.generated):'');
 const bad=D.cinemas.map((c,i)=>[c,i]).filter(([c])=>c.error||c.stale);
-if(bad.length){const nErr=bad.filter(([c])=>c.error).length,parts=[];
+// "not fetched yet" = a region nobody had looked at lately: the server scrapes it as soon as it's asked for
+const unf=c=>c.error==='not fetched yet';
+if(bad.length){const nNew=bad.filter(([c])=>unf(c)).length,nErr=bad.filter(([c])=>c.error&&!unf(c)).length,parts=[];
   if(nErr)parts.push(`${nErr} cinema${nErr>1?'s':''} failed to load`);
-  if(bad.length-nErr)parts.push(`${bad.length-nErr} showing older listings`);
+  if(nNew)parts.push(`${nNew} cinema${nNew>1?'s':''} still being fetched (try again in about half an hour)`);
+  if(bad.length-nErr-nNew)parts.push(`${bad.length-nErr-nNew} showing older listings`);
   $('errs').innerHTML=`<details><summary>${parts.join(' · ')}</summary>`+
-    bad.map(([c,i])=>`<div>${esc(c.name)}${c.error?`: <span class="er">${esc(c.error)}</span>`:''} ${staleNote(i)}</div>`).join('')+'</details>';
+    bad.map(([c,i])=>`<div>${esc(c.name)}${c.error?`: <span class="${unf(c)?'':'er'}">${esc(c.error)}</span>`:''} ${staleNote(i)}</div>`).join('')+'</details>';
   if(!nErr)$('errs').classList.add('soft')}
 
 // ---------- filter bar ----------
@@ -73,7 +80,7 @@ function render(){
     if(S.fmt==='*'&&screenType(s.x)==='Standard')return false;
     if(S.fmt.startsWith('st:')&&screenType(s.x)!==S.fmt.slice(3))return false;
     if(S.fmt.startsWith('tag:')&&!s.x.includes(S.fmt.slice(4)))return false;
-    return !q||D.films[s.k].toLowerCase().includes(q)||c.name.toLowerCase().includes(q)});
+    return !q||D.films[s.k].toLowerCase().includes(q)||c.name.toLowerCase().includes(q)||(multi&&rgn(s.c).toLowerCase().includes(q))});
   const outer=S.view==='film'?(s=>s.k):(s=>s.c), inner=S.view==='film'?(s=>s.c):(s=>s.k);
   const G=new Map();
   for(const s of shows){const a=outer(s),b=inner(s);const m=G.get(a)||G.set(a,new Map()).get(a);(m.get(b)||m.set(b,[]).get(b)).push(s)}
@@ -81,11 +88,11 @@ function render(){
     const n=[...m.values()].reduce((t,l)=>t+l.length,0), prem=new Set();
     m.forEach(l=>l.forEach(s=>{const st=screenType(s.x);if(st!=='Standard')prem.add(st)}));
     const head=S.view==='film'?esc(D.films[a]):`<a href="${esc(D.cinemas[a].url)}" target="_blank" rel="noopener" class="cl">${esc(D.cinemas[a].name)}</a>`;
-    const sub=S.view==='film'?`${m.size} cinema${m.size>1?'s':''} · ${n} showings`:`${m.size} films · ${n} showings`;
+    const sub=S.view==='film'?`${m.size} cinema${m.size>1?'s':''} · ${n} showings`:`${rgn(a)?esc(rgn(a))+' · ':''}${m.size} films · ${n} showings`;
     return {sort:S.view==='film'?-m.size*1e4-n:a,
       head:`<span class="ttl">${head}</span><span class="meta">${sub}</span>${S.view==='film'?'':staleNote(a)}<span>${[...prem].sort(stCmp).map(stBadge).join('')}</span>`,
       body:()=>[...m.entries()].sort((x,y)=>S.view==='film'?D.cinemas[x[0]].name.localeCompare(D.cinemas[y[0]].name):D.films[x[0]].localeCompare(D.films[y[0]])).map(([b,l])=>{
-        const who=S.view==='film'?`<a href="${esc(D.cinemas[b].url)}" target="_blank" rel="noopener">${esc(D.cinemas[b].name)}</a><span class="meta">${esc(D.cinemas[b].chain)}</span>${staleNote(b)}`:`<b>${esc(D.films[b])}</b>`;
+        const who=S.view==='film'?`<a href="${esc(D.cinemas[b].url)}" target="_blank" rel="noopener">${esc(D.cinemas[b].name)}</a><span class="meta">${esc(D.cinemas[b].chain)}${rgn(b)?' · '+esc(rgn(b)):''}</span>${staleNote(b)}`:`<b>${esc(D.films[b])}</b>`;
         return `<div class="row"><div class="who">${who}</div><div>${rowsFor(l)}</div></div>`}).join('')};
   }).sort((x,y)=>x.sort<y.sort?-1:x.sort>y.sort?1:0);
   $('count').textContent=`${cards.length} ${S.view==='film'?'films':'cinemas'} · ${shows.length.toLocaleString()} showings`;
@@ -99,5 +106,5 @@ function render(){
   $('list').appendChild(frag);
 }
 render();
-return {screenType,otherTags,isScreen,stCmp,pickAllows,esc,tagBadges,staleNote};
+return {screenType,otherTags,isScreen,stCmp,pickAllows,esc,tagBadges,staleNote,rgn};
 }
