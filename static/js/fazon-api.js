@@ -314,7 +314,10 @@
   window.addEventListener("resize", function () { if (uc.el && !uc.el.hidden) ucPlace(); });
 
   // ---- header: Log in / Log out nav links + notifications bell (next to the theme toggle) ----
-  var VERB = { reply: "replied to your comment on", like: "liked your comment on", comment: "commented on", page_like: "liked your article" };
+  var VERB = { reply: "replied to your comment on", like: "liked your comment on", comment: "commented on", page_like: "liked your article",
+    kyotsu_report: "reported a Kyōtsu label on" };
+  // who a notification is from; a Kyōtsu label report may be anonymous (no actor)
+  function actorName(n) { return (n.actor && n.actor.name) || (n.kind === "kyotsu_report" ? "Anonymous" : "Someone"); }
   var unreadListeners = [];
   function setUnread(n) {
     n = Math.max(0, n | 0);
@@ -333,10 +336,11 @@
     return api("/v1/auth/logout", { method: "POST" }).catch(function () {}).then(function () { location.reload(); });
   }
 
-  // where a notification points: "/articles/x/#comment-12" (an article like: just "/articles/x/")
+  // where a notification points: "/articles/x/#comment-12" (an article like: just "/articles/x/";
+  // a Kyōtsu label report: "/kyotsu/test/#report-5", the report on the Sequential Clip Review)
   function notifHref(n) {
     var p = safePath(n.page || "") || "/";
-    return p + (n.comment_id ? "#comment-" + (n.comment_id | 0) : "");
+    return p + (n.comment_id ? "#comment-" + (n.comment_id | 0) : n.report_id ? "#report-" + (n.report_id | 0) : "");
   }
   // follow a notification link: mark it read first, and if it's on the current page just
   // jump to the comment (fazon-comments.js scrolls + highlights on hashchange)
@@ -404,7 +408,7 @@
         avatar(n.actor || null, 30, { ring: false, badge: false, link: false }),
         el("span", { class: "fz-np-text" },
           el("span", { class: "fz-np-line" },
-            el("b", { text: (n.actor && n.actor.name) || "Someone" }), " ", VERB[n.kind] || "commented on", " ",
+            el("b", { text: actorName(n) }), " ", VERB[n.kind] || "commented on", " ",
             el("b", { text: n.page_title || n.page || "a page" })),
           n.snippet ? el("span", { class: "fz-np-snip", text: "“" + n.snippet + "”" }) : null,
           el("span", { class: "fz-np-time" }, timeEl(n.created), n.read ? null : el("span", { class: "fz-sr", text: " (unread)" }))));
@@ -539,6 +543,8 @@
     onUnread: function (f) { unreadListeners.push(f); },
     logout: logout,
     notifHref: notifHref,
+    notifVerb: function (n) { return VERB[n.kind] || "commented on"; },
+    notifActor: actorName,
     avatar: avatar,
     avatarUrl: avatarUrl,
     profileHref: profileHref,
