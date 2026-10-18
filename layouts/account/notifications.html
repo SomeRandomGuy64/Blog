@@ -7,20 +7,16 @@
   (function(){
     const F=window.Fazon, el=F.el, box=document.getElementById("notifBox");
     const LIMIT=30;
-    const VERB={reply:"replied to your comment on",like:"liked your comment on",comment:"commented on",page_like:"liked your article"};
     let list, moreBtn, allBtn, lastId=null, unread=0;
 
     function setUnread(n){ unread=n; F.setUnread(n); allBtn.disabled=n<=0; }
-    function href(n){
-      const p=F.safePath(n.page||"")||"/";
-      return p+(n.comment_id?"#comment-"+(n.comment_id|0):"");
-    }
+    const href=F.notifHref;
     function item(n){
       const a=el("a",{class:"notif"+(n.read?"":" unread"),href:href(n)},
         F.avatar(n.actor||null,36,{link:false}),
         el("div",{class:"notif-main"},
         el("div",{class:"notif-line"},
-          el("b",{text:(n.actor&&n.actor.name)||"Someone"})," ",VERB[n.kind]||"commented on"," ",
+          el("b",{text:F.notifActor(n)})," ",F.notifVerb(n)," ",
           el("b",{text:n.page_title||n.page||"a page"})),
         n.snippet?el("div",{class:"notif-snip",text:"“"+n.snippet+"”"}):null,
         el("div",{class:"notif-meta"},F.timeEl(n.created),n.read?"":" · unread")));

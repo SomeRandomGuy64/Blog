@@ -42,6 +42,15 @@
       <div class="verdict" id="verdict"></div>
       <div class="reveal" id="reveal"></div>
       <div class="next"><button class="nextbtn" id="nextBtn" hidden>Next word →</button></div>
+      <form class="label-report" id="labelReport" hidden>
+        <label class="lr-k" for="lrBody">Think these words or pitches are labelled wrong? Tell me what you heard.</label>
+        <textarea id="lrBody" rows="2" maxlength="1000" placeholder="e.g. the first one sounds HLLL to me, not LHLL"></textarea>
+        <div class="lr-row">
+          <label class="lr-anon" id="lrAnonWrap" hidden><input type="checkbox" id="lrAnon"> Send anonymously</label>
+          <span class="lr-note" id="lrNote"></span>
+          <button type="submit" class="lr-send" id="lrSend" disabled>Send report</button>
+        </div>
+      </form>
       <div class="kotu-foot"><span id="kAnswered">0</span> Answered<span class="kt-foot" title="Active practice time this session"> · <span aria-hidden="true">⏱</span> <span class="mono kt-time">0:00</span></span></div>
     </div>
 
@@ -132,7 +141,9 @@
         // his own pitch (ear-check 2026-10-08)
         "060A":"HLLL","082B":"LH","093A":"HLL","105B":"LH","145A":"LH","152B":"HLL","165B":"LHL",
         // his own pitch (ear-check 2026-10-16)
-        "077A":"HHHL","089A":"HHHL","113B":"HHLL","164B":"HH","182A":"HHLL","184B":"HL","222A":"LHL","227A":"LLH","230A":"HLL","230B":"LHL","236A":"HHL","236B":"LLH","248A":"HHL","266A":"HL","278B":"HL","290B":"HL","296A":"HL","305B":"HH","357B":"HHLL","380B":"LHH","382A":"LLLH","407A":"LLLH","407B":"HHHL","418A":"HHLL"}},
+        "077A":"HHHL","089A":"HHHL","113B":"HHLL","164B":"HH","182A":"HHLL","184B":"HL","222A":"LHL","227A":"LLH","230A":"HLL","230B":"LHL","236A":"HHL","236B":"LLH","248A":"HHL","266A":"HL","278B":"HL","290B":"HL","296A":"HL","305B":"HH","357B":"HHLL","380B":"LHH","382A":"LLLH","407A":"LLLH","407B":"HHHL","418A":"HHLL",
+        // his own pitch (user ear-check 2026-10-18)
+        "400A":"LHLL"}},
     ];
     // Tokyo (標準語) mode: Kotu's own minimal sets (2 or 3 words each), NHK accent-dictionary
     // recordings. Those are NHK's, so they aren't on this site: the API serves the sets and clips
@@ -346,7 +357,7 @@
       renderPrompt();
       $("#voiceName").textContent=speaker.label;
       $("#verdict").textContent=""; $("#verdict").className="verdict";
-      $("#reveal").textContent=""; $("#nextBtn").hidden=true;
+      $("#reveal").textContent=""; $("#nextBtn").hidden=true; hideReport();
 
       renderOptions();
       preload(speaker,pair);
@@ -439,8 +450,51 @@
         ? `You heard <b class="jp">${esc(cur.pair.kana)}</b> · ${esc(t.surface)} · <span class="mono">${esc(tPat)}</span>, from the NHK accent dictionary`
         : `You heard <b class="jp">${t.surface}</b> · <span class="mono">${tPat}</span>, in ${speaker.label}'s voice`;
       $("#nextBtn").hidden=false; $("#nextBtn").focus({preventScroll:true});
+      if(!ok&&mode==="keihan") showReport(t,cur.pair.members[cur.picked],speaker);
       renderStats();
     }
+
+    // Label report: after a wrong (Keihan) answer, anyone can say they think the pair is labelled
+    // wrong. It goes to the API, which notifies the admin; the reports are listed at the bottom of
+    // the Sequential Clip Review (/kyotsu/test/). Logged out = anonymous; logged in = their name
+    // unless they tick "Send anonymously" (remembered in this browser).
+    const ANON_KEY="kyotsu-report-anon";
+    let me=null, report=null;
+    try{ $("#lrAnon").checked=localStorage.getItem(ANON_KEY)==="1"; }catch(e){}
+    function paintReportWho(){
+      const named=!!(me&&me.user), anon=$("#lrAnon").checked;
+      $("#lrAnonWrap").hidden=!named;
+      $("#lrNote").textContent=named?(anon?"Your name won't be attached.":`Sent as ${me.user.name}.`)
+        :"You're not logged in, so it's sent anonymously.";
+      $("#lrNote").classList.remove("err","ok");
+    }
+    function showReport(t,p,speaker){
+      if(!window.Fazon||!p) return;
+      const clip=m=>({audio:m.audio,surface:m.surface,pattern:patternFor(speaker,m)});
+      report={speaker:speaker.id,reading:cur.pair.reading,target:clip(t),picked:clip(p)};
+      $("#lrBody").value=""; $("#lrBody").disabled=false; $("#lrSend").disabled=true; $("#lrSend").textContent="Send report";
+      paintReportWho(); $("#labelReport").hidden=false;
+    }
+    function hideReport(){ report=null; $("#labelReport").hidden=true; }
+    $("#lrBody").addEventListener("input",()=>{ $("#lrSend").disabled=!$("#lrBody").value.trim(); });
+    $("#lrBody").addEventListener("keydown",e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); $("#labelReport").requestSubmit(); } });
+    $("#lrAnon").addEventListener("change",()=>{ try{ localStorage.setItem(ANON_KEY,$("#lrAnon").checked?"1":"0"); }catch(e){} paintReportWho(); });
+    $("#labelReport").addEventListener("submit",e=>{
+      e.preventDefault();
+      const body=$("#lrBody").value.trim(), r=report; if(!r||!body) return;
+      const send=$("#lrSend"), note=$("#lrNote");
+      send.disabled=true; send.textContent="Sending…";
+      Fazon.api("/v1/kyotsu/reports",{method:"POST",body:{...r,body,anonymous:!(me&&me.user)||$("#lrAnon").checked}}).then(()=>{
+        if(report!==r) return;
+        $("#lrBody").disabled=true; send.textContent="Sent";
+        note.classList.remove("err"); note.classList.add("ok"); note.textContent="Thanks! I'll check the recording.";
+      },err=>{
+        if(report!==r) return;
+        send.disabled=false; send.textContent="Send report";
+        note.classList.add("err");
+        note.textContent=err.status===429?"Too many reports for now, try again later.":"Couldn't send it: "+err.message;
+      });
+    });
 
     $("#playBtn").addEventListener("click",playTarget);
     $("#nextBtn").addEventListener("click",newQuestion);
@@ -488,7 +542,7 @@
       audioEl.pause(); stopPadded(); cur=null; answered=false; updatePlayBtn();
       $("#reading").textContent="—"; $("#voiceName").textContent="—"; $("#options").innerHTML="";
       $("#verdict").textContent=""; $("#verdict").className="verdict"; $("#reveal").textContent=""; $("#nextBtn").hidden=true;
-      setMsg(text);
+      hideReport(); setMsg(text);
     }
     // fetched once (cookie auth: 401 logged out, 403 no access, 404 not set up on the server)
     function loadTokyo(){
@@ -521,6 +575,7 @@
     // Kotu-style: number keys pick (or, once answered, replay) the row with that badge
     document.addEventListener("keydown",e=>{
       if(layout!=="kotu"||!cur||cur.skipping||e.ctrlKey||e.metaKey||e.altKey) return;
+      if(e.target.closest&&e.target.closest("textarea,input,select")) return;
       const n=+e.key; if(!(n>=1&&n<=cur.order.length)) return;
       const mi=cur.order[n-1];
       if(!answered) choose(mi); else play(clipUrl(cur.speaker,cur.pair.members[mi]));
@@ -532,6 +587,7 @@
     // Tokyo first (saved / ?mode=tokyo): the card waits for /v1/me instead of starting a Keihan word
     const tokyoFirst=wantMode==="tokyo"&&!!window.Fazon;
     if(window.Fazon) Fazon.me().then(m=>{
+      me=m; if(!$("#labelReport").hidden) paintReportWho();
       if(m.user) $("#endSession").hidden=false;
       else if(!m.offline){ $("#endLogin").href=Fazon.loginHref(); $("#endAnon").hidden=false; }
       const ok=!!(m.user&&m.user.hyojungo);

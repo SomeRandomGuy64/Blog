@@ -403,6 +403,53 @@ body.light-mode {
 .kyotsu-quiz .end-note.err { color: var(--k-bad); }
 .kyotsu-quiz .end-note a { color: var(--k-accent-ink); }
 
+/* label report: under the card after a wrong answer */
+.kyotsu-quiz .label-report { margin: 18px 0 0; padding-top: 14px; border-top: 1px dashed var(--k-line); }
+.kyotsu-quiz .label-report[hidden] { display: none; }
+.kyotsu-quiz .lr-k { display: block; color: var(--k-muted); font-size: 12.5px; margin-bottom: 8px; }
+.kyotsu-quiz .label-report textarea {
+  display: block; width: 100%; box-sizing: border-box; resize: vertical; min-height: 54px;
+  font: inherit; font-size: 13.5px; line-height: 1.5; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--k-line); background: var(--k-surface2); color: var(--text-color);
+}
+.kyotsu-quiz .label-report textarea:focus { outline: none; border-color: var(--k-accent); }
+.kyotsu-quiz .label-report textarea:disabled { opacity: 0.6; }
+.kyotsu-quiz .lr-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; }
+.kyotsu-quiz .lr-anon { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; cursor: pointer; }
+.kyotsu-quiz .lr-anon[hidden] { display: none; }
+.kyotsu-quiz .lr-anon input { accent-color: var(--k-accent); margin: 0; }
+.kyotsu-quiz .lr-note { color: var(--k-muted); font-size: 12px; margin-right: auto; }
+.kyotsu-quiz .lr-note.err { color: var(--k-bad); }
+.kyotsu-quiz .lr-note.ok { color: var(--k-good); }
+.kyotsu-quiz .lr-send {
+  cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700; padding: 7px 14px; border-radius: 999px;
+  border: 1px solid var(--k-accent); background: var(--k-accent-soft); color: var(--k-accent-ink);
+}
+.kyotsu-quiz .lr-send:hover:not(:disabled) { background: var(--k-accent); color: #fff; }
+.kyotsu-quiz .lr-send:disabled { opacity: 0.4; cursor: default; }
+
+/* label reports list at the foot of the Sequential Clip Review (staff only) */
+.kyotsu-quiz .rp-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.kyotsu-quiz .rp-head .q { margin: 0 auto 0 0; }
+.kyotsu-quiz .rp-filter { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; cursor: pointer; }
+.kyotsu-quiz .rp-msg { color: var(--k-muted); font-size: 13px; margin-top: 10px; }
+.kyotsu-quiz .rp-msg.err { color: var(--k-bad); }
+.kyotsu-quiz .rp-item { border: 1px solid var(--k-line); border-radius: 12px; padding: 12px 14px; margin-top: 10px; }
+.kyotsu-quiz .rp-item.resolved { opacity: 0.55; }
+.kyotsu-quiz .rp-item.hl { border-color: var(--k-accent); box-shadow: 0 0 0 2px var(--k-accent-soft); }
+.kyotsu-quiz .rp-meta { color: var(--k-muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.kyotsu-quiz .rp-meta b { color: var(--text-color); font-weight: 600; }
+.kyotsu-quiz .rp-pair { margin-top: 6px; font-size: 13.5px; line-height: 1.7; }
+.kyotsu-quiz .rp-pair .bad { color: var(--k-bad); }
+.kyotsu-quiz .rp-body { margin-top: 6px; font-size: 14px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.kyotsu-quiz .rp-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.kyotsu-quiz .rp-acts button {
+  cursor: pointer; font-family: inherit; font-size: 12.5px; padding: 5px 12px; border-radius: 999px;
+  border: 1px solid var(--k-line); background: transparent; color: var(--text-color);
+}
+.kyotsu-quiz .rp-acts button:hover:not(:disabled) { border-color: var(--k-accent); color: var(--k-accent-ink); }
+.kyotsu-quiz .rp-acts button:disabled { opacity: 0.4; cursor: default; }
+
 /* ---- session stats page (/kyotsu/session/) ---- */
 .kyotsu-quiz.ks-page { width: auto; margin-left: 0; display: flex; flex-direction: column; gap: 14px; }
 .kyotsu-quiz .ks-msg { text-align: center; color: var(--k-muted); }
