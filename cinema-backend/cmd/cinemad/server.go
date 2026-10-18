@@ -11,12 +11,14 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"fazon.nexus/cinema/internal/feedback"
 	"fazon.nexus/cinema/internal/listings"
+	"fazon.nexus/cinema/internal/region"
 	"fazon.nexus/cinema/internal/registry"
 	"fazon.nexus/cinema/internal/scrape"
 	"fazon.nexus/cinema/internal/store"
@@ -26,13 +28,17 @@ import (
 // and the date window depend on the clock).
 const rebuildAfter = 5 * time.Minute
 
+// maxCached bounds the rendered documents kept (one per distinct region selection).
+const maxCached = 24
+
 type server struct {
 	cfg      config
 	store    *store.Store
 	feedback *feedback.Store
+	demand   *demand
 
 	mu    sync.Mutex
-	cache *doc
+	cache map[string]*doc // by region selection ("north-west,yorkshire")
 }
 
 // doc is a rendered listings.json.
@@ -46,8 +52,8 @@ type doc struct {
 	lastMod time.Time
 }
 
-func newServer(cfg config, st *store.Store, fb *feedback.Store) *server {
-	return &server{cfg: cfg, store: st, feedback: fb}
+func newServer(cfg config, st *store.Store, fb *feedback.Store, dm *demand) *server {
+	return &server{cfg: cfg, store: st, feedback: fb, demand: dm, cache: map[string]*doc{}}
 }
 
 func (s *server) routes() http.Handler {
@@ -55,6 +61,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /v1/listings.json", s.listings)
 	mux.HandleFunc("OPTIONS /v1/listings.json", s.preflight)
 	mux.HandleFunc("POST /v1/ingest", s.ingest)
+	mux.HandleFunc("GET /v1/relay/due", s.relayDue)
 	mux.HandleFunc("GET /v1/feedback", s.feedbackList)
 	mux.HandleFunc("POST /v1/feedback", s.feedbackPost)
 	mux.HandleFunc("OPTIONS /v1/feedback", s.feedbackPreflight)
@@ -95,20 +102,50 @@ func originAllowed(allowed []string, origin string) bool {
 	return false
 }
 
-// current returns the cached document, rebuilding it when the data, the day or the clock moved on.
-func (s *server) current() (*doc, error) {
+// parseRegions reads a comma-separated region list into region.All order, without duplicates;
+// an unknown key is an error, an empty list is nil.
+func parseRegions(v string) ([]string, error) {
+	want := map[string]bool{}
+	for _, k := range strings.Split(v, ",") {
+		if k = strings.ToLower(strings.TrimSpace(k)); k == "" {
+			continue
+		}
+		if !region.Valid(k) {
+			return nil, fmt.Errorf("unknown region %q", k)
+		}
+		want[k] = true
+	}
+	var out []string
+	for _, r := range region.All {
+		if want[r.Key] {
+			out = append(out, r.Key)
+		}
+	}
+	return out, nil
+}
+
+// current returns the cached document for a region selection, rebuilding it when the data,
+// the day or the clock moved on.
+func (s *server) current(regions []string) (*doc, error) {
 	now := time.Now()
 	from := scrape.Day(now.In(scrape.London))
+	key := strings.Join(regions, ",")
 	entries, gen := s.store.Entries()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if c := s.cache; c != nil && c.gen == gen && c.day == from.Format(scrape.DateFmt) && now.Sub(c.built) < rebuildAfter {
+	c := s.cache[key]
+	if c != nil && c.gen == gen && c.day == from.Format(scrape.DateFmt) && now.Sub(c.built) < rebuildAfter {
 		return c, nil
 	}
-	data := listings.Build(registry.Cinemas, entries, from, from.AddDate(0, 0, s.cfg.days-1), now)
+	cinemas := registry.InRegions(regions)
+	data := listings.Build(cinemas, entries, from, from.AddDate(0, 0, s.cfg.days-1), now)
+	for _, r := range region.All {
+		data.Regions = append(data.Regions, listings.RegionCount{Key: r.Key, Name: r.Name, Cinemas: len(registry.InRegions([]string{r.Key}))})
+	}
+	data.Region = regions
 	// "generated" = the newest data, not the render time, so unchanged data keeps its ETag.
 	var newest time.Time
-	for _, n := range registry.Cinemas {
+	for _, n := range cinemas {
 		if r, ok := s.store.Get(n.Name); ok && r.Attempted.After(newest) {
 			newest = r.Attempted
 		}
@@ -127,19 +164,38 @@ func (s *server) current() (*doc, error) {
 	sum := sha256.Sum256(b)
 	etag := `"` + hex.EncodeToString(sum[:12]) + `"`
 	lastMod := newest
-	if c := s.cache; c != nil && c.etag == etag {
+	if c != nil && c.etag == etag {
 		lastMod = c.lastMod
 	}
 	if lastMod.IsZero() {
 		lastMod = now
 	}
-	s.cache = &doc{gen: gen, day: from.Format(scrape.DateFmt), built: now, json: b, gz: gz.Bytes(), etag: etag, lastMod: lastMod}
-	return s.cache, nil
+	if _, ok := s.cache[key]; !ok && len(s.cache) >= maxCached {
+		var oldest string
+		for k, d := range s.cache {
+			if oldest == "" || d.built.Before(s.cache[oldest].built) {
+				oldest = k
+			}
+		}
+		delete(s.cache, oldest)
+	}
+	d := &doc{gen: gen, day: from.Format(scrape.DateFmt), built: now, json: b, gz: gz.Bytes(), etag: etag, lastMod: lastMod}
+	s.cache[key] = d
+	return d, nil
 }
 
 func (s *server) listings(w http.ResponseWriter, r *http.Request) {
 	s.cors(w, r)
-	d, err := s.current()
+	regions, err := parseRegions(r.URL.Query().Get("regions"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if len(regions) == 0 {
+		regions = s.cfg.regions
+	}
+	s.demand.touch(regions, time.Now())
+	d, err := s.current(regions)
 	if err != nil {
 		slog.Error("build listings", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -164,6 +220,37 @@ func (s *server) listings(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodHead {
 		w.Write(body)
 	}
+}
+
+// relayDue tells cinema-relay which relay cinemas to scrape this run: every due one in a hot
+// region, plus up to ?limit= (default cfg.coldBatch) of the cold ones.
+func (s *server) relayDue(w http.ResponseWriter, r *http.Request) {
+	if !s.authorized(w, r) {
+		return
+	}
+	limit := s.cfg.coldBatch
+	if v := r.URL.Query().Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			http.Error(w, "bad limit", http.StatusBadRequest)
+			return
+		}
+		limit = n
+	}
+	relay := true
+	t := tiers{hot: s.cfg.relayEvery, cold: s.cfg.coldEvery, retry: s.cfg.relayEvery, slack: 20 * time.Minute}
+	now := time.Now()
+	names := []string{}
+	hot := 0
+	for _, c := range due(registry.Select("", &relay), s.store, s.demand, t, limit, now) {
+		names = append(names, c.Name)
+		if s.demand.hot(c.Region, now) {
+			hot++
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	json.NewEncoder(w).Encode(map[string]any{"cinemas": names, "hot": hot, "cold": len(names) - hot})
 }
 
 func etagMatch(header, etag string) bool {

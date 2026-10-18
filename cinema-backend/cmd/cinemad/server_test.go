@@ -6,11 +6,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"fazon.nexus/cinema/internal/feedback"
+	"fazon.nexus/cinema/internal/registry"
 	"fazon.nexus/cinema/internal/scrape"
 	"fazon.nexus/cinema/internal/store"
 )
@@ -25,8 +28,13 @@ func testServer(t *testing.T) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := config{token: "secret", origins: []string{"https://fazon.nexus"}, maxBody: 1 << 20, days: 7}
-	ts := httptest.NewServer(newServer(cfg, st, fb).routes())
+	cfg := config{token: "secret", origins: []string{"https://fazon.nexus"}, maxBody: 1 << 20, days: 7,
+		regions: []string{"north-west", "yorkshire", "east-midlands"}, coldBatch: 5, relayEvery: 3 * time.Hour, coldEvery: 24 * time.Hour}
+	dm, err := openDemand(filepath.Join(t.TempDir(), "demand.json"), cfg.regions, 48*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(newServer(cfg, st, fb, dm).routes())
 	t.Cleanup(ts.Close)
 	return ts
 }
@@ -86,6 +94,8 @@ func TestIngestAndListings(t *testing.T) {
 		t.Fatal(err)
 	}
 	var doc struct {
+		Region  []string         `json:"region"`
+		Regions []map[string]any `json:"regions"`
 		Shows   []map[string]any `json:"shows"`
 		Cinemas []struct {
 			Name  string  `json:"name"`
@@ -99,8 +109,9 @@ func TestIngestAndListings(t *testing.T) {
 	if res.Header.Get("Access-Control-Allow-Origin") != "https://fazon.nexus" || res.Header.Get("Cache-Control") != "public, max-age=300" {
 		t.Errorf("headers: %v", res.Header)
 	}
-	if len(doc.Cinemas) != 57 || len(doc.Shows) != 1 {
-		t.Fatalf("cinemas=%d shows=%d", len(doc.Cinemas), len(doc.Shows))
+	def := registry.InRegions([]string{"north-west", "yorkshire", "east-midlands"})
+	if len(doc.Cinemas) != len(def) || len(doc.Shows) != 1 || !slices.Equal(doc.Region, []string{"north-west", "yorkshire", "east-midlands"}) || len(doc.Regions) != 12 {
+		t.Fatalf("cinemas=%d (want %d) shows=%d region=%v regions=%d", len(doc.Cinemas), len(def), len(doc.Shows), doc.Region, len(doc.Regions))
 	}
 	for _, c := range doc.Cinemas {
 		if c.Name == "Odeon Oldham" && (c.Count != 1 || c.Error != nil || c.Stale) {
@@ -123,6 +134,138 @@ func TestIngestAndListings(t *testing.T) {
 	res, _ = http.DefaultClient.Do(req)
 	if res.StatusCode != http.StatusNoContent || res.Header.Get("Access-Control-Allow-Origin") != "" {
 		t.Errorf("preflight from foreign origin: %d %v", res.StatusCode, res.Header)
+	}
+}
+
+func TestListingsRegions(t *testing.T) {
+	ts := testServer(t)
+	get := func(q string) (int, []string, []string) {
+		res, err := http.Get(ts.URL + "/v1/listings.json" + q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		var doc struct {
+			Region  []string `json:"region"`
+			Cinemas []struct {
+				Name   string `json:"name"`
+				Region string `json:"region"`
+			} `json:"cinemas"`
+		}
+		json.NewDecoder(res.Body).Decode(&doc)
+		var regions []string
+		for _, c := range doc.Cinemas {
+			if !slices.Contains(regions, c.Region) {
+				regions = append(regions, c.Region)
+			}
+		}
+		return res.StatusCode, doc.Region, regions
+	}
+	if code, sel, got := get("?regions=london,%20scotland,london"); code != 200 || !slices.Equal(sel, []string{"scotland", "london"}) ||
+		len(got) != 2 || !slices.Contains(got, "london") || !slices.Contains(got, "scotland") {
+		t.Errorf("london+scotland: %d %v %v", code, sel, got)
+	}
+	if code, _, _ := get("?regions=atlantis"); code != 400 {
+		t.Errorf("unknown region: HTTP %d, want 400", code)
+	}
+	if code, sel, _ := get("?regions="); code != 200 || len(sel) != 3 {
+		t.Errorf("empty regions = default: %d %v", code, sel)
+	}
+}
+
+func TestDue(t *testing.T) {
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dm, _ := openDemand(filepath.Join(t.TempDir(), "d.json"), []string{"north-west"}, 48*time.Hour)
+	now := time.Now().UTC().Truncate(time.Second)
+	cs := []scrape.Cinema{{Name: "A", Region: "north-west"}, {Name: "B", Region: "north-west"}, {Name: "C", Region: "north-west"},
+		{Name: "D", Region: "london"}, {Name: "E", Region: "london"}, {Name: "F", Region: "london"}, {Name: "G", Region: "wales"}}
+	apply := func(name string, at time.Time, fail bool) {
+		r := scrape.Result{Name: name, Fetched: at}
+		if fail {
+			r.Error = "boom"
+		}
+		st.Apply(r, "server")
+	}
+	apply("B", now.Add(-30*time.Minute), false) // hot, fresh
+	apply("C", now.Add(-3*time.Hour), false)    // hot, old
+	apply("D", now.Add(-30*time.Hour), false)   // cold, old
+	apply("E", now.Add(-26*time.Hour), false)   // cold, old but newer than D
+	apply("F", now.Add(-time.Hour), false)      // cold, fresh
+	apply("G", now.Add(-50*time.Hour), false)   // cold, oldest
+	tr := tiers{hot: 2 * time.Hour, cold: 24 * time.Hour, retry: 2 * time.Hour, slack: 10 * time.Minute}
+	names := func(cs []scrape.Cinema) (out []string) {
+		for _, c := range cs {
+			out = append(out, c.Name)
+		}
+		return out
+	}
+	if got := names(due(cs, st, dm, tr, 2, now)); !slices.Equal(got, []string{"A", "C", "G", "D"}) {
+		t.Errorf("due = %v, want hot A C then the 2 oldest cold G D", got)
+	}
+	// A failed attempt waits for the retry interval, even though its data is old.
+	apply("C", now.Add(-5*time.Minute), true)
+	if got := names(due(cs, st, dm, tr, 0, now)); !slices.Equal(got, []string{"A"}) {
+		t.Errorf("after C failed: %v", got)
+	}
+	// Viewing London makes it hot: E (26 h old) and D are due with no cold budget.
+	dm.touch([]string{"london"}, now)
+	select {
+	case <-dm.kick:
+	default:
+		t.Error("touching a cold region didn't kick the scraper")
+	}
+	if got := names(due(cs, st, dm, tr, 0, now)); !slices.Equal(got, []string{"A", "D", "E"}) {
+		t.Errorf("london hot: %v", got)
+	}
+	dm.touch([]string{"london"}, now.Add(time.Second))
+	select {
+	case <-dm.kick:
+		t.Error("touching a hot region kicked again")
+	default:
+	}
+	if err := dm.save(); err != nil {
+		t.Fatal(err)
+	}
+	re, _ := openDemand(dm.path, nil, 48*time.Hour)
+	if !re.hot("london", now) || re.hot("wales", now) {
+		t.Error("demand not persisted")
+	}
+}
+
+func TestRelayDue(t *testing.T) {
+	ts := testServer(t)
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/relay/due?limit=3", nil)
+	if res, _ := http.DefaultClient.Do(req); res.StatusCode != 401 {
+		t.Errorf("no token: %d", res.StatusCode)
+	}
+	req.Header.Set("Authorization", "Bearer secret")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out struct {
+		Cinemas   []string `json:"cinemas"`
+		Hot, Cold int
+	}
+	json.NewDecoder(res.Body).Decode(&out)
+	res.Body.Close()
+	relay := true
+	hot := 0
+	for _, c := range registry.Select("", &relay) {
+		if slices.Contains([]string{"north-west", "yorkshire", "east-midlands"}, c.Region) {
+			hot++
+		}
+	}
+	if out.Hot != hot || out.Cold != 3 || len(out.Cinemas) != hot+3 {
+		t.Errorf("due: hot %d cold %d (%d names), want hot %d cold 3", out.Hot, out.Cold, len(out.Cinemas), hot)
+	}
+	for _, n := range out.Cinemas {
+		if c, _ := registry.ByName(n); !c.Relay {
+			t.Errorf("%q isn't a relay cinema", n)
+		}
 	}
 }
 

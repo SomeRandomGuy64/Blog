@@ -32,6 +32,16 @@ type Listings struct {
 	Shows     []Show            `json:"shows"`
 	Premium   []string          `json:"premium"`
 	Travel    Travel            `json:"travel"`
+	// Set by the server: every region with its cinema count, and the ones this document covers.
+	Regions []RegionCount `json:"regions,omitempty"`
+	Region  []string      `json:"region,omitempty"`
+}
+
+// RegionCount is one entry of Listings.Regions.
+type RegionCount struct {
+	Key     string `json:"key"`
+	Name    string `json:"name"`
+	Cinemas int    `json:"cinemas"`
 }
 
 // Cinema is one cinema's header row; Updated/Stale describe the data's freshness.
@@ -43,6 +53,7 @@ type Cinema struct {
 	Count   int     `json:"count"`
 	Lat     float64 `json:"lat"`
 	Lng     float64 `json:"lng"`
+	Region  string  `json:"region"`
 	Updated *string `json:"updated"`
 	Stale   bool    `json:"stale"`
 }
@@ -155,7 +166,7 @@ func Build(cinemas []scrape.Cinema, entries map[string]Entry, from, to, now time
 	runtimes := map[string]map[string]int{}
 	for i, c := range cinemas {
 		e, ok := entries[c.Name]
-		cin[i] = Cinema{Name: c.Name, Chain: c.Chain, URL: c.URL}
+		cin[i] = Cinema{Name: c.Name, Chain: c.Chain, URL: c.URL, Region: c.Region}
 		switch {
 		case !ok:
 			msg := "not fetched yet"
@@ -305,9 +316,8 @@ func travelMatrix(cinemas []scrape.Cinema, now time.Time) Travel {
 	t := Travel{Source: "estimate", Computed: now.In(scrape.London).Format(scrape.DateFmt),
 		Estimate: Estimate, Places: make([]string, 0, n), Coords: make([][2]float64, 0, n)}
 	for _, c := range cinemas {
-		p := Places[c.Name] // registry_test guarantees every cinema is located
 		t.Places = append(t.Places, c.Name)
-		t.Coords = append(t.Coords, [2]float64{p.Lat, p.Lng})
+		t.Coords = append(t.Coords, [2]float64{c.Lat, c.Lng}) // registry_test guarantees every cinema is located
 	}
 	t.Mins = make([][]int, n)
 	for i := range n {

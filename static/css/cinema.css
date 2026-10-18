@@ -341,3 +341,32 @@
 .cinema-app .fbt { white-space: pre-wrap; overflow-wrap: anywhere; }
 .cinema-app .fbempty { color: var(--mute); border-top: 1px solid var(--line); padding: 14px 0 4px; }
 .cinema-app .fbmore { margin-top: 4px; }
+
+/* ---- region picker (header): a compact button opening a checkbox list of regions ---- */
+.cinema-app .rgn { position: relative; margin: 0 0 4px; max-width: 100%; contain: inline-size; }   /* a long region name ellipsises instead of widening the header */
+.cinema-app .rgnb { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; padding: 4px 10px; font-size: 13px; border-radius: 99px; }
+.cinema-app .rgnb .rgk { color: var(--mute); font-size: 12px; flex: none; }
+.cinema-app .rgnb b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--acci); font-weight: 600; }
+.cinema-app .rgnb::after { content: "▾"; color: var(--mute); font-size: 11px; flex: none; }
+.cinema-app .rgn.open .rgnb { border-color: var(--acc); }
+.cinema-app .rgnp {
+  position: absolute; left: 0; top: calc(100% + 6px); z-index: 30; width: min(340px, calc(100vw - 32px));
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.25); padding: 10px 12px 12px;
+}
+.cinema-app .rgnp fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.cinema-app .rgnp legend { font-size: 12.5px; font-weight: 600; padding: 0; margin: 0 0 6px; }
+.cinema-app .rgl { max-height: min(340px, 55vh); overflow: auto; }
+.cinema-app .rgl label { display: flex; gap: 8px; align-items: center; font-size: 13.5px; padding: 4px 2px; cursor: pointer; border-radius: 6px; }
+.cinema-app .rgl label:hover { background: var(--tag); }
+.cinema-app .rgl label .meta { margin-left: auto; white-space: nowrap; font-size: 12px; }
+.cinema-app .rgl label.off { opacity: .55; cursor: default; }
+.cinema-app .rgt { font-size: 12.5px; color: var(--mute); margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--line); }
+.cinema-app .rgw { color: var(--warn); }
+.cinema-app .rga { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; margin-top: 10px; }
+.cinema-app .rga [data-a="def"] { margin-right: auto; }
+.cinema-app .rgo { padding: 3px 14px; font-size: 13px; line-height: 1.3; font-weight: 700; background: var(--acc); border-color: var(--acc); color: #fff; }
+.cinema-app .rgo:hover:not(:disabled) { background: var(--acch); border-color: var(--acch); }
+.cinema-app .rgo:disabled { opacity: .45; cursor: default; }
+.cinema-app .rgnote { font-size: 12px; color: var(--warn); margin-top: 3px; }
+.cinema-app .cerr button.alt { background: var(--card); color: var(--ink); border-color: var(--line); font-weight: 400; }
+.cinema-app .cerr button.alt:hover { background: var(--tag); border-color: var(--acc); }

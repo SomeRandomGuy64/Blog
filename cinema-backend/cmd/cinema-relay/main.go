@@ -1,7 +1,9 @@
 // Command cinema-relay scrapes the cinemas that block datacentre IPs from a residential
-// connection and uploads the raw results to cinemad.
+// connection and uploads the raw results to cinemad. By default it asks the server which relay
+// cinemas are due (the hot regions' ones every few hours, a batch of the rest of the country
+// each run), so it is meant to run often (every 30 min) and is usually quick.
 //
-//	cinema-relay [--server https://cinema-api.fazon.nexus] [--all | --only odeon,vue] [--days 7] [--dry-run]
+//	cinema-relay [--server https://cinema-api.fazon.nexus] [--limit 40 | --all | --only odeon,vue | --every-relay] [--days 7] [--dry-run]
 //
 // The ingest token comes from $CINEMA_RELAY_TOKEN or ~/.config/cinema-relay/token.
 package main
@@ -31,6 +33,8 @@ import (
 func main() {
 	server := flag.String("server", "https://cinema-api.fazon.nexus", "cinemad base URL")
 	all := flag.Bool("all", false, "scrape every cinema, not just the relay-flagged ones")
+	everyRelay := flag.Bool("every-relay", false, "scrape every relay cinema, not just the due ones")
+	limit := flag.Int("limit", -1, "max cold-region cinemas this run (default: the server's batch size)")
 	only := flag.String("only", "", "comma-separated substrings of cinema name/chain (any cinema)")
 	days := flag.Int("days", scrape.DefaultDays, "days to scrape, from today")
 	dry := flag.Bool("dry-run", false, "scrape and print a summary; don't upload")
@@ -38,29 +42,46 @@ func main() {
 	timeout := flag.Duration("cinema-timeout", 5*time.Minute, "per-cinema timeout")
 	flag.Parse()
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	byServer := *only == "" && !*all && !*everyRelay
+	token := ""
+	if !*dry || byServer {
+		var err error
+		if token, err = loadToken(); err != nil {
+			fatal(err)
+		}
+	}
 	var cinemas []scrape.Cinema
 	switch {
 	case *only != "":
 		cinemas = registry.Select(*only, nil)
 	case *all:
 		cinemas = registry.Cinemas
-	default:
+	case *everyRelay:
 		relay := true
 		cinemas = registry.Select("", &relay)
+	default:
+		names, err := dueList(ctx, *server, token, *limit)
+		if err != nil {
+			fatal(err)
+		}
+		for _, n := range names {
+			if c, ok := registry.ByName(n); ok {
+				cinemas = append(cinemas, c)
+			} else {
+				fmt.Fprintf(os.Stderr, "server asked for %q, which this build doesn't know (update cinema-relay)\n", n)
+			}
+		}
+		if len(cinemas) == 0 {
+			fmt.Fprintln(os.Stderr, "nothing due")
+			return
+		}
 	}
 	if len(cinemas) == 0 {
 		fatal(errors.New("no cinemas selected"))
 	}
-	token := ""
-	if !*dry {
-		var err error
-		if token, err = loadToken(); err != nil {
-			fatal(err)
-		}
-	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	from := scrape.Day(time.Now().In(scrape.London))
 	to := from.AddDate(0, 0, *days-1)
 	results := scrape.Run(ctx, cinemas, from, to, scrape.Options{Workers: *workers, Timeout: *timeout,
@@ -94,6 +115,37 @@ func main() {
 	if failed == len(results) {
 		fatal(errors.New("every cinema failed"))
 	}
+}
+
+// dueList asks cinemad which relay cinemas to scrape now.
+func dueList(ctx context.Context, server, token string, limit int) ([]string, error) {
+	u := strings.TrimSuffix(server, "/") + "/v1/relay/due"
+	if limit >= 0 {
+		u += fmt.Sprintf("?limit=%d", limit)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := (&http.Client{Timeout: time.Minute}).Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("due list: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		msg, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+		return nil, fmt.Errorf("due list: HTTP %d: %s", res.StatusCode, strings.TrimSpace(string(msg)))
+	}
+	var out struct {
+		Cinemas   []string `json:"cinemas"`
+		Hot, Cold int
+	}
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("due list: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "due: %d hot-region, %d cold-region cinemas\n", out.Hot, out.Cold)
+	return out.Cinemas, nil
 }
 
 func loadToken() (string, error) {

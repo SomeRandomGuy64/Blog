@@ -8,5 +8,5 @@ After=network-online.target
 Type=oneshot
 # Token: ~/.config/cinema-relay/token (or Environment=CINEMA_RELAY_TOKEN=...)
 ExecStart=%h/.local/bin/cinema-relay --server https://cinema-api.fazon.nexus
-TimeoutStartSec=15min
+TimeoutStartSec=25min
 Nice=10
