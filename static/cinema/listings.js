@@ -33,7 +33,7 @@ if(bad.length){const nErr=bad.filter(([c])=>c.error).length,parts=[];
   if(nErr)parts.push(`${nErr} cinema${nErr>1?'s':''} failed to load`);
   if(bad.length-nErr)parts.push(`${bad.length-nErr} showing older listings`);
   $('errs').innerHTML=`<details><summary>${parts.join(' · ')}</summary>`+
-    bad.map(([c,i])=>`<div>${esc(c.name)}${c.error?` — <span class="er">${esc(c.error)}</span>`:''} ${staleNote(i)}</div>`).join('')+'</details>';
+    bad.map(([c,i])=>`<div>${esc(c.name)}${c.error?`: <span class="er">${esc(c.error)}</span>`:''} ${staleNote(i)}</div>`).join('')+'</details>';
   if(!nErr)$('errs').classList.add('soft')}
 
 // ---------- filter bar ----------

@@ -37,7 +37,7 @@ function list(){if(!S)return;const it=S.items;
   $('fblist').innerHTML=it.length?it.slice(0,shown).map(x=>`<li class="fbitem"><div class="fbh"><b>${esc(x.name||'Anonymous')}</b>`+
       `<time class="meta" datetime="${esc(x.created)}" title="${esc(new Date(x.created).toLocaleString('en-GB'))}">${esc(ago(x.created))}</time></div>`+
       `<div class="fbt">${esc(x.text)}</div></li>`).join('')
-    :'<li class="fbempty">No feedback yet — be the first.</li>';
+    :'<li class="fbempty">No feedback yet. Be the first!</li>';
   $('fbmore').hidden=it.length<=shown}
 function apply(st){if(!st||!Array.isArray(st.items))return;S=st;
   const t=Date.parse(st.now);if(!isNaN(t))skew=t-Date.now();
@@ -57,10 +57,10 @@ form.onsubmit=async e=>{e.preventDefault();if(go.disabled)return;
       body:JSON.stringify({name:name.value.trim(),text:text.value,website:$('fbhp').value})});
     let b=null;try{b=await r.json()}catch(err){}
     if(b)apply(b);
-    if(r.status===201){text.value='';store.set(DK,'');store.set(NK,name.value.trim());shown=PAGE;list();say('Thanks — your feedback is posted below.',true)}
-    else if(r.status===429)say('Sorry — the daily limit was reached before your post went through. Your text is kept here for tomorrow.');
+    if(r.status===201){text.value='';store.set(DK,'');store.set(NK,name.value.trim());shown=PAGE;list();say('Thanks, your feedback is posted below.',true)}
+    else if(r.status===429)say('Sorry, the daily limit was reached before your post went through. Your text is kept here for tomorrow.');
     else say('Couldn’t post: '+((b&&b.error)||'HTTP '+r.status)+'.')}
-  catch(err){say('Couldn’t reach the server — your text is kept; try again.')}
+  catch(err){say('Couldn’t reach the server. Your text is kept, so try again.')}
   busy=false;chars()};
 text.oninput=()=>{store.set(DK,text.value);chars();if(msg.classList.contains('ok'))say('')};
 name.oninput=chars;
