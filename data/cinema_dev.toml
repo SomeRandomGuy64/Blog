@@ -1,0 +1,7 @@
+# Tasks on the /cinema "In Development" tab. priority = "high" | "medium" | "low"; notes is optional.
+# Order within a priority = order here.
+
+[[task]]
+priority = "high"
+title = "Keep Odeon, Cineworld and Vue listings fresh around the clock"
+notes = "These chains block the server, so their listings come from a relay that only runs while my PC is on. Moving it to an always-on Raspberry Pi."

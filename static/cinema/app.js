@@ -1,5 +1,6 @@
 /* Fazon Nexus · Cinema Planner — boot: fetch the listings from the API, show loading / error states, then
-   start the Listings (listings.js) and Schedule (planner.js) tabs.
+   start the Listings (listings.js) and Schedule (planner.js) tabs. The feedback section (feedback.js) talks to <API>/../feedback
+   and starts straight away, independent of the listings.
    API URL: the wrapper's data-api (front-matter param `api`). For local testing, ?api=<url> overrides it, but only for
    http://localhost or http://127.0.0.1 URLs. */
 (function(){
@@ -13,6 +14,7 @@ function apiURL(){let u=root.dataset.api||'';
       else console.warn('Cinema Planner: ignoring ?api= (only http://localhost or http://127.0.0.1 URLs are allowed)')}}catch(e){}
   return u}
 const API=apiURL(),st=$('cstatus'),body=$('cbody');
+try{if(API)CINEMA_FEEDBACK(new URL('feedback',API).href)}catch(e){console.error(e)}
 let loading=false;
 function showError(title,detail,retry){
   st.innerHTML=`<div class="cerr" role="alert"><b>${esc(title)}</b><span class="meta">${esc(detail)}</span>`+

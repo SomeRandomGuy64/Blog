@@ -13,12 +13,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 	_ "time/tzdata"
 
+	"fazon.nexus/cinema/internal/feedback"
 	"fazon.nexus/cinema/internal/registry"
 	"fazon.nexus/cinema/internal/scrape"
 	"fazon.nexus/cinema/internal/store"
@@ -102,10 +104,17 @@ func main() {
 		slog.Warn("prune store", "err", err)
 	}
 
+	// A subdirectory: the store reads every *.json directly in the data dir as a cinema record.
+	fb, err := feedback.Open(filepath.Join(cfg.dataDir, "feedback"))
+	if err != nil {
+		slog.Error("open feedback", "err", err)
+		os.Exit(1)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	srv := newServer(cfg, st)
+	srv := newServer(cfg, st, fb)
 	httpSrv := &http.Server{Addr: cfg.listen, Handler: srv.routes(), ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout: 2 * time.Minute, WriteTimeout: time.Minute, IdleTimeout: 2 * time.Minute}
 	scraperDone := make(chan struct{})

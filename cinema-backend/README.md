@@ -47,6 +47,13 @@ bin/cinema build --raw raw.json --out listings.json   # rebuild from a raw dump,
 - `POST /v1/ingest` — `Authorization: Bearer <token>`, body (optionally gzip)
   `{"results":[{"name","shows":[{film,start,screen,formats,url,end,duration}],"error","fetched"}]}`.
   Only relay cinemas unless `?any=1`. A result with an error keeps the cinema's previous shows.
+- `GET /v1/feedback` — the planner's public feedback: `{items:[{id,name,text,created}] (newest first), limit, used,
+  remaining, max_chars, max_name, resets_at, now}`; `no-store`.
+- `POST /v1/feedback` — no login; JSON `{"name","text"}` (name optional, ≤40 chars; text ≤1000 chars). Quota:
+  5 posts per UTC day **across everyone** (429 when used up); deleting a post doesn't free its slot.
+  Stored in `<data>/feedback/feedback.json`.
+- `DELETE /v1/feedback/{id}` — moderation, `Authorization: Bearer <token>` (same token as ingest), e.g.
+  `ssh root@89.167.79.200 'source /etc/cinemad/env; curl -X DELETE -H "Authorization: Bearer $CINEMAD_INGEST_TOKEN" http://127.0.0.1:8090/v1/feedback/<id>'`.
 - `GET /healthz`
 
 ## Deploy (Hetzner)

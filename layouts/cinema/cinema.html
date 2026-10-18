@@ -9,7 +9,7 @@
     <div id="cbody" hidden>
     <div class="chead">
       <div class="hinfo"><div class="sub" id="sub"></div><div class="errs" id="errs"></div></div>
-      <div class="seg" id="mode" role="group" aria-label="View"><button type="button" data-m="list" class="on">Listings</button><button type="button" data-m="plan">Schedule</button></div>
+      <div class="seg" id="mode" role="group" aria-label="View"><button type="button" data-m="list" class="on">Listings</button><button type="button" data-m="plan">Schedule</button><button type="button" data-m="dev">In Development</button></div>
     </div>
     <div class="bar" id="lbar"><div class="in">
       <input type="search" id="q" placeholder="Search film or cinema…" aria-label="Search film or cinema">
@@ -64,10 +64,47 @@
       <section><div class="pout" id="pout"></div></section>
      </div>
     </div>
+    <div id="dmain" class="cview" hidden>
+     <div class="pane">
+      <div class="ph"><h2>In development</h2><span class="meta">What’s being worked on next</span></div>
+      <table class="devtab">
+       <thead><tr><th scope="col">Task</th><th scope="col">Details</th></tr></thead>
+       {{- $tasks := site.Data.cinema_dev.task | default slice }}
+       {{- range slice (slice "high" "High Priority") (slice "medium" "Medium Priority") (slice "low" "Low Priority") }}
+       {{- $key := index . 0 }}
+       <tbody class="dev-{{ $key }}">
+        <tr class="dsec"><th colspan="2" scope="rowgroup"><span class="dpri">{{ index . 1 }}</span></th></tr>
+        {{- $rows := where $tasks "priority" $key }}
+        {{- range $rows }}
+        <tr><td class="dt">{{ .title }}</td><td class="dd">{{ .notes }}</td></tr>
+        {{- else }}
+        <tr><td colspan="2" class="dnone">Nothing here yet.</td></tr>
+        {{- end }}
+       </tbody>
+       {{- end }}
+      </table>
+      <div class="hint">Got an idea or found a bug? Leave it in the feedback below.</div>
+     </div>
     </div>
+    </div>
+
+    <section class="pane fb" id="cfb" aria-labelledby="cfbh" hidden>
+     <div class="ph"><h2 id="cfbh">Feedback</h2><span class="meta" id="fbcount"></span></div>
+     <p class="fbrules">No account needed — posts are public and appear below. To keep it manageable there’s a limit of
+      <b id="fblimit">5</b> posts a day <b>in total, shared by everyone</b>, resetting at <b>00:00 UTC</b>, and each post can be up to <b id="fbmaxc">1000</b> characters.</p>
+     <div class="fbquota" id="fbquota" role="status"></div>
+     <form id="fbform" novalidate>
+      <input type="text" id="fbname" placeholder="Name (optional)" autocomplete="nickname" aria-label="Name (optional)">
+      <textarea id="fbtext" rows="4" placeholder="A bug, a missing cinema, an idea…" aria-label="Feedback" aria-describedby="fbchars"></textarea>
+      <input type="text" name="website" id="fbhp" class="fbhp" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <div class="fbfoot"><span class="fbchars" id="fbchars"></span><span class="fbmsg" id="fbmsg" role="alert"></span><button type="submit" class="fbgo" id="fbgo">Post feedback</button></div>
+     </form>
+     <ol class="fblist" id="fblist"></ol>
+     <button type="button" class="ib fbmore" id="fbmore" hidden>Show older feedback</button>
+    </section>
   </div>
 
-  {{ range slice "screentypes" "solver" "routes" "listings" "planner" "app" -}}
+  {{ range slice "screentypes" "solver" "routes" "listings" "planner" "feedback" "app" -}}
   <script src="{{ printf "cinema/%s.js" . | relURL }}?v={{ substr (readFile (printf "static/cinema/%s.js" .) | md5) 0 10 }}" defer></script>
   {{ end -}}
 {{ end }}
