@@ -5,3 +5,33 @@
 priority = "high"
 title = "Keep Odeon, Cineworld and Vue listings fresh around the clock"
 notes = "These chains block the server, so their listings come from a relay that only runs while my PC is on. Moving it to an always-on Raspberry Pi."
+
+[[task]]
+priority = "high"
+title = "Treat the same film listed under different names as one film"
+notes = "Cinemas name films differently (Donnie Darko is currently listed seven ways), so duplicates take up picks and can be scheduled twice. The site will match more of these names itself, and you'll be able to mark two listings as the same film."
+
+[[task]]
+priority = "high"
+title = "Correct advert and trailer times at Hebden Bridge, Pictureville and HOME"
+notes = "Every independent is currently given 10 minutes. Hebden Bridge will be set to 30 minutes, Pictureville and HOME to 15."
+
+[[task]]
+priority = "medium"
+title = "Choose the advert and trailer time for each cinema yourself"
+notes = "A setting to override how many minutes of adverts the planner allows at each cinema."
+
+[[task]]
+priority = "medium"
+title = "Show when films are left out because of the \"Home by\" time"
+notes = "\"Home by\" defaults to midnight, which quietly rules out late showings. The page will say how many were left out and why."
+
+[[task]]
+priority = "low"
+title = "No adverts for event cinema"
+notes = "Only possible if event showings can be reliably told apart, since cinema websites don't consistently mark them."
+
+[[task]]
+priority = "low"
+title = "Plan further ahead"
+notes = "Collect more than 16 days of listings from cinemas that publish early, like HOME and Pictureville, and let plans start later."
