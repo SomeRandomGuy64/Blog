@@ -19,10 +19,14 @@ type feedbackIn struct {
 	Website string `json:"website"` // honeypot: hidden in the form, so only bots fill it
 }
 
+// ownerName signs owner replies that don't name anyone else.
+const ownerName = "Faizan"
+
 type feedbackReply struct {
 	feedback.Status
-	Item  *feedback.Item `json:"item,omitempty"`
-	Error string         `json:"error,omitempty"`
+	Item  *feedback.Item  `json:"item,omitempty"`
+	Reply *feedback.Reply `json:"reply,omitempty"`
+	Error string          `json:"error,omitempty"`
 }
 
 func (s *server) feedbackPreflight(w http.ResponseWriter, r *http.Request) {
@@ -71,8 +75,74 @@ func (s *server) feedbackPost(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// feedbackOwnerPreflight allows the page's owner mode (Authorization header) to call the token routes.
+func (s *server) feedbackOwnerPreflight(w http.ResponseWriter, r *http.Request) {
+	s.cors(w, r)
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	w.Header().Set("Access-Control-Max-Age", "86400")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// feedbackOwner answers 204 when the token is right, so the page can check it before showing owner controls.
+func (s *server) feedbackOwner(w http.ResponseWriter, r *http.Request) {
+	s.cors(w, r)
+	if s.authorized(w, r) {
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// feedbackReplyPost adds an owner reply to a comment; it needs the ingest token and doesn't use the daily quota.
+func (s *server) feedbackReplyPost(w http.ResponseWriter, r *http.Request) {
+	s.cors(w, r)
+	if !s.authorized(w, r) {
+		return
+	}
+	var in feedbackIn
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxFeedbackBody)).Decode(&in); err != nil {
+		writeFeedback(w, http.StatusBadRequest, feedbackReply{Status: s.feedback.Status(), Error: "couldn't read the reply"})
+		return
+	}
+	if in.Name == "" {
+		in.Name = ownerName
+	}
+	rep, found, err := s.feedback.AddReply(r.PathValue("id"), in.Name, in.Text)
+	switch {
+	case errors.Is(err, feedback.ErrEmpty), errors.Is(err, feedback.ErrReply), errors.Is(err, feedback.ErrName):
+		writeFeedback(w, http.StatusBadRequest, feedbackReply{Status: s.feedback.Status(), Error: err.Error()})
+	case err != nil:
+		slog.Error("feedback reply", "err", err)
+		writeFeedback(w, http.StatusInternalServerError, feedbackReply{Status: s.feedback.Status(), Error: "couldn't save the reply"})
+	case !found:
+		writeFeedback(w, http.StatusNotFound, feedbackReply{Status: s.feedback.Status(), Error: "no such feedback"})
+	default:
+		slog.Info("feedback reply", "id", r.PathValue("id"), "reply", rep.ID)
+		writeFeedback(w, http.StatusCreated, feedbackReply{Status: s.feedback.Status(), Reply: &rep})
+	}
+}
+
+// feedbackReplyDelete removes an owner reply; it needs the ingest token.
+func (s *server) feedbackReplyDelete(w http.ResponseWriter, r *http.Request) {
+	s.cors(w, r)
+	if !s.authorized(w, r) {
+		return
+	}
+	ok, err := s.feedback.DeleteReply(r.PathValue("id"), r.PathValue("rid"))
+	switch {
+	case err != nil:
+		slog.Error("feedback reply delete", "err", err)
+		http.Error(w, "store error", http.StatusInternalServerError)
+	case !ok:
+		http.Error(w, "no such reply", http.StatusNotFound)
+	default:
+		slog.Info("feedback reply deleted", "id", r.PathValue("id"), "reply", r.PathValue("rid"))
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 // feedbackDelete removes a comment; it needs the ingest token.
 func (s *server) feedbackDelete(w http.ResponseWriter, r *http.Request) {
+	s.cors(w, r)
 	if !s.authorized(w, r) {
 		return
 	}

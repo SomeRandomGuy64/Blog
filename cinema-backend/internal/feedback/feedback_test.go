@@ -67,3 +67,49 @@ func TestQuotaAndLimits(t *testing.T) {
 		t.Fatalf("next day post: %v %+v", err, st)
 	}
 }
+
+func TestReplies(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	it, _, err := s.Add("", "a question")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := s.AddReply("nope", "Owner", "hi"); ok || err != nil {
+		t.Errorf("reply to missing comment: %v %v", ok, err)
+	}
+	if _, _, err := s.AddReply(it.ID, "Owner", " \n "); !errors.Is(err, ErrEmpty) {
+		t.Errorf("blank reply: %v", err)
+	}
+	if _, _, err := s.AddReply(it.ID, "Owner", strings.Repeat("あ", MaxReply+1)); !errors.Is(err, ErrReply) {
+		t.Errorf("long reply: %v", err)
+	}
+	r1, ok, err := s.AddReply(it.ID, "Owner", "first\r\nanswer")
+	if !ok || err != nil {
+		t.Fatal(ok, err)
+	}
+	r2, _, _ := s.AddReply(it.ID, "Owner", "second")
+	st := s.Status()
+	if st.Used != 1 {
+		t.Errorf("replies used the quota: %+v", st)
+	}
+	if got := st.Items[0].Replies; len(got) != 2 || got[0].Text != "first\nanswer" || got[1].ID != r2.ID {
+		t.Fatalf("replies: %+v", got)
+	}
+	if ok, err := s.DeleteReply(it.ID, r1.ID); !ok || err != nil {
+		t.Fatal(ok, err)
+	}
+	if ok, _ := s.DeleteReply(it.ID, r1.ID); ok {
+		t.Error("deleted twice")
+	}
+	s2, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s2.Status().Items[0].Replies; len(got) != 1 || got[0].ID != r2.ID {
+		t.Errorf("after reopen: %+v", got)
+	}
+}

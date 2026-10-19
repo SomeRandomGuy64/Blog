@@ -1,6 +1,6 @@
 // Package feedback keeps the planner's public, login-free feedback comments. Posting is capped
 // by a single quota shared by everyone (Limit per UTC day), so the list stays small and is
-// kept in one JSON file.
+// kept in one JSON file. The site owner can reply to a comment; replies don't use the quota.
 package feedback
 
 import (
@@ -10,6 +10,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +22,7 @@ const (
 	Limit    = 5    // posts per UTC day, across everyone
 	MaxChars = 1000 // per post, in Unicode code points
 	MaxName  = 40   // optional display name, in code points
+	MaxReply = 2000 // per owner reply, in code points
 	dayFmt   = "2006-01-02"
 )
 
@@ -29,12 +31,22 @@ var (
 	ErrTooLong = errors.New("feedback is longer than 1000 characters")
 	ErrName    = errors.New("name is longer than 40 characters")
 	ErrQuota   = errors.New("today's feedback limit has been reached")
+	ErrReply   = errors.New("reply is longer than 2000 characters")
 )
 
 // Item is one posted comment.
 type Item struct {
 	ID      string    `json:"id"`
 	Name    string    `json:"name"` // "" = anonymous
+	Text    string    `json:"text"`
+	Created time.Time `json:"created"`
+	Replies []Reply   `json:"replies,omitempty"` // oldest first
+}
+
+// Reply is the site owner's answer to a comment.
+type Reply struct {
+	ID      string    `json:"id"`
+	Name    string    `json:"name"`
 	Text    string    `json:"text"`
 	Created time.Time `json:"created"`
 }
@@ -127,9 +139,7 @@ func (s *Store) Add(name, text string) (Item, Status, error) {
 	if next.Used >= Limit {
 		return Item{}, s.status(now), ErrQuota
 	}
-	var id [8]byte
-	rand.Read(id[:])
-	it := Item{ID: hex.EncodeToString(id[:]), Name: name, Text: text, Created: now.Truncate(time.Second)}
+	it := Item{ID: newID(), Name: name, Text: text, Created: now.Truncate(time.Second)}
 	next.Used++
 	next.Items = append(next.Items[:len(next.Items):len(next.Items)], it)
 	if err := s.write(next); err != nil {
@@ -158,6 +168,63 @@ func (s *Store) Delete(id string) (bool, error) {
 	}
 	s.st = next
 	return true, nil
+}
+
+// AddReply attaches an owner reply to comment id. It reports whether the comment existed.
+func (s *Store) AddReply(id, name, text string) (Reply, bool, error) {
+	name, text = clean(name, false), clean(text, true)
+	switch {
+	case text == "":
+		return Reply{}, false, ErrEmpty
+	case utf8.RuneCountInString(text) > MaxReply:
+		return Reply{}, false, ErrReply
+	case utf8.RuneCountInString(name) > MaxName:
+		return Reply{}, false, ErrName
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := slices.IndexFunc(s.st.Items, func(it Item) bool { return it.ID == id })
+	if i < 0 {
+		return Reply{}, false, nil
+	}
+	r := Reply{ID: newID(), Name: name, Text: text, Created: s.Now().UTC().Truncate(time.Second)}
+	next := s.st
+	next.Items = slices.Clone(s.st.Items)
+	next.Items[i].Replies = append(slices.Clip(next.Items[i].Replies), r)
+	if err := s.write(next); err != nil {
+		return Reply{}, true, err
+	}
+	s.st = next
+	return r, true, nil
+}
+
+// DeleteReply removes reply rid from comment id. It reports whether that reply existed.
+func (s *Store) DeleteReply(id, rid string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := slices.IndexFunc(s.st.Items, func(it Item) bool { return it.ID == id })
+	if i < 0 {
+		return false, nil
+	}
+	reps := s.st.Items[i].Replies
+	j := slices.IndexFunc(reps, func(r Reply) bool { return r.ID == rid })
+	if j < 0 {
+		return false, nil
+	}
+	next := s.st
+	next.Items = slices.Clone(s.st.Items)
+	next.Items[i].Replies = slices.Delete(slices.Clone(reps), j, j+1)
+	if err := s.write(next); err != nil {
+		return false, err
+	}
+	s.st = next
+	return true, nil
+}
+
+func newID() string {
+	var id [8]byte
+	rand.Read(id[:])
+	return hex.EncodeToString(id[:])
 }
 
 func (s *Store) write(st state) error {

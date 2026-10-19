@@ -357,6 +357,57 @@ func TestFeedback(t *testing.T) {
 		res.Body.Close()
 		return res.StatusCode
 	}
+	reply := func(token, path, body string) (int, map[string]any) {
+		req, _ := http.NewRequest(http.MethodPost, ts.URL+"/v1/feedback/"+path+"/replies", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Origin", "https://fazon.nexus")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		if res.Header.Get("Access-Control-Allow-Origin") != "https://fazon.nexus" {
+			t.Errorf("reply CORS: %v", res.Header)
+		}
+		var out map[string]any
+		json.NewDecoder(res.Body).Decode(&out)
+		return res.StatusCode, out
+	}
+	if c, _ := reply("nope", id, `{"text":"hi"}`); c != 401 {
+		t.Errorf("reply bad token: %d", c)
+	}
+	if c, _ := reply("secret", "missing", `{"text":"hi"}`); c != 404 {
+		t.Errorf("reply to missing: %d", c)
+	}
+	c, out := reply("secret", id, `{"text":"thanks!"}`)
+	if c != 201 {
+		t.Fatalf("reply: %d %v", c, out)
+	}
+	if r := out["reply"].(map[string]any); r["name"] != ownerName || r["text"] != "thanks!" {
+		t.Errorf("reply body: %v", r)
+	}
+	rid := out["reply"].(map[string]any)["id"].(string)
+	req, _ = http.NewRequest(http.MethodOptions, ts.URL+"/v1/feedback/"+id+"/replies", nil)
+	req.Header.Set("Origin", "https://fazon.nexus")
+	res, _ = http.DefaultClient.Do(req)
+	if res.StatusCode != 204 || res.Header.Get("Access-Control-Allow-Headers") != "Content-Type, Authorization" {
+		t.Errorf("owner preflight: %d %v", res.StatusCode, res.Header)
+	}
+	for tok, want := range map[string]int{"secret": 204, "nope": 401} {
+		req, _ = http.NewRequest(http.MethodGet, ts.URL+"/v1/feedback/owner", nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		res, _ = http.DefaultClient.Do(req)
+		if res.StatusCode != want {
+			t.Errorf("owner check %s: %d", tok, res.StatusCode)
+		}
+	}
+	if c := del("secret", id+"/replies/"+rid); c != 204 {
+		t.Errorf("delete reply: %d", c)
+	}
+	if c := del("secret", id+"/replies/"+rid); c != 404 {
+		t.Errorf("delete reply again: %d", c)
+	}
+
 	if c := del("nope", id); c != 401 {
 		t.Errorf("delete bad token: %d", c)
 	}
