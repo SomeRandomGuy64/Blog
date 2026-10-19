@@ -66,6 +66,12 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /v1/feedback", s.feedbackPost)
 	mux.HandleFunc("OPTIONS /v1/feedback", s.feedbackPreflight)
 	mux.HandleFunc("DELETE /v1/feedback/{id}", s.feedbackDelete)
+	mux.HandleFunc("GET /v1/feedback/owner", s.feedbackOwner)
+	mux.HandleFunc("POST /v1/feedback/{id}/replies", s.feedbackReplyPost)
+	mux.HandleFunc("DELETE /v1/feedback/{id}/replies/{rid}", s.feedbackReplyDelete)
+	for _, p := range []string{"/v1/feedback/owner", "/v1/feedback/{id}", "/v1/feedback/{id}/replies", "/v1/feedback/{id}/replies/{rid}"} {
+		mux.HandleFunc("OPTIONS "+p, s.feedbackOwnerPreflight)
+	}
 	mux.HandleFunc("GET /healthz", s.health)
 	return mux
 }
