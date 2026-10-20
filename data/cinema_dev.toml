@@ -1,4 +1,5 @@
-# Tasks on the /cinema "In Development" tab. priority = "high" | "medium" | "low"; notes is optional.
+# Tasks on the /cinema "In Development" tab. priority = "high" | "medium" | "low"; notes is optional;
+# done = true strikes a finished task through (it stays in place).
 # Order within a priority = order here.
 
 [[task]]
@@ -14,16 +15,19 @@ notes = "Cinemas name films differently (Donnie Darko is currently listed seven 
 [[task]]
 priority = "high"
 title = "Correct advert and trailer times at Hebden Bridge, Pictureville and HOME"
+done = true
 notes = "Every independent is currently given 10 minutes. Hebden Bridge will be set to 30 minutes, Pictureville and HOME to 15."
 
 [[task]]
 priority = "medium"
 title = "Choose the advert and trailer time for each cinema yourself"
+done = true
 notes = "A setting to override how many minutes of adverts the planner allows at each cinema."
 
 [[task]]
 priority = "medium"
 title = "Show when films are left out because of the \"Home by\" time"
+done = true
 notes = "\"Home by\" defaults to midnight, which quietly rules out late showings. The page will say how many were left out and why."
 
 [[task]]

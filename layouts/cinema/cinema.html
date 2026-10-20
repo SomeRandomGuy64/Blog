@@ -52,6 +52,14 @@
           <details class="glr" name="glim"><summary><span class="gl">Screen types</span><span class="gv" id="pgstsum">Any screen</span></summary>
            <div class="gb" id="pgst" role="group" aria-label="Screen types for all films"></div></details>
          </div>
+         <div class="ol" style="margin-top:10px">Adverts and trailers <span class="meta">(minutes from the listed start to the film itself)</span></div>
+         <div class="glim">
+          <details class="glr" id="pad"><summary><span class="gl">Per cinema</span><span class="gv any" id="padsum">Default for every cinema</span></summary>
+           <div class="gb"><div class="khelp">A film is assumed to end this long after its listed start, plus its runtime. Leave a box empty for the cinema’s default (shown in grey).</div>
+            <div class="srow" style="margin-top:6px"><input type="search" class="cf" id="padf" placeholder="Filter cinemas or chains…" aria-label="Filter cinemas">
+            <button type="button" class="ib" id="padclr">Reset all</button></div>
+           <div class="clist adl" id="padlist"></div></div></details>
+         </div>
          <div class="ol" style="margin-top:10px">When you’re free</div>
          <table class="dtab" id="pdays"></table>
          <div class="sgrid">
@@ -85,7 +93,7 @@
         <tr class="dsec"><th colspan="2" scope="rowgroup"><span class="dpri">{{ index . 1 }}</span></th></tr>
         {{- $rows := where $tasks "priority" $key }}
         {{- range $rows }}
-        <tr><td class="dt">{{ .title }}</td><td class="dd">{{ .notes }}</td></tr>
+        <tr{{ if .done }} class="ddone"{{ end }}><td class="dt">{{ if .done }}<s>{{ .title }}</s> <span class="dok">Done</span>{{ else }}{{ .title }}{{ end }}</td><td class="dd">{{ if .done }}<s>{{ .notes }}</s>{{ else }}{{ .notes }}{{ end }}</td></tr>
         {{- else }}
         <tr><td colspan="2" class="dnone">Nothing here yet.</td></tr>
         {{- end }}
