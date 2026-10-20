@@ -16,6 +16,21 @@ import (
 var AdMinutes = map[string]int{"Odeon": 25, "Vue": 25, "Cineworld": 25, "Everyman": 25, "Showcase": 25,
 	"The Light": 25, "Reel": 25, "Picturehouse": 25, "Curzon": 25, "Independent": 10}
 
+// CinemaAdMinutes overrides AdMinutes for single cinemas. Their end time is always start + ads +
+// runtime, even when the source gives one (HOME's Spektrix slot runs ~25 minutes past the film).
+var CinemaAdMinutes = map[string]int{"Hebden Bridge Picture House": 30, "Pictureville Bradford": 15, "HOME Manchester": 15}
+
+// adMinutes is the ads/trailers allowance at a cinema, and whether it is a per-cinema override.
+func adMinutes(name, chain string) (int, bool) {
+	if m, ok := CinemaAdMinutes[name]; ok {
+		return m, true
+	}
+	if m, ok := AdMinutes[chain]; ok {
+		return m, false
+	}
+	return 10, false
+}
+
 const (
 	DefaultRuntime = 120            // when no cinema reports a runtime for the film
 	StaleAfter     = 12 * time.Hour // a cinema's data is stale when its last success is older
@@ -56,6 +71,7 @@ type Cinema struct {
 	Region  string  `json:"region"`
 	Updated *string `json:"updated"`
 	Stale   bool    `json:"stale"`
+	Ads     int     `json:"ads"` // ads/trailers allowance in minutes (end estimates; the page's default)
 }
 
 // Show is one showing: k film key, c cinema index, t start, s screen, x formats, u booking URL,
@@ -167,6 +183,7 @@ func Build(cinemas []scrape.Cinema, entries map[string]Entry, from, to, now time
 	for i, c := range cinemas {
 		e, ok := entries[c.Name]
 		cin[i] = Cinema{Name: c.Name, Chain: c.Chain, URL: c.URL, Region: c.Region}
+		cin[i].Ads, _ = adMinutes(c.Name, c.Chain)
 		switch {
 		case !ok:
 			msg := "not fetched yet"
@@ -257,11 +274,11 @@ func Build(cinemas []scrape.Cinema, entries map[string]Entry, from, to, now time
 			dur = med[sh.K]
 		}
 		t0, _ := time.Parse(scrape.TimeFmt, sh.T)
-		ads, ok := AdMinutes[cin[sh.C].Chain]
-		if !ok {
-			ads = 10
-		}
+		ads, fixed := adMinutes(cin[sh.C].Name, cin[sh.C].Chain)
 		fin, span := sh.end, 0
+		if fixed && dur != 0 {
+			fin = ""
+		}
 		var tf time.Time
 		if fin != "" {
 			var err error

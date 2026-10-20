@@ -151,3 +151,29 @@ func mapsEqual(a, b map[string]string) bool {
 	}
 	return true
 }
+
+func TestCinemaAdMinutes(t *testing.T) {
+	now := time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC)
+	from := scrape.Day(now)
+	cs := []scrape.Cinema{{Name: "HOME Manchester", Chain: "Independent"}, {Name: "Hebden Bridge Picture House", Chain: "Independent"},
+		{Name: "Cultplex", Chain: "Independent"}}
+	got := Build(cs, map[string]Entry{
+		// HOME's slot (12:40-15:13) is ignored for start + 15 + runtime; without a runtime the slot still gives it
+		"HOME Manchester": {Updated: now, Shows: []scrape.Show{{Film: "Uprising", Start: "2026-10-20T12:40", End: "2026-10-20T15:13", Duration: 128},
+			{Film: "Deadline", Start: "2026-10-20T13:00", End: "2026-10-20T15:15"}}},
+		"Hebden Bridge Picture House": {Updated: now, Shows: []scrape.Show{{Film: "Just an Illusion", Start: "2026-10-20T12:30", Duration: 119}}},
+		"Cultplex":                    {Updated: now, Shows: []scrape.Show{{Film: "Derek vs Derek", Start: "2026-10-20T14:00", Duration: 88}}},
+	}, from, from.AddDate(0, 0, 6), now)
+	want := map[string][2]any{"uprising": {"2026-10-20T15:03", 128}, "deadline": {"2026-10-20T15:15", 120},
+		"justanillusion": {"2026-10-20T14:59", 119}, "derekvsderek": {"2026-10-20T15:38", 88}}
+	for _, s := range got.Shows {
+		if w := want[s.K]; s.E != w[0] || s.D != w[1] {
+			t.Errorf("%s: end %s runtime %d, want %v", s.K, s.E, s.D, w)
+		}
+	}
+	for i, ads := range []int{15, 30, 10} {
+		if got.Cinemas[i].Ads != ads {
+			t.Errorf("%s ads = %d, want %d", got.Cinemas[i].Name, got.Cinemas[i].Ads, ads)
+		}
+	}
+}
