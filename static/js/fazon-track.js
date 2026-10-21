@@ -7,18 +7,29 @@
   var runes = function (s) { return Array.from(String(s || "")).length; };
   var SUMMARY_MAX = 10000, SUB_MAX = 30;
 
-  // "1.5" / "1,5" / "1:30" / "90m" / "1h30" / "2h" → hours (2 decimals); "" → null
+  // one term: "1.5" / "1,5" / "1:30" / "90m" / "1h30" / "2h" → hours (unrounded), or NaN
+  function hoursTerm(t) {
+    var m;
+    if ((m = t.match(/^(\d{1,3}):([0-5]?\d)$/))) return +m[1] + (+m[2]) / 60;
+    if ((m = t.match(/^(\d+(?:[.,]\d+)?)m(?:in|ins|inutes?)?$/))) return parseFloat(m[1].replace(",", ".")) / 60;
+    if ((m = t.match(/^(\d+(?:[.,]\d+)?)h(?:rs?|ours?)?(?:(\d{1,2})(?:m|min|mins)?)?$/))) return parseFloat(m[1].replace(",", ".")) + (m[2] ? +m[2] / 60 : 0);
+    if (/^(\d+(?:[.,]\d*)?|[.,]\d+)$/.test(t)) return parseFloat(t.replace(",", "."));
+    return NaN;
+  }
+  // terms joined by + / − in any mix ("1:30+45m-10m", "2h - 0.25") → hours (2 decimals); "" → null
   function parseHours(raw) {
-    var t = String(raw == null ? "" : raw).trim().toLowerCase().replace(/\s+/g, "");
+    var t = String(raw == null ? "" : raw).trim().toLowerCase().replace(/\s+/g, "").replace(/[−–]/g, "-");
     if (!t) return { v: null };
-    var m, v;
-    if ((m = t.match(/^(\d{1,3}):([0-5]?\d)$/))) v = +m[1] + (+m[2]) / 60;
-    else if ((m = t.match(/^(\d+(?:[.,]\d+)?)m(?:in|ins|inutes?)?$/))) v = parseFloat(m[1].replace(",", ".")) / 60;
-    else if ((m = t.match(/^(\d+(?:[.,]\d+)?)h(?:rs?|ours?)?(?:(\d{1,2})(?:m|min|mins)?)?$/))) v = parseFloat(m[1].replace(",", ".")) + (m[2] ? +m[2] / 60 : 0);
-    else if (/^(\d+(?:[.,]\d*)?|[.,]\d+)$/.test(t)) v = parseFloat(t.replace(",", "."));
-    else return { err: "Use 1.5, 1:30 or 90m" };
-    if (!isFinite(v)) return { err: "Use 1.5, 1:30 or 90m" };
+    var parts = t.split(/([+-])/), v = 0, sign = 1, bad = "Use 1.5, 1:30 or 90m; join with + or −";
+    if (parts[0] === "") { if (parts.length < 3) return { err: bad }; sign = parts[1] === "-" ? -1 : 1; parts = parts.slice(2); }
+    for (var i = 0; i < parts.length; i += 2) {
+      var h = hoursTerm(parts[i]);
+      if (!isFinite(h)) return { err: bad };
+      v += sign * h;
+      sign = parts[i + 1] === "-" ? -1 : 1;
+    }
     v = Math.round(v * 100) / 100;
+    if (v < 0) return { err: "Can't go below 0 h" };
     if (v > 168) return { err: "At most 168 h in a week" };
     return { v: v };
   }
