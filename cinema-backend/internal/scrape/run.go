@@ -27,6 +27,15 @@ type Cinema struct {
 	Region   string
 }
 
+// window is the last date to scrape c for: a relay cinema never goes past DefaultDays, whatever a
+// caller or flag asks for, because its requests come from the home connection.
+func (c Cinema) window(from, to time.Time) time.Time {
+	if c.Relay {
+		return DailyTo(from, to)
+	}
+	return to
+}
+
 // Result is one cinema's scrape outcome (also the relay's upload format).
 type Result struct {
 	Name    string    `json:"name"`
@@ -123,7 +132,7 @@ func FetchOne(ctx context.Context, c Cinema, from, to time.Time, timeout time.Du
 		return r
 	}
 	defer s.Close()
-	shows, err := c.Fetch(s, from, to)
+	shows, err := c.Fetch(s, from, c.window(from, to))
 	if err != nil {
 		r.Error = ErrString(errLine(err))
 		return r

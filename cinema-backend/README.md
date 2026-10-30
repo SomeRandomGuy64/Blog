@@ -20,6 +20,11 @@ Scraping is tiered so nationwide coverage doesn't multiply the traffic: cinemas 
 request for a cold region wakes the server's scraper at once, and the relay picks it up on its
 next 30-minute run, so those cinemas show "last updated N hours ago" until then.
 
+The window is 56 days for cinemas the server scrapes (`scrape.ServerDays`). Relay cinemas stay at 16
+(`scrape.DefaultDays`, enforced in `Cinema.window` whatever `--days` says) so that planning ahead adds no
+requests from the home connection. Odeon, Curzon and Vue cost one request per cinema per day; so do Indy and
+Pictureville, which `scrape.DailyTo` holds at 16 days too. A new per-day fetcher should do the same.
+
 ```
 cmd/cinemad        server: scrape loop + HTTP API
 cmd/cinema-relay   home PC: scrape relay cinemas, upload
@@ -70,7 +75,7 @@ entries when that chain fails or suddenly returns under half as many cinemas.
   `internal/region` keys; none = `CINEMAD_REGIONS`, default north-west, yorkshire, east-midlands; an
   unknown key is a 400). Adds `regions` (every region with its cinema count), `region` (the keys
   served) and a `region` per cinema. Requesting a region makes it hot for 48 h.
-  Window today..today+15 (Europe/London), the frontend's schema plus per-cinema
+  Window today..today+55 (Europe/London; relay cinemas only reach today+15, see below), the frontend's schema plus per-cinema
   `updated` (last successful scrape, RFC 3339) and `stale` (no success in 12 h); `generated` is RFC 3339.
   For privacy there is no `home` and no Home row in `travel` (the page adds home legs itself from
   `travel.estimate` and the visitor's postcode). gzip, ETag/304,

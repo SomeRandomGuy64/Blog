@@ -4,7 +4,9 @@ function CINEMA_LISTINGS(D){
 const P=new Set(D.premium||[]), $=id=>document.getElementById(id);
 const {screenType,otherTags,isScreen,stCmp,pickAllows}=SCREENTYPES(P);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const dayName=d=>new Date(d+'T12:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric'});
+const DT=CINEMA_DATES(),SOON=DT.add(D.from,13);   // "Next 2 weeks" ends here; dates past it are named with their month
+const dayLong=d=>new Date(d+'T12:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+const dayName=d=>d>SOON?dayLong(d):new Date(d+'T12:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric'});
 const stBadge=st=>st==='Standard'?'':`<span class="b p">${esc(st)}</span>`;
 const tagBadges=x=>stBadge(screenType(x))+otherTags(x).map(t=>`<span class="b o">${esc(t)}</span>`).join('');
 const S={q:'',day:'',fmt:'',view:'film',chains:new Set(D.cinemas.map(c=>c.chain))};
@@ -29,7 +31,7 @@ function staleNote(c){const C=D.cinemas[c];if(!C||!C.stale)return '';const u=iso
   return `<span class="stl" title="${u?'Listings last refreshed '+esc(full(u)):'Listings could not be refreshed recently'}">${u?'last updated '+esc(ago(u)):'not recently updated'}</span>`}
 const gen=isoDate(D.generated)||D.cinemas.map(c=>isoDate(c.updated)).filter(Boolean).sort((a,b)=>b-a)[0]||null;
 const nStale=D.cinemas.filter(c=>c.stale).length;
-$('sub').innerHTML=esc(`${dayName(D.from)} – ${dayName(D.to)} · ${D.shows.length.toLocaleString()} showings · `+
+$('sub').innerHTML=esc(`${dayLong(D.from)} – ${dayLong(D.to)} · ${D.shows.length.toLocaleString()} showings · `+
   `${Object.keys(D.films).length} films · ${D.cinemas.filter(c=>!c.error).length}/${D.cinemas.length} cinemas · `)+
   (gen?`<span title="${esc(full(gen))}">updated ${esc(when(gen))}</span>`:D.generated?'updated '+esc(D.generated):'');
 const bad=D.cinemas.map((c,i)=>[c,i]).filter(([c])=>c.error||c.stale);
@@ -45,7 +47,11 @@ if(bad.length){const nNew=bad.filter(([c])=>unf(c)).length,nErr=bad.filter(([c])
 
 // ---------- filter bar ----------
 const days=[...new Set(D.shows.map(s=>s.t.slice(0,10)))].sort();
-$('day').innerHTML='<option value="">All days</option>'+days.map(d=>`<option value="${d}">${dayName(d)}</option>`).join('');
+// with a long window the list opens on the next 2 weeks; a search still looks at every date, so a far-off film can be found
+if(days.length&&days[days.length-1]>SOON)S.day='soon';
+$('day').innerHTML=(S.day?'<option value="soon">Next 2 weeks</option>':'')+'<option value="">All days</option>'+
+  DT.months(days).map(([m,ds])=>`<optgroup label="${esc(m)}">`+ds.map(d=>`<option value="${d}">${dayLong(d)}</option>`).join('')+'</optgroup>').join('');
+$('day').value=S.day;
 const fc={},sc={};D.shows.forEach(s=>{s.x.forEach(x=>fc[x]=(fc[x]||0)+1);const st=screenType(s.x);sc[st]=(sc[st]||0)+1});
 $('fmt').innerHTML='<option value="">All formats</option><option value="*">Premium screens only</option>'+
   '<optgroup label="Screen type (exact)">'+Object.keys(sc).sort(stCmp).map(x=>`<option value="st:${esc(x)}">${esc(x)} (${sc[x]})</option>`).join('')+'</optgroup>'+
@@ -79,7 +85,7 @@ function render(){
   const q=S.q;
   const shows=D.shows.filter(s=>{const c=D.cinemas[s.c];
     if(!S.chains.has(c.chain))return false;
-    if(S.day&&s.t.slice(0,10)!==S.day)return false;
+    if(S.day==='soon'?!q&&s.t.slice(0,10)>SOON:S.day&&s.t.slice(0,10)!==S.day)return false;
     if(S.fmt==='*'&&screenType(s.x)==='Standard')return false;
     if(S.fmt.startsWith('st:')&&screenType(s.x)!==S.fmt.slice(3))return false;
     if(S.fmt.startsWith('tag:')&&!s.x.includes(S.fmt.slice(4)))return false;
@@ -100,7 +106,7 @@ function render(){
   }).sort((x,y)=>x.sort<y.sort?-1:x.sort>y.sort?1:0);
   const none=D.cinemas.map((c,i)=>i).filter(i=>{const c=D.cinemas[i];return !HAS.has(i)&&S.chains.has(c.chain)&&(!q||c.name.toLowerCase().includes(q)||(multi&&rgn(i).toLowerCase().includes(q)))});
   if(S.view==='cinema'){for(const i of none)cards.push({sort:i,none:i});cards.sort((x,y)=>x.sort-y.sort)}
-  $('count').textContent=`${cards.length} ${S.view==='film'?'films':'cinemas'} · ${shows.length.toLocaleString()} showings`;
+  $('count').textContent=`${cards.length} ${S.view==='film'?'films':'cinemas'} · ${shows.length.toLocaleString()} showings${S.day==='soon'&&q?' · all dates':''}`;
   const open=!!q||cards.length<=3;
   $('list').innerHTML=cards.length?'':'<div class="empty">Nothing matches.</div>';
   const frag=document.createDocumentFragment();

@@ -2,7 +2,7 @@
    CINEMA_PLANNER(D, L): D = the API's listings JSON, L = helpers returned by CINEMA_LISTINGS(D).
    Uses the globals SOLVER (solver.js, also stringified into a Blob Web Worker) and GROUTES (routes.js). */
 function CINEMA_PLANNER(D,L){
-const {screenType,isScreen,stCmp,pickAllows,esc,tagBadges,staleNote}=L,rgn=L.rgn||(()=>'');
+const {screenType,isScreen,stCmp,pickAllows,esc,tagBadges,staleNote}=L,rgn=L.rgn||(()=>''),DT=CINEMA_DATES();
 const $=id=>document.getElementById(id), PERDAY=5, LSK='fazon-cinema-planner', MODEK='fazon-cinema-mode';
 const store={get(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}},
              set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
@@ -21,7 +21,7 @@ const normPC=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 const fmtPC=s=>{s=normPC(s);return s.length>3?s.slice(0,-3)+' '+s.slice(-3):s};
 
 // ---------- static data ----------
-// The plan covers DAYS = start … start+len-1 (start: today … today+6, len 1–10), clamped to the data's D.from..D.to.
+// The plan covers DAYS = start … start+len-1 (start: any day with listings, len 1–10), clamped to the data's D.from..D.to.
 // DAYS, each showing's day index (SH[].di) and the film index FI are rebuilt by setWindow() whenever those change.
 const TD=(d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()))(new Date()),MAXLEN=10;   // today (local)
 // Pick limit: PERDAY films per planned day, capped at MAXP (5–47; the solver handles at most 47 films). Shortening the plan never deletes picks: the ones past the limit
@@ -29,7 +29,7 @@ const TD=(d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()))(new D
 const MAXP=47,limit=()=>Math.min(MAXP,Math.max(1,DAYS.length)*PERDAY);
 const ndays=n=>n+' day'+(n===1?'':'s');
 const D0=D.from>TD?D.from:TD,SOPT=[];   // first plannable day; start-date choices
-for(let d=D0;d<=dadd(TD,6)&&d<=D.to;d=dadd(d,1))SOPT.push(d);if(!SOPT.length&&D0<=D.to)SOPT.push(D0);
+SOPT.push(...DT.startDays(D.shows,D0,D.to));
 const NC=D.cinemas.length,NC1=NC+1,H=NC,CIDX=new Map(D.cinemas.map((c,i)=>[c.name,i]));
 const now=Date.now();
 const SH=D.shows.map((s,i)=>{const day=s.t.slice(0,10),st=toMin(s.t,day);
@@ -42,7 +42,7 @@ const EARLY=300;
 // A day's "Home by" in minutes from that day's midnight: past the leave time, or in those same small hours, it's the next morning.
 const homeBy=w=>{const e=parseHM(w.e)??0,l=parseHM(w.l)??1440;return l<=e||l<EARLY?l+1440:l};
 let DAYS=[],FI={},FILMS=[];
-function setWindow(){const s=PS.set;if(!SOPT.includes(s.start))s.start=SOPT[0]||TD;
+function setWindow(){const s=PS.set;s.start=DT.nearest(SOPT,s.start)||TD;
   s.len=Math.min(MAXLEN,Math.max(1,Math.round(+s.len)||7));
   DAYS=[];for(let i=0;i<s.len;i++){const d=dadd(s.start,i);if(d>D.to)break;DAYS.push(d)}
   const DI=new Map(DAYS.map((d,i)=>[d,i]));FI={};
@@ -289,14 +289,14 @@ $('picks').addEventListener('drop',e=>{if(dragI<0)return;const li=e.target.close
 $('picks').addEventListener('dragend',()=>{dragI=-1;clearDrag()});
 
 // ---------- settings: plan dates ----------
-$('pstart').innerHTML=SOPT.map(d=>`<option value="${d}">${esc(dayLbl(d))}${d===TD?' (today)':''}</option>`).join('');
+$('pstart').innerHTML=DT.months(SOPT).map(([m,ds])=>`<optgroup label="${esc(m)}">`+ds.map(d=>`<option value="${d}">${esc(dayLbl(d))}${d===TD?' (today)':''}</option>`).join('')+'</optgroup>').join('');
 $('plen').innerHTML=Array.from({length:MAXLEN},(_,i)=>`<option value="${i+1}">${i+1} day${i?'s':''}</option>`).join('');
 $('pstart').disabled=SOPT.length<2;
 function dateNote(){const s=PS.set,n=DAYS.length,el=$('pdnote');$('pstart').value=s.start;$('plen').value=s.len;
   if(!n){el.className='pcst bad';el.textContent='No upcoming listings to plan with.';return}
   const rng=n>1?dayLbl(DAYS[0])+' – '+dayLbl(DAYS[n-1]):dayLbl(DAYS[0]);
   const t=[n<s.len?`Listings only go up to ${dayLbl(D.to)}, so the plan covers ${n} day${n>1?'s':''} (${rng}).`:`Plan covers ${rng}.`];
-  if(DAYS[n-1]>dadd(TD,6))t.push('Cinemas publish less far ahead, so later days may have fewer listings yet.');
+  const far=DT.farNote(D,DAYS[n-1],TD);if(far)t.push(far);
   el.className='pcst';el.textContent=t.join(' ')}
 function winChange(){setWindow();dateNote();renderDays();renderGC();renderPicks();changed()}
 $('pstart').onchange=()=>{PS.set.start=$('pstart').value;winChange()};

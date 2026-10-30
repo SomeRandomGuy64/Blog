@@ -169,9 +169,20 @@ func Day(t time.Time) time.Time {
 // ParseDate parses "2006-01-02".
 func ParseDate(s string) (time.Time, error) { return time.Parse(DateFmt, s) }
 
-// DefaultDays is the default listings window, from today: the planner lets people start a plan up to
-// 6 days ahead and run it for up to 10 days.
-const DefaultDays = 16
+// Window sizes, from today. DefaultDays is the most any relay cinema is ever scraped for (see
+// Cinema.window) and what the CLIs default to: raising it raises the requests sent from the home
+// connection, so it stays put. ServerDays is what cinemad scrapes and serves; only cinemas scraped
+// from the server go that far, where ~4 weeks of programme and the big releases to week 8 are listed.
+const DefaultDays, ServerDays = 16, 56
+
+// DailyTo caps to for a fetcher that costs a request per day, so a longer window doesn't multiply
+// the traffic on the small sites behind them.
+func DailyTo(from, to time.Time) time.Time {
+	if c := from.AddDate(0, 0, DefaultDays-1); to.After(c) {
+		return c
+	}
+	return to
+}
 
 // Days lists every date from..to inclusive.
 func Days(from, to time.Time) []time.Time {
