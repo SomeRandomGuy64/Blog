@@ -69,11 +69,15 @@
           <label>Max single journey (min)<input type="number" id="pmaxl" min="5" max="300" step="5" placeholder="No limit"></label>
           <label class="wide">Goal<select id="pobj"><option value="most">Most films (then priority, then least travel)</option><option value="strict">Strict priority (a higher pick always wins)</option></select></label>
          </div>
-         <div class="ol" style="margin-top:12px">Google Maps API key <span class="meta">(optional, for real public-transport times)</span></div>
+         <div class="ol" style="margin-top:12px">How you travel</div>
+         <div class="tmode" id="ptm" role="radiogroup" aria-label="How you travel"><label class="chk"><input type="radio" name="ptm" value="T" checked> Public transport</label><label class="chk"><input type="radio" name="ptm" value="B"> Cycling</label><label class="chk"><input type="radio" name="ptm" value="D"> Driving</label></div>
+         <div class="tmode" id="ptav"><label class="chk"><input type="checkbox" id="pnotram"> Avoid trams</label><label class="chk"><input type="checkbox" id="pnotrain"> Avoid trains</label></div>
+         <div class="khelp" id="ptmst" role="status" hidden></div>
+         <div class="ol" style="margin-top:12px">Google Maps API key <span class="meta">(optional, for real journey times, cycling and driving)</span></div>
          <div class="srow"><input type="password" id="pkey" placeholder="Paste your own key" autocomplete="off" spellcheck="false" autocapitalize="off" aria-label="Google Maps API key" data-lpignore="true" data-1p-ignore>
           <button id="pkeyshow" type="button" aria-pressed="false">Show</button><button id="pkeyforget" type="button" title="Remove the key and the cached journey times from this browser">Forget key</button>
           <div class="pcst" id="pkeyst"></div></div>
-         <div class="khelp">Without a key, journeys are straight-line estimates. With one, the planner asks Google for bus/tram/train (and short walking) times for just the journeys it needs, straight from this browser, and caches them here for 30 days. The key is stored only in this browser. It needs the <b>Routes API</b> enabled on its Google Cloud project and must not be restricted to other APIs or websites that exclude this page. Requests count against <i>your</i> Google billing / free monthly allowance. <a href="https://developers.google.com/maps/documentation/routes/get-api-key" target="_blank" rel="noopener">How to get a key</a></div>
+         <div class="khelp">Without a key, journeys are straight-line estimates. With one, the planner asks Google for times by your chosen way of travelling (bus, tram and train with short walks, cycling, or driving) for just the journeys it needs, straight from this browser, and caches them here for 30 days, so switching back doesn’t pay for them twice. The key is stored only in this browser. It needs the <b>Routes API</b> enabled on its Google Cloud project and must not be restricted to other APIs or websites that exclude this page. Requests count against <i>your</i> Google billing / free monthly allowance. <a href="https://developers.google.com/maps/documentation/routes/get-api-key" target="_blank" rel="noopener">How to get a key</a></div>
         </div>
        </details>
        <button class="go" id="pgo">Plan my schedule</button>

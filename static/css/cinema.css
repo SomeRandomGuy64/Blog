@@ -203,6 +203,9 @@
 .cinema-app .srow input[type=text]{flex:1 1 120px;min-width:0;text-transform:uppercase}
 .cinema-app .chk{display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer}
 .cinema-app .pcst{font-size:12.5px;width:100%}
+.cinema-app .tmode{display:flex;flex-wrap:wrap;gap:4px 14px;margin:0 0 6px}
+.cinema-app .tmode[hidden]{display:none}
+.cinema-app .tmode .chk.off{opacity:.55;cursor:default}
 .cinema-app .pcst.ok{color:var(--ok)}
 .cinema-app .pcst.bad{color:var(--err)}
 .cinema-app .dtab{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 10px}

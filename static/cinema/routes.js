@@ -1,13 +1,20 @@
 /* Fazon Nexus · Cinema Planner — Google Routes API client (user-supplied key). */
 // Google Routes API "Compute Route Matrix" from the browser with the user's OWN key (sent only in a header; no key or
 // coordinates ever go in a URL). Self-contained so test_solver.js can drive it with a fake fetch.
-// run({key, pts:[{lat,lng}], need:[{i,j,t,w}] (t: TRANSIT wanted, w: WALK wanted), fetch, onProgress(done,total,note),
-//      onResult(mode 'T'|'W', i, j, minutes|null), depart?, sleep?, concurrency?}) -> {requests, error|null}
+// run({key, pts:[{lat,lng}], need:[{i,j,t,w}] (t: main mode wanted, w: WALK wanted), prof? (see prof(), default 'T'), fetch,
+//      onProgress(done,total,note), onResult(prof|'W', i, j, minutes|null), depart?, sleep?, concurrency?}) -> {requests, error|null}
 function GROUTES(){
 const URL_='https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix';
 const MASK='originIndex,destinationIndex,duration,condition,status';
 const MODES=['BUS','LIGHT_RAIL','RAIL'];   // TransitTravelMode: RAIL = TRAIN + SUBWAY + LIGHT_RAIL; LIGHT_RAIL = tram
-const MAX_TRANSIT=100,MAX_OTHER=625;        // documented per-request element caps (origins x destinations)
+// Travel profile: names a set of times, so it is also the cache prefix. 'T' is the original key, which keeps old cached
+// times valid. Google documents allowedTravelModes as preferred modes: a route may still use others, and a matrix
+// response has no steps to check that with.
+const ALLOW={T:MODES,Tt:['BUS','SUBWAY','TRAIN'],Tr:['BUS','SUBWAY','LIGHT_RAIL'],Ttr:['BUS','SUBWAY']};
+const prof=(mode,noTram,noTrain)=>mode==='B'||mode==='D'?mode:'T'+(noTram?'t':'')+(noTrain?'r':'');
+const walks=p=>p[0]==='T';                  // only transit takes WALK as an alternative: a bike or car has to come along
+const MAX_TRANSIT=100,MAX_OTHER=625;        // documented per-request element caps (origins x destinations); 100 also
+                                            // applies to TRAFFIC_AWARE_OPTIMAL, which BICYCLE/DRIVE never ask for
 const WALK_KM=3,PER_MIN=2500;               // also ask for WALK below 3 km; stay under the 3,000 elements/min quota
 const hav=(a,b)=>{const r=Math.PI/180,x=Math.sin((b.lat-a.lat)*r/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin((b.lng-a.lng)*r/2)**2;return 12742*Math.asin(Math.sqrt(x))};
 const near=(a,b)=>hav(a,b)<WALK_KM;
@@ -15,13 +22,14 @@ const wp=p=>({waypoint:{location:{latLng:{latitude:p.lat,longitude:p.lng}}}});
 // tomorrow 17:00 local time, RFC 3339 UTC — a representative early-evening departure
 function departure(now){const d=new Date(now==null?Date.now():now);d.setDate(d.getDate()+1);d.setHours(17,0,0,0);return d.toISOString().replace(/\.\d{3}Z$/,'Z')}
 // one origin per request (only missing pairs are billed); destinations chunked to the element cap
-function requests(need,pts,depart){const by=new Map();
-  for(const n of need){const o=by.get(n.i)||by.set(n.i,{t:[],w:[]}).get(n.i);if(n.t)o.t.push(n.j);if(n.w)o.w.push(n.j)}
+// BICYCLE/DRIVE send no departureTime or routingPreference: that is TRAFFIC_UNAWARE, so times ignore live traffic
+function requests(need,pts,depart,p='T'){const by=new Map(),tr=walks(p),cap=tr?MAX_TRANSIT:MAX_OTHER;
+  const how=tr?{travelMode:'TRANSIT',departureTime:depart,transitPreferences:{allowedTravelModes:ALLOW[p]}}:{travelMode:p==='B'?'BICYCLE':'DRIVE'};
+  for(const n of need){const o=by.get(n.i)||by.set(n.i,{t:[],w:[]}).get(n.i);if(n.t)o.t.push(n.j);if(n.w&&tr)o.w.push(n.j)}
   const out=[];
   for(const [i,{t,w}] of [...by.entries()].sort((a,b)=>a[0]-b[0])){
-    for(let k=0;k<t.length;k+=MAX_TRANSIT){const d=t.slice(k,k+MAX_TRANSIT);
-      out.push({mode:'T',i,dests:d,body:{origins:[wp(pts[i])],destinations:d.map(j=>wp(pts[j])),travelMode:'TRANSIT',
-        departureTime:depart,transitPreferences:{allowedTravelModes:MODES}}})}
+    for(let k=0;k<t.length;k+=cap){const d=t.slice(k,k+cap);
+      out.push({mode:p,i,dests:d,body:{origins:[wp(pts[i])],destinations:d.map(j=>wp(pts[j])),...how}})}
     for(let k=0;k<w.length;k+=MAX_OTHER){const d=w.slice(k,k+MAX_OTHER);
       out.push({mode:'W',i,dests:d,body:{origins:[wp(pts[i])],destinations:d.map(j=>wp(pts[j])),travelMode:'WALK'}})}}
   return out}
@@ -44,7 +52,7 @@ function parse(els,nd){const m=new Map();
 const errText=(status,body)=>{let msg='';try{const j=JSON.parse(body),e=Array.isArray(j)?j[0]&&j[0].error:j.error;msg=e&&(e.message||e.status)||''}catch(x){}
   return msg.replace(/\s+/g,' ').slice(0,220).replace(/[.\s]+$/,'')};
 async function run(o){const f=o.fetch,sleep=o.sleep||(ms=>new Promise(r=>setTimeout(r,ms))),prog=o.onProgress||(()=>{});
-  const reqs=requests(o.need,o.pts,o.depart||departure()),N=reqs.length;let done=0,next=0,fatal=null,soft=null;const win=[];
+  const reqs=requests(o.need,o.pts,o.depart||departure(),o.prof||'T'),N=reqs.length;let done=0,next=0,fatal=null,soft=null;const win=[];
   prog(0,N);
   async function one(q){const n=q.dests.length;
     for(;;){const now=Date.now();while(win.length&&now-win[0][0]>60000)win.shift();   // per-minute element budget
@@ -69,4 +77,4 @@ async function run(o){const f=o.fetch,sleep=o.sleep||(ms=>new Promise(r=>setTime
     while(!fatal&&next<N){const q=reqs[next++];await one(q);done++;prog(done,N)}});
   await Promise.all(workers);
   return {requests:N,error:fatal||soft||null}}
-return {run,requests,elements,parse,departure,near,URL:URL_,MASK,MODES}}
+return {run,requests,elements,parse,departure,near,prof,walks,URL:URL_,MASK,MODES}}

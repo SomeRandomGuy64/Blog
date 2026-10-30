@@ -3,7 +3,7 @@
 // (Lives outside static/ so Hugo never publishes it.)
 const fs = globalThis.Deno ? null : await import('node:fs');
 const read = f => { const u = new URL('../static/cinema/' + f, import.meta.url); return fs ? fs.readFileSync(u, 'utf8') : Deno.readTextFileSync(u); };
-const FILES = { SOLVER: read('solver.js'), ST: read('screentypes.js'), ROUTES: read('routes.js') };
+const FILES = { SOLVER: read('solver.js'), ST: read('screentypes.js'), ROUTES: read('routes.js'), DATES: read('dates.js'), PLANNER: read('planner.js') };
 const src = FILES.SOLVER;
 const SOLVER = new Function(src + '\nreturn SOLVER;')();
 // the Web Worker is built from SOLVER.toString(): make sure that stringified source works on its own too
@@ -293,5 +293,86 @@ for (const mode of ['most', 'strict']) {
   ok(/Couldn’t reach/.test(rnet.error), 'routes: network/CORS failure reported');
   const r400 = await G.run({ key: 'K', pts, need: [{ i: 0, j: 1, t: true, w: false }], fetch: async () => ({ ok: false, status: 400, text: async () => '[{"error":{"code":400,"message":"API key not valid. Please pass a valid API key.","status":"INVALID_ARGUMENT"}}]' }), sleep: async () => {} });
   ok(/HTTP 400: API key not valid/.test(r400.error), 'routes: 400 bad key message');
+}
+// 11) travel choices: request bodies per mode and avoidance, element caps, no walking for bike or car
+{ const xs = s => FILES[s];
+  const G = new Function(xs('ROUTES') + '\nreturn GROUTES;')()();
+  const pts = Array.from({ length: 701 }, (_, i) => ({ lat: 53.4 + i * 0.0001, lng: -2.2 }));
+  const need = []; for (let j = 1; j < 701; j++) need.push({ i: 0, j, t: true, w: true });
+  const dep = '2026-10-08T16:00:00Z', ask = p => G.requests(need, pts, dep, p), allow = p => ask(p).find(q => q.body.travelMode === 'TRANSIT').body.transitPreferences.allowedTravelModes.join();
+  ok(G.prof('T') === 'T' && G.prof('T', false, false) === 'T', 'travel: plain transit keeps the old "T" cache prefix');
+  ok(new Set([G.prof('T', 1, 0), G.prof('T', 0, 1), G.prof('T', 1, 1), G.prof('B'), G.prof('D'), 'T', 'W']).size === 7, 'travel: every choice has its own cache prefix');
+  ok(G.prof('B', true, true) === 'B' && G.prof('D', true, false) === 'D', 'travel: avoidance is ignored for cycling and driving');
+  ok(allow('T') === 'BUS,LIGHT_RAIL,RAIL' && JSON.stringify(ask('T')) === JSON.stringify(G.requests(need, pts, dep)), 'travel: no avoidance = the original request');
+  ok(allow(G.prof('T', true, false)) === 'BUS,SUBWAY,TRAIN', 'travel: avoid trams = BUS,SUBWAY,TRAIN (no LIGHT_RAIL, no RAIL)');
+  ok(allow(G.prof('T', false, true)) === 'BUS,SUBWAY,LIGHT_RAIL', 'travel: avoid trains = BUS,SUBWAY,LIGHT_RAIL (no TRAIN, no RAIL)');
+  ok(allow(G.prof('T', true, true)) === 'BUS,SUBWAY', 'travel: avoid both = BUS,SUBWAY');
+  ok(ask('Ttr').filter(q => q.body.travelMode === 'WALK').length > 0 && ask('Ttr').filter(q => q.mode === 'Ttr').every(q => q.body.departureTime === dep && q.dests.length <= 100), 'travel: avoidance keeps WALK, departureTime and the 100-element cap');
+  for (const [p, tm] of [['B', 'BICYCLE'], ['D', 'DRIVE']]) { const q = ask(p);
+    ok(q.length === 2 && q.every(r => r.mode === p && r.body.travelMode === tm) && q.map(r => r.dests.length).join() === '625,75', `travel: ${tm} only, chunked to 625 elements per request ${q.map(r => r.dests.length)}`);
+    ok(q.every(r => !('transitPreferences' in r.body) && !('departureTime' in r.body) && !('routingPreference' in r.body)), `travel: ${tm} sends no transit fields, departureTime or routingPreference`); }
+  const seen = [], modes = []; const r = await G.run({ key: 'TESTKEY', pts, need: need.slice(0, 2), prof: 'B', depart: dep, sleep: async () => {},
+    fetch: async (u, o) => { modes.push(JSON.parse(o.body).travelMode); return { ok: true, status: 200, text: async () => '[{"condition":"ROUTE_EXISTS","duration":"125s"},{"destinationIndex":1,"condition":"ROUTE_EXISTS","duration":"60s"}]' }; },
+    onResult: (m, i, j, v) => seen.push(m + j + '=' + v) });
+  ok(r.error === null && modes.join() === 'BICYCLE' && seen.join() === 'B1=3,B2=1', 'travel: run() reports under the profile, ignores w for bike/car ' + seen);
+}
+// 12) planner.js with a stub page and fake Routes API: cache keys, fetching only what's missing, wording (no real key or API)
+{ class El { constructor(id) { this.id = id; this.dataset = {}; this.style = {}; this.innerHTML = ''; this.textContent = ''; this.value = ''; this.children = []; this.parentNode = {}; this.parentNode.classList = this.classList = { add() {}, remove() {}, toggle() {} }; }
+    querySelector() { return null; } querySelectorAll() { return this.id === 'ptm' ? RAD : []; } addEventListener() {} setAttribute() {} insertAdjacentHTML() {} before() {} scrollIntoView() {} }
+  const RAD = ['T', 'B', 'D'].map(v => { const e = new El('r' + v); e.value = v; return e; });
+  const iso = (d, h) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + 'T' + h + ':00';
+  const day = new Date(Date.now() + 864e5), today = iso(day, '00:00').slice(0, 10);
+  const D = () => ({ from: today, to: today, films: { a: 'Film A', b: 'Film B' }, cinemas: [{ name: 'One', chain: 'X', lat: 53.48, lng: -2.24 }, { name: 'Two', chain: 'X', lat: 53.49, lng: -2.24 }],
+    shows: [{ k: 'a', c: 0, t: iso(day, '12:00'), e: iso(day, '14:00'), d: 110, x: [] }, { k: 'b', c: 1, t: iso(day, '18:00'), e: iso(day, '20:00'), d: 110, x: [] }] });
+  const L = { screenType: () => 'Standard', isScreen: () => false, stCmp: () => 0, pickAllows: () => true, esc: String, tagBadges: () => '', staleNote: () => '' };
+  const LS = new Map([['fazon-cinema-gkey', 'TESTKEY'], ['fazon-cinema-planner', JSON.stringify({ picks: [{ k: 'a' }, { k: 'b' }], set: { pc: 'M1 1AE', geo: { pc: 'M1 1AE', lat: 53.47, lng: -2.24 } } })]]);
+  const localStorage = { getItem: k => LS.has(k) ? LS.get(k) : null, setItem: (k, v) => void LS.set(k, String(v)), removeItem: k => void LS.delete(k) };
+  const MINS = { TRANSIT: 20, WALK: 99, BICYCLE: 11, DRIVE: 7 }; let calls = [], noBike = false;
+  const fetch = async (u, o) => { if (!u.startsWith('https://routes.googleapis.com/')) throw new Error('unexpected fetch ' + u); const b = JSON.parse(o.body); calls.push(b);
+    const v = b.destinations.map((_, k) => noBike && b.travelMode === 'BICYCLE' ? { destinationIndex: k, condition: 'ROUTE_NOT_FOUND' } : { destinationIndex: k, condition: 'ROUTE_EXISTS', duration: MINS[b.travelMode] * 60 + 's' });
+    return { ok: true, status: 200, text: async () => JSON.stringify(v) }; };
+  const boot = () => { const els = new Map(), document = { getElementById: id => els.get(id) || els.set(id, new El(id)).get(id), createElement: () => new El('') };
+    const window = { matchMedia: () => ({ matches: false }) }, location = { hash: '', search: '', pathname: '/' }, history = { replaceState() {} };
+    document.getElementById('mode').children = [];
+    new Function('document', 'localStorage', 'window', 'fetch', 'location', 'history', 'Worker', [FILES.DATES, FILES.SOLVER, FILES.ROUTES, FILES.PLANNER, 'return CINEMA_PLANNER;'].join('\n'))(document, localStorage, window, fetch, location, history, undefined)(D(), L);
+    return document.getElementById; };
+  let $ = boot();
+  const plan = async () => { calls = []; await $('pgo').onclick(); return calls.map(b => b.travelMode); };
+  const mode = v => { RAD.forEach(r => r.checked = r.value === v); $('ptm').onchange({ target: { value: v } }); };
+  const box = (id, v) => $(id).onchange({ target: { checked: v } });
+  const keys = () => Object.keys(JSON.parse(LS.get('fazon-cinema-gtimes') || '{}')), prefixes = () => [...new Set(keys().map(k => k.split('|')[0]))].sort().join();
+  const pre = await plan(), legs = pre.filter(m => m === 'TRANSIT').length;
+  ok(legs === 3 && pre.includes('WALK') && prefixes() === 'T,W', 'plan: public transport fetched under the old T| and W| keys ' + prefixes());
+  ok(/Using Google transit times for every journey/.test($('pbanner').innerHTML) && /travelmode=transit/.test($('pout').innerHTML) && !/ cycle| drive/.test($('pout').innerHTML), 'plan: transit wording and links');
+  $ = boot();
+  ok((await plan()).length === 0 && /20 min to Two/.test($('pout').innerHTML), 'plan: a fresh page reuses cached transit times, nothing re-billed');
+  box('pnotram', true);
+  ok(/will be fetched/.test($('pbanner').innerHTML) && /avoiding trams where possible/.test($('pbanner').innerHTML) && /preference/.test($('ptmst').textContent), 'plan: avoid trams wording says where possible');
+  let m = await plan();
+  ok(m.length === legs && m.every(x => x === 'TRANSIT') && calls.every(b => b.transitPreferences.allowedTravelModes.join() === 'BUS,SUBWAY,TRAIN'), 'plan: avoid trams fetches its own transit times, walking stays cached');
+  box('pnotrain', true); await plan();
+  ok(calls.length === legs && calls.every(b => b.transitPreferences.allowedTravelModes.join() === 'BUS,SUBWAY'), 'plan: avoid both fetches again');
+  box('pnotram', false); box('pnotrain', false);
+  ok((await plan()).length === 0, 'plan: unticking goes back to the cached times with no requests');
+  mode('B'); m = await plan();
+  ok(m.length === legs && m.every(x => x === 'BICYCLE') && !calls.some(b => b.transitPreferences), 'plan: cycling asks for BICYCLE only, no WALK');
+  ok(/11 min cycle to Two/.test($('pout').innerHTML) && /11 min cycle home/.test($('pout').innerHTML) && /travelmode=bicycling/.test($('pout').innerHTML) && !/travelmode=transit/.test($('pout').innerHTML), 'plan: cycling legs labelled, Maps links match');
+  ok(/Using Google cycling times for every journey/.test($('pbanner').innerHTML), 'plan: cycling banner');
+  mode('D'); m = await plan();
+  ok(m.length === legs && m.every(x => x === 'DRIVE') && /7 min drive to Two/.test($('pout').innerHTML) && /travelmode=driving/.test($('pout').innerHTML) && /traffic or parking/.test($('ptmst').textContent), 'plan: driving requests, labels, links, note');
+  mode('T');
+  ok((await plan()).length === 0 && /20 min to Two/.test($('pout').innerHTML), 'plan: back to public transport never reuses bike or car times');
+  ok(prefixes() === 'B,D,T,Ttr,Tt,W'.split(',').sort().join(), 'plan: cache holds one set per choice ' + prefixes());
+  // no route by bike: the fallback is marked and named for what it is
+  const c0 = JSON.parse(LS.get('fazon-cinema-gtimes')); for (const k in c0) if (k.startsWith('B|')) delete c0[k]; LS.set('fazon-cinema-gtimes', JSON.stringify(c0));
+  $ = boot(); noBike = true; mode('B'); await plan(); noBike = false;
+  ok(/~\d+( h)?( \d+)?( min)? \(public transport estimate\) to Two/.test($('pout').innerHTML) && !/ cycle/.test($('pout').innerHTML) && /straight-line public transport estimates/.test($('pbanner').innerHTML), 'plan: bike fallback says public transport estimate, not cycle');
+  // forgetting the key: public transport estimates only, bike and car off, saved choice kept for later
+  $('pkey').value = ''; $('pkey').onchange();
+  ok(RAD.find(r => r.value === 'T').checked && RAD.filter(r => r.value !== 'T').every(r => r.disabled && !r.checked) && $('pnotram').disabled && $('pnotrain').disabled, 'plan: without a key bike/car/avoid are disabled');
+  ok(/need a Google Maps key/.test($('ptmst').textContent) && /public transport estimates/.test($('pbanner').innerHTML) && (await plan()).length === 0, 'plan: without a key there is a note and no requests');
+  ok(JSON.parse(LS.get('fazon-cinema-planner')).set.travel === 'B', 'plan: saved choice survives for when a key returns');
+  $ = boot();
+  ok(!$('ptav').hidden && RAD.find(r => r.value === 'T').checked && /public transport and walking/.test($('pout').innerHTML), 'plan: a fresh keyless page opens on public transport');
 }
 console.log(fails ? fails + ' FAILED' : 'ALL PASSED');

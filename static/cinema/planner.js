@@ -56,8 +56,9 @@ const title=k=>D.films[k]||k;
 
 // ---------- travel ----------
 // Built-in times are straight-line estimates (D.travel.mins uses the same formula as estMin). With the user's own
-// Google Maps key (Settings), real public-transport times are fetched in the browser for exactly the legs a plan
-// needs and cached in localStorage; every leg carries a flag saying whether it is an estimate (shown with ~).
+// Google Maps key (Settings), real times for the chosen way of travelling are fetched in the browser for exactly the
+// legs a plan needs and cached in localStorage; every leg carries a flag saying whether it is an estimate (shown with ~).
+// Estimates are public transport whatever the choice, which is why cycling, driving and avoidance need a key.
 const TV=D.travel||null, EST=Object.assign({walk_km_max:1.5,walk_min_per_km:17,transit_base_min:15,transit_min_per_km:2.6},(TV&&TV.estimate)||{});
 const hav=(a,b,c,d)=>{const r=Math.PI/180,x=Math.sin((c-a)*r/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin((d-b)*r/2)**2;return 12742*Math.asin(Math.sqrt(x))};
 const estMin=km=>Math.round(km<EST.walk_km_max?km*EST.walk_min_per_km:EST.transit_base_min+km*EST.transit_min_per_km);
@@ -81,16 +82,17 @@ function homeTravel(){
       to[c]=typeof a==='number'?Math.round(a):-1;fr[c]=typeof b==='number'?Math.round(b):-1}}
   for(let c=0;c<NC;c++){const C=CLL[c];if(C&&to[c]<0&&fr[c]<0)to[c]=fr[c]=estMin(hav(g.lat,g.lng,C.lat,C.lng))}
   return {to,fr,lat:g.lat,lng:g.lng}}
-// Google times cache: {"T|lat,lng>lat,lng": [minutes|null (no route), day]} (+ "W|…" walking for short hops)
+// Google times cache: {"T|lat,lng>lat,lng": [minutes|null (no route), day]} (+ "W|…" walking for short hops). The prefix
+// is the travel profile (routes.js prof()): T, Tt/Tr/Ttr (avoiding trams/trains), B cycling, D driving. tp = the one in use.
 const GK='fazon-cinema-gkey',GC='fazon-cinema-gtimes',GTTL=30,TODAY=Math.floor(Date.now()/864e5);
 const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
 const lsSet=(k,v)=>{try{if(v==null)localStorage.removeItem(k);else localStorage.setItem(k,v);return true}catch(e){return false}};
-let gkey=String(lsGet(GK)||'').trim(),gErr=null,gBusy=false;
+let gkey=String(lsGet(GK)||'').trim(),gErr=null,gBusy=false,tp='T';
 let GCACHE=store.get(GC);if(!GCACHE||typeof GCACHE!=='object'||Array.isArray(GCACHE))GCACHE={};
 const llk=p=>p.lat.toFixed(4)+','+p.lng.toFixed(4);
 const gk=(m,A,B)=>m+'|'+llk(A)+'>'+llk(B);
 const gHit=k=>{const v=GCACHE[k];return Array.isArray(v)&&TODAY-v[1]<=GTTL&&(v[0]===null||typeof v[0]==='number')?v:null};
-function gGet(A,B){if(!gkey)return undefined;const t=gHit(gk('T',A,B));if(!t)return undefined;const w=gHit(gk('W',A,B));
+function gGet(A,B){if(!gkey)return undefined;const t=gHit(gk(tp,A,B));if(!t)return undefined;const w=tp[0]==='T'&&gHit(gk('W',A,B));
   const vs=[t[0],w&&w[0]].filter(v=>typeof v==='number');return vs.length?Math.min(...vs):null}  // null: no route -> estimate
 function gSave(){const ks=Object.keys(GCACHE);
   for(const k of ks)if(!gHit(k))delete GCACHE[k];
@@ -110,7 +112,7 @@ function rawTravel(ht){const T=new Int32Array(NC1*NC1).fill(-1),E=new Uint8Array
 
 // ---------- persisted state ----------
 // availability: set.days[0..6] = per-weekday template, set.dates["YYYY-MM-DD"] = a date the user edited (wins)
-const DEF={days:{},dates:{},start:'',len:7,buf:10,late:0,maxDay:'',maxLeg:'',obj:'most',pc:'',geo:null,gc:{},noHome:false,cin:[],ch:[],st:[],ads:{}};
+const DEF={days:{},dates:{},start:'',len:7,buf:10,late:0,maxDay:'',maxLeg:'',obj:'most',pc:'',geo:null,gc:{},noHome:false,cin:[],ch:[],st:[],ads:{},travel:'T',noTram:false,noTrain:false};
 for(let w=0;w<7;w++)DEF.days[w]={on:true,e:'10:00',l:'00:00'};
 const saved=store.get(LSK)||{};
 const PS={picks:[],set:Object.assign({},DEF,saved.set||{})};
@@ -144,6 +146,13 @@ if(Array.isArray(saved.picks))for(const p of saved.picks.slice(0,MAXP))if(p&&typ
 setWindow();
 if(!PS.set.pc&&D.home&&D.home.postcode&&hasLL(D.home)){PS.set.pc=fmtPC(D.home.postcode);
   PS.set.geo={pc:PS.set.pc,lat:D.home.lat,lng:D.home.lng,area:(D.home.label||'').replace(/\s*\([^)]*\)\s*$/,'')||'Home'}}
+// how you travel (Settings): without a key it's public transport with no avoidance, whatever is saved for when one returns
+if(!['T','B','D'].includes(PS.set.travel))PS.set.travel='T';
+const tmSync=()=>{const s=PS.set;tp=GROUTES().prof(gkey?s.travel:'T',gkey&&s.noTram,gkey&&s.noTrain)};
+tmSync();
+const tAvoid=p=>p==='Tt'?'trams':p==='Tr'?'trains':'trams and trains';
+const tName=p=>p==='B'?'Google cycling times':p==='D'?'Google driving times':'Google transit times'+(p==='T'?'':` (avoiding ${tAvoid(p)} where possible)`);
+const estW=p=>p==='T'?'straight-line estimates':p[0]==='T'?`straight-line estimates that can’t avoid ${tAvoid(p)}`:'straight-line public transport estimates';
 const OPEN=new Set();let lastRes=null,dirty=false;
 function save(){store.set(LSK,{picks:PS.picks,set:PS.set})}
 function changed(){save();if(lastRes&&!dirty){dirty=true;$('pout').classList.add('stale');
@@ -161,10 +170,10 @@ setMode(Object.keys(HASH).find(k=>HASH[k]===location.hash)||store.get(MODEK)||'l
 // ---------- banner ----------
 function banner(){const msgs=[],L=lastRes&&!dirty&&lastRes.legs;
   if(gErr)msgs.push(['err',gErr]);
-  if(!gkey)msgs.push(['','Travel times are straight-line estimates (shown with ~). Add your own Google Maps API key in Settings for real public-transport times.']);
-  else if(L&&L.n&&!L.est)msgs.push(['ok','Using Google transit times for every journey in this plan.']);
-  else if(L&&L.est&&!(gErr&&L.est===L.n))msgs.push(['',`Using Google transit times, except ${L.est} of ${L.n} journeys (marked ~) that are straight-line estimates because Google found no route or couldn’t be reached.`]);
-  else if(!L)msgs.push(['ok','Google transit times will be fetched for the journeys your plan needs (cached in this browser).']);
+  if(!gkey)msgs.push(['','Travel times are straight-line public transport estimates (shown with ~). Add your own Google Maps API key in Settings for real public transport, cycling or driving times.']);
+  else if(L&&L.n&&!L.est)msgs.push(['ok',`Using ${tName(tp)} for every journey in this plan.`]);
+  else if(L&&L.est&&!(gErr&&L.est===L.n))msgs.push(['',`Using ${tName(tp)}, except ${L.est} of ${L.n} journeys (marked ~) that are ${estW(tp)} because Google found no route or couldn’t be reached.`]);
+  else if(!L)msgs.push(['ok',`${tName(tp)} will be fetched for the journeys your plan needs (cached in this browser).`]);
   $('pbanner').innerHTML=msgs.map(([c,m])=>`<div class="banner ${c}">${esc(m)}</div>`).join('')}
 
 // ---------- picker ----------
@@ -410,12 +419,24 @@ function updGo(){const ht=homeTravel(),n=PS.picks.filter(p=>FI[p.k]).length;
 function keyStatus(){const el=$('pkeyst'),n=Object.keys(GCACHE).length;$('pkeyforget').disabled=!gkey&&!n;
   el.className='pcst'+(gkey?' ok':'');
   el.textContent=gkey?`✓ Key saved in this browser only${n?` · ${n} cached journey time${n>1?'s':''}`:''}.`:n?`${n} cached journey times (unused without a key).`:''}
-function setKey(v){v=String(v||'').trim();if(v===gkey)return;gkey=v;lsSet(GK,v||null);gErr=null;keyStatus();changed();renderGC();renderPicks();banner()}
+function setKey(v){v=String(v||'').trim();if(v===gkey)return;gkey=v;lsSet(GK,v||null);keyStatus();tmChanged()}
 $('pkey').value=gkey;
 $('pkey').onchange=()=>setKey($('pkey').value);
 $('pkey').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();setKey($('pkey').value)}};
 $('pkeyshow').onclick=()=>{const k=$('pkey'),show=k.type==='password';k.type=show?'text':'password';$('pkeyshow').textContent=show?'Hide':'Show';$('pkeyshow').setAttribute('aria-pressed',show)};
 $('pkeyforget').onclick=()=>{$('pkey').value='';GCACHE={};lsSet(GC,null);gkey='x';setKey('')};
+// how you travel: changing it swaps which cached times count; the next plan fetches only what that choice lacks
+function tmUI(){const s=PS.set,on=gkey?s.travel:'T',el=$('ptmst');
+  $('ptm').querySelectorAll('input').forEach(r=>{r.disabled=r.value!=='T'&&!gkey;r.checked=r.value===on;r.parentNode.classList.toggle('off',r.disabled)});
+  $('ptav').hidden=on!=='T';
+  for(const [id,k] of [['pnotram','noTram'],['pnotrain','noTrain']]){$(id).disabled=!gkey;$(id).checked=!!gkey&&s[k];$(id).parentNode.classList.toggle('off',!gkey)}
+  el.textContent=!gkey?'Cycling, driving and avoiding trams or trains need a Google Maps key (below): the built-in estimates are public transport only and can’t tell trams from trains.'
+    :tp==='D'?'Driving times don’t include traffic or parking, so allow for those in your buffer.'
+    :tp==='T'||tp==='B'?'':`Google treats this as a preference, so a journey can still use ${tAvoid(tp)} when there’s no practical alternative, and “route” links in Google Maps may suggest them.`;
+  el.hidden=!el.textContent}
+function tmChanged(){gErr=null;tmSync();tmUI();emptyOut();changed();renderGC();renderPicks();banner()}
+$('ptm').onchange=e=>{PS.set.travel=e.target.value;tmChanged()};
+for(const [id,k] of [['pnotram','noTram'],['pnotrain','noTrain']])$(id).onchange=e=>{PS.set[k]=e.target.checked;tmChanged()};
 
 // ---------- solver plumbing ----------
 let running=false,worker=null,noWorker=false;
@@ -444,25 +465,25 @@ function buildProblem(){const s=PS.set,maxLeg=+s.maxLeg||0,ht=homeTravel();
     for(const h of per[pi]){const w=win[h.di],a=T[H*NC1+h.c],b=T[h.c*NC1+H];if(a<0||b<0)continue;
       if(w.e+a>h.st+late)continue;if(h.en+buf+b>w.l){r.homeBy++;r.hb.push(h);continue}r.win++;days[h.di].push({i:h.i,c:h.c,st:h.st,en:h.en})}
     if(!r.match)r.reason='constraints';else if(!r.win)r.reason='window';else{r.si=films.length;films.push({days})}});
-  return {P:{films,win,T,nc:NC,buf,late,maxDay:+s.maxDay||0,mode:s.obj,budget:budgetFor(films.length)},info,ht,win,T,E,buf,late,mode:s.obj,days:DAYS,lim:limit()}}
-// fetch Google transit/walk times for every leg among home + cinemas with candidate showings that isn't cached yet
+  return {P:{films,win,T,nc:NC,buf,late,maxDay:+s.maxDay||0,mode:s.obj,budget:budgetFor(films.length)},info,ht,win,T,E,buf,late,mode:s.obj,days:DAYS,lim:limit(),tp}}
+// fetch Google times (plus walking, for transit) for every leg among home + cinemas with candidate showings that isn't cached yet
 async function fetchTimes(ht){const {used,per,buf,late}=candidates(),cs=[...used].filter(c=>CLL[c]),nodes=cs.map(c=>CLL[c]),h=HLL(ht);
   // cinema a -> b can only be used if, on some day, a candidate showing at a ends (plus buffer) before one at b starts
   const ND=DAYS.length,minEn=new Float64Array(NC*ND).fill(Infinity),maxSt=new Float64Array(NC*ND).fill(-Infinity);
   for(const L of per)for(const x of L){const i=x.c*ND+x.di;if(x.en<minEn[i])minEn[i]=x.en;if(x.st>maxSt[i])maxSt[i]=x.st}
   const link=(a,b)=>{for(let d=0;d<ND;d++)if(minEn[a*ND+d]+buf<=maxSt[b*ND+d]+late)return true;return false};
   if(h)nodes.push(h);
-  const G=GROUTES(),need=[];
+  const G=GROUTES(),need=[],p=tp;   // p: results are filed under the choice they were asked for, even if it changes meanwhile
   for(let i=0;i<nodes.length;i++)for(let j=0;j<nodes.length;j++){if(i===j)continue;const A=nodes[i],B=nodes[j];
     if(i<cs.length&&j<cs.length&&!link(cs[i],cs[j]))continue;
-    const t=!gHit(gk('T',A,B)),w=G.near(A,B)&&!gHit(gk('W',A,B));if(t||w)need.push({i,j,t,w})}
+    const t=!gHit(gk(p,A,B)),w=G.walks(p)&&G.near(A,B)&&!gHit(gk('W',A,B));if(t||w)need.push({i,j,t,w})}
   if(!need.length){gErr=null;return}
   gBusy=true;const prog=(d,n,note)=>{$('pgo').textContent=`Fetching travel times… ${d}/${n}${note?' ('+note+')':''}`};
   let k=0;
-  const res=await G.run({key:gkey,pts:nodes,need,fetch:(u,o)=>fetch(u,o),onProgress:prog,
+  const res=await G.run({key:gkey,pts:nodes,need,prof:p,fetch:(u,o)=>fetch(u,o),onProgress:prog,
     onResult:(m,i,j,v)=>{GCACHE[gk(m,nodes[i],nodes[j])]=[v,TODAY];if(++k%200===0)gSave()}});
   gSave();gBusy=false;keyStatus();
-  gErr=res.error?res.error+' Using straight-line estimates for the journeys that are missing.':null}
+  gErr=res.error?`${res.error} Using ${estW(p)} for the journeys that are missing.`:null}
 function solveAsync(P){return new Promise(res=>{
   const local=()=>setTimeout(()=>{let r;try{r=SOLVER().solve(P)}catch(err){r={error:String(err)}}res(r)},20);
   if(noWorker||typeof Worker==='undefined')return local();
@@ -473,28 +494,30 @@ function solveAsync(P){return new Promise(res=>{
     worker.postMessage(P)}catch(err){noWorker=true;worker=null;local()}})}
 $('pgo').onclick=async()=>{if(running)return;const ht0=homeTravel();if(!ht0)return;
   running=true;updGo();const t=performance.now();
-  if(gkey)try{await fetchTimes(ht0)}catch(err){gBusy=false;gErr='Couldn’t fetch Google travel times ('+String(err&&err.message||err)+'). Using straight-line estimates.'}
+  if(gkey)try{await fetchTimes(ht0)}catch(err){gBusy=false;gErr=`Couldn’t fetch Google travel times (${String(err&&err.message||err)}). Using ${estW(tp)}.`}
   if(gkey&&OPEN.size)renderPicks();updGo();const ctx=buildProblem();
   const r=ctx.P.films.length?await solveAsync(ctx.P):{status:'optimal',days:[],chosen:[],unfit:{},ms:0,nodes:0};
   r.wall=performance.now()-t;running=false;lastRes={r,ctx};dirty=false;$('pout').classList.remove('stale');renderResult();updGo();
   if(window.matchMedia('(max-width:820px)').matches)$('pout').scrollIntoView({behavior:'smooth',block:'start'})};
 
 // ---------- results ----------
-const gmap=(o,d)=>'https://www.google.com/maps/dir/?api=1'+(o?'&origin='+o.lat+','+o.lng:'')+(d?'&destination='+d.lat+','+d.lng:'')+'&travelmode=transit';
+const gmap=(o,d,p)=>'https://www.google.com/maps/dir/?api=1'+(o?'&origin='+o.lat+','+o.lng:'')+(d?'&destination='+d.lat+','+d.lng:'')+'&travelmode='+(p==='B'?'bicycling':p==='D'?'driving':'transit');
 function renderResult(){const {r,ctx}=lastRes,out=$('pout');
   if(r.error){out.innerHTML=`<div class="banner err">Planner error: ${esc(r.error)}</div>`;lastRes.legs=null;banner();return}
   const {ht,win,T,E,buf}=ctx,noHome=ht.none;
   const nPick=ctx.info.length,nGot=r.chosen.length;let totTr=0,html='',nLeg=0,nEst=0;
   const tilde=i=>{nLeg++;if(E[i]){nEst++;return '~'}return ''};
+  // what a leg's time is: transit needs no word; a cycling/driving plan's fallback estimate is not a cycling/driving time
+  const how=i=>ctx.tp[0]==='T'?'':E[i]?' (public transport estimate)':ctx.tp==='B'?' cycle':' drive';
   const days=r.days.slice().sort((a,b)=>a.d-b.d);
   for(const dd of days){const w=win[dd.d],seq=dd.seq.map(i=>SH[i]);let tl='',trv=0,t0=null,tEnd=null,dayEst=false;
     seq.forEach((h,j)=>{const s=D.shows[h.i],C=CLL[h.c],nm=D.cinemas[h.c].name;let arr;
       if(j===0){if(noHome){arr=h.st;t0=h.st}else{const t=T[H*NC1+h.c],leave=Math.max(w.e,h.st-t);arr=leave+t;t0=leave;trv+=t;
           const ti=tilde(H*NC1+h.c);dayEst=dayEst||!!ti;
-          tl+=`<div class="ev home">Leave home <b>${hm(leave)}</b></div><div class="ev leg">${ti}${dur(t)} to ${esc(nm)}${C?` · <a href="${gmap(null,C)}" target="_blank" rel="noopener">route</a>`:''}</div>`}}
+          tl+=`<div class="ev home">Leave home <b>${hm(leave)}</b></div><div class="ev leg">${ti}${dur(t)}${how(H*NC1+h.c)} to ${esc(nm)}${C?` · <a href="${gmap(null,C,ctx.tp)}" target="_blank" rel="noopener">route</a>`:''}</div>`}}
       else{const p=seq[j-1],P0=CLL[p.c],dep=p.en+buf,t=T[p.c*NC1+h.c];arr=dep+t;trv+=t;
         const wait=h.st-arr,ti=t===0?'':tilde(p.c*NC1+h.c);dayEst=dayEst||!!ti;
-        tl+=`<div class="ev leg">${t===0?`Same cinema · next film ${wait>0?'in '+dur(h.st-p.en):'straight after'}`:`Leave ${hm(dep)} · ${ti}${dur(t)} to ${esc(nm)}${P0&&C?` · <a href="${gmap(P0,C)}" target="_blank" rel="noopener">route</a>`:''}`}${t>0&&wait>=15?` · ${dur(wait)} spare`:''}</div>`}
+        tl+=`<div class="ev leg">${t===0?`Same cinema · next film ${wait>0?'in '+dur(h.st-p.en):'straight after'}`:`Leave ${hm(dep)} · ${ti}${dur(t)}${how(p.c*NC1+h.c)} to ${esc(nm)}${P0&&C?` · <a href="${gmap(P0,C,ctx.tp)}" target="_blank" rel="noopener">route</a>`:''}`}${t>0&&wait>=15?` · ${dur(wait)} spare`:''}</div>`}
       const lateBy=Math.round(arr-h.st),bd=tagBadges(s.x);
       tl+=`<div class="ev film"><div><span class="ftm">${hm(h.st)}–${h.est?'~':''}${hm(h.en)}</span> <span class="fti">${esc(title(h.k))}</span></div>
         <div class="fmeta">${esc(nm)}${staleNote(h.c)?' '+staleNote(h.c):''}${s.s?' · '+esc(s.s):''}${s.u?` · <a class="book" href="${esc(s.u)}" target="_blank" rel="noopener">Book</a>`:''}</div>
@@ -502,7 +525,7 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
       tEnd=h.en});
     const L=seq[seq.length-1],LC=CLL[L.c];
     if(!noHome){const t=T[L.c*NC1+H],dep=L.en+buf,ti=tilde(L.c*NC1+H);trv+=t;tEnd=dep+t;dayEst=dayEst||!!ti;
-      tl+=`<div class="ev leg">Leave ${hm(dep)} · ${ti}${dur(t)} home${LC?` · <a href="${gmap(LC,null)}" target="_blank" rel="noopener">route</a>`:''}</div><div class="ev home">Home by <b>${seq.some(h=>h.est)||dayEst?'~':''}${hm(tEnd)}</b></div>`}
+      tl+=`<div class="ev leg">Leave ${hm(dep)} · ${ti}${dur(t)}${how(L.c*NC1+H)} home${LC?` · <a href="${gmap(LC,null,ctx.tp)}" target="_blank" rel="noopener">route</a>`:''}</div><div class="ev home">Home by <b>${seq.some(h=>h.est)||dayEst?'~':''}${hm(tEnd)}</b></div>`}
     totTr+=trv;
     html+=`<div class="iday"><div class="ih"><b>${esc(dayLbl(ctx.days[dd.d]))}</b><span class="meta">${seq.length} film${seq.length>1?'s':''} · ${noHome?'':'out '}${hm(t0)}–${hm(tEnd)}${noHome?'':' · '+(dayEst?'~':'')+dur(trv)+' travel'}</span></div><div class="tl">${tl}</div></div>`}
   lastRes.legs={n:nLeg,est:nEst};
@@ -534,6 +557,6 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
   if(miss.length)html+=`<div class="unf"><h3>Not scheduled (${miss.length})</h3>${miss.map(x=>`<div><b>${x.pi+1}. ${esc(FI[x.p.k]?title(x.p.k):x.p.t)}</b><span class="meta">${esc(why(x))}</span></div>`).join('')}</div>`;
   out.innerHTML=`<div class="res">${html}</div>`;banner()}
 
-function emptyOut(){if(!lastRes)$('pout').innerHTML='<div class="pempty">Add the films you want to see, set when you’re free, then press <b>Plan my schedule</b>.<br><br>The planner finds the schedule over your chosen dates that fits the most of your picks (or follows strict priority), using public transport and walking times between cinemas.</div>'}
-dateNote();renderDays();renderGC();renderAds();pcStatus();keyStatus();banner();renderPicks();emptyOut();
+function emptyOut(){if(!lastRes)$('pout').innerHTML='<div class="pempty">Add the films you want to see, set when you’re free, then press <b>Plan my schedule</b>.<br><br>The planner finds the schedule over your chosen dates that fits the most of your picks (or follows strict priority), using '+(tp==='B'?'cycling':tp==='D'?'driving':'public transport and walking')+' times between cinemas.</div>'}
+dateNote();renderDays();renderGC();renderAds();pcStatus();keyStatus();tmUI();banner();renderPicks();emptyOut();
 }
