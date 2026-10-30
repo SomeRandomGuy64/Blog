@@ -62,6 +62,9 @@ $('fmt').onchange=e=>{S.fmt=e.target.value;render()};
 $('view').onclick=()=>{S.view=S.view==='film'?'cinema':'film';$('view').textContent='View: by '+S.view;render()};
 
 // ---------- list ----------
+// cinemas with nothing in the listings at all: still shown, so they read as "nothing on" and not as missing
+const HAS=new Set(D.shows.map(s=>s.c));
+const noneNote=c=>unf(c)?'still being fetched':c.error?'listings couldn’t be loaded':'no showings listed';
 function rowsFor(shows){ // shows of one (film, cinema) -> grouped by format signature, then day
   const g=new Map();
   for(const s of shows){const k=screenType(s.x)+'\u0001'+otherTags(s.x).join('|');(g.get(k)||g.set(k,[]).get(k)).push(s)}
@@ -95,15 +98,23 @@ function render(){
         const who=S.view==='film'?`<a href="${esc(D.cinemas[b].url)}" target="_blank" rel="noopener">${esc(D.cinemas[b].name)}</a><span class="meta">${esc(D.cinemas[b].chain)}${rgn(b)?' · '+esc(rgn(b)):''}</span>${staleNote(b)}`:`<b>${esc(D.films[b])}</b>`;
         return `<div class="row"><div class="who">${who}</div><div>${rowsFor(l)}</div></div>`}).join('')};
   }).sort((x,y)=>x.sort<y.sort?-1:x.sort>y.sort?1:0);
+  const none=D.cinemas.map((c,i)=>i).filter(i=>{const c=D.cinemas[i];return !HAS.has(i)&&S.chains.has(c.chain)&&(!q||c.name.toLowerCase().includes(q)||(multi&&rgn(i).toLowerCase().includes(q)))});
+  if(S.view==='cinema'){for(const i of none)cards.push({sort:i,none:i});cards.sort((x,y)=>x.sort-y.sort)}
   $('count').textContent=`${cards.length} ${S.view==='film'?'films':'cinemas'} · ${shows.length.toLocaleString()} showings`;
   const open=!!q||cards.length<=3;
   $('list').innerHTML=cards.length?'':'<div class="empty">Nothing matches.</div>';
   const frag=document.createDocumentFragment();
-  for(const c of cards){const d=document.createElement('details');d.className='card';
+  for(const c of cards){
+    if(c.none!=null){const C=D.cinemas[c.none],d=document.createElement('div');d.className='card nos';
+      d.innerHTML=`<span class="ttl"><a href="${esc(C.url)}" target="_blank" rel="noopener" class="cl">${esc(C.name)}</a></span><span class="meta">${rgn(c.none)?esc(rgn(c.none))+' · ':''}${noneNote(C)}</span>`;frag.appendChild(d);continue}
+    const d=document.createElement('details');d.className='card';
     d.innerHTML=`<summary>${c.head}</summary><div class="rows"></div>`;
     const fill=()=>{if(d.open&&!d.dataset.f){d.dataset.f=1;d.lastChild.innerHTML=c.body()}};
     d.addEventListener('toggle',fill);if(open){d.open=true;fill()}frag.appendChild(d)}
   $('list').appendChild(frag);
+  const quiet=none.filter(i=>!D.cinemas[i].error);
+  if(S.view==='film'&&quiet.length){const d=document.createElement('div');d.className='nosl';
+    d.innerHTML=`No showings listed right now at ${quiet.map(i=>`<a href="${esc(D.cinemas[i].url)}" target="_blank" rel="noopener">${esc(D.cinemas[i].name)}</a>`).join(', ')}.`;$('list').appendChild(d)}
 }
 render();
 return {screenType,otherTags,isScreen,stCmp,pickAllows,esc,tagBadges,staleNote,rgn};

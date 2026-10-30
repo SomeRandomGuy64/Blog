@@ -39,6 +39,8 @@ const SH=D.shows.map((s,i)=>{const day=s.t.slice(0,10),st=toMin(s.t,day);
 // Showings starting before 05:00 belong to the previous evening when that day is in the plan (a 02:00 film on the 11th
 // is 26:00 on the 10th), so a late "Home by" can reach them; otherwise they stay on their own date.
 const EARLY=300;
+// A day's "Home by" in minutes from that day's midnight: past the leave time, or in those same small hours, it's the next morning.
+const homeBy=w=>{const e=parseHM(w.e)??0,l=parseHM(w.l)??1440;return l<=e||l<EARLY?l+1440:l};
 let DAYS=[],FI={},FILMS=[];
 function setWindow(){const s=PS.set;if(!SOPT.includes(s.start))s.start=SOPT[0]||TD;
   s.len=Math.min(MAXLEN,Math.max(1,Math.round(+s.len)||7));
@@ -172,7 +174,7 @@ function sugg(){const q=$('pq').value.trim().toLowerCase(),have=new Set(PS.picks
   // with Settings cinemas / cinema types / screen types: counts are the showings they allow, most first; films with none only show up when searched
   const g=gSet(),gc=new Map(FILMS.map(k=>[k,gCount(FI[k],g)]));
   let l=FILMS.filter(k=>!have.has(k)&&(!q||title(k).toLowerCase().includes(q))&&(q||gc.get(k)[0]>0));
-  if(g||PS.set.st.length)l.sort((a,b)=>gc.get(b)[0]-gc.get(a)[0]);l=l.slice(0,q?40:15);
+  if(g||PS.set.st.length)l.sort((a,b)=>gc.get(b)[0]-gc.get(a)[0]);
   hl=Math.min(hl,Math.max(0,l.length-1));
   $('psugg').innerHTML=l.length?l.map((k,i)=>{const [n,c]=gc.get(k);return `<div data-k="${esc(k)}" class="${i===hl?'hl':''}${n?'':' dim'}"><span>${esc(title(k))}</span><span class="meta">${n?`${n} · ${c} cin.`:'none allowed by your Settings'}</span></div>`}).join(''):'<div class="meta">No matching films with showings.</div>';
   $('psugg').hidden=false}
@@ -242,7 +244,7 @@ function renderPicks(){
   $('pq').disabled=L.length>=N;$('pq').placeholder=L.length>=N?`Maximum of ${N} films`:'Add a film…';
   limEl.hidden=!over;limEl.textContent=over?`Only the top ${N} picks are planned for ${ndays(DAYS.length)}. Lengthen the plan or remove some.`:'';
   $('picks').innerHTML=L.map((p,i)=>{const gone=!FI[p.k],open=OPEN.has(p.k),ov=i>=N;
-    return `<li class="pick${gone?' gone':''}${ov?' over':''}" data-i="${i}"${ov?` title="Over the ${N}-film limit: not planned"`:''}><div class="prow"><span class="grip" draggable="true" title="Drag to reorder">⋮⋮</span><span class="rk">${i+1}</span>
+    return `<li class="pick${gone?' gone':''}${ov?' over':''}" data-i="${i}"${ov?` title="Over the ${N}-film limit: not planned"`:''}><div class="prow"><span class="grip" draggable="true" title="Drag to reorder">⋮⋮</span><input class="rk" type="text" inputmode="numeric" value="${i+1}" data-act="rk" aria-label="Priority of ${esc(p.t)}" title="Type a number to move this film">
      <div class="pt"><b title="${esc(p.t)}">${esc(gone?p.t:title(p.k))}</b><span class="meta">${esc(pickMeta(p))}</span></div>
      <div class="pbtn"><button data-act="up" title="Higher priority" aria-label="Move up"${i?'':' disabled'}>↑</button><button data-act="dn" title="Lower priority" aria-label="Move down"${i<L.length-1?'':' disabled'}>↓</button>
      <button data-act="opt" class="${open?'on':''}" title="Cinemas, screen types, tags, days">Options</button><button data-act="rm" title="Remove" aria-label="Remove">✕</button></div></div>
@@ -270,6 +272,11 @@ $('picks').addEventListener('change',e=>{const t=e.target;if(t.dataset.act!=='ci
   p.cin=t.checked?[...new Set(p.cin.concat(t.value))]:p.cin.filter(n=>n!==t.value);refreshMeta(li,p);changed()});
 $('picks').addEventListener('input',e=>{const t=e.target;if(t.dataset.act!=='cf')return;const q=t.value.trim().toLowerCase();
   t.parentNode.querySelectorAll('.clist label').forEach(l=>{l.hidden=!!q&&!l.dataset.n.includes(q)})});
+// typed priority number: moves the film there; anything that isn't a number puts the old one back
+$('picks').addEventListener('change',e=>{const t=e.target;if(t.dataset.act!=='rk')return;const i=+t.closest('li.pick').dataset.i,n=parseInt(t.value,10);
+  if(!(n>0)||String(n)!==t.value.trim()){t.value=i+1;return}t.value=Math.min(n,PS.picks.length);move(i,Math.min(n,PS.picks.length)-1)});
+$('picks').addEventListener('focusin',e=>{if(e.target.dataset.act==='rk')e.target.select()});
+$('picks').addEventListener('keydown',e=>{if(e.target.dataset.act==='rk'&&e.key==='Enter')e.target.blur()});
 // drag & drop (desktop); ↑/↓ everywhere
 let dragI=-1;
 $('picks').addEventListener('dragstart',e=>{const li=e.target.closest('li.pick');if(!li)return;dragI=+li.dataset.i;
@@ -295,10 +302,11 @@ function winChange(){setWindow();dateNote();renderDays();renderGC();renderPicks(
 $('pstart').onchange=()=>{PS.set.start=$('pstart').value;winChange()};
 $('plen').onchange=()=>{PS.set.len=+$('plen').value;winChange()};
 // availability per date (an untouched date follows its weekday's template)
+const hbNote=(day,x)=>x.on&&parseHM(x.l)>0&&homeBy(x)>=1440?'next day, '+dshort(dadd(day,1)):'';   // midnight itself needs no note
 function renderDays(){
   $('pdays').innerHTML='<tr><th></th><th>Day</th><th>Leave from</th><th>Home by</th></tr>'+DAYS.map(day=>{const x=avail(day);
     return `<tr class="${x.on?'':'off'}" data-d="${day}"><td><input type="checkbox" data-f="on"${x.on?' checked':''} aria-label="Free on ${esc(dayLbl(day))}"></td><td class="dn">${esc(dayLbl(day))}</td>
-     <td><input type="time" data-f="e" value="${esc(x.e)}"${x.on?'':' disabled'}></td><td><input type="time" data-f="l" value="${esc(x.l)}"${x.on?'':' disabled'} title="Earlier than the leave time = after midnight"></td></tr>`}).join('')+
+     <td><input type="time" data-f="e" value="${esc(x.e)}"${x.on?'':' disabled'}></td><td><input type="time" data-f="l" value="${esc(x.l)}"${x.on?'':' disabled'} title="Earlier than the leave time, or before 05:00, means the next morning"><span class="hbn">${esc(hbNote(day,x))}</span></td></tr>`}).join('')+
    (DAYS.length>1?'<tr><td></td><td colspan="3"><button class="ib" id="pcopy">Copy first day’s times to all</button></td></tr>':'')}
 // cinemas for all films (Settings): sorted by distance from home when known, else grouped by chain
 // (cinemas whose chain the Settings cinema types rule out are greyed; counts honour the Settings screen types)
@@ -362,7 +370,7 @@ $('padlist').addEventListener('change',e=>{const t=e.target;if(t.dataset.act!=='
 $('padclr').onclick=()=>{PS.set.ads={};renderAds();adChanged()};
 const own=d=>PS.set.dates[d]||(PS.set.dates[d]=Object.assign({},avail(d)));
 $('pdays').addEventListener('change',e=>{const t=e.target,tr=t.closest('tr[data-d]');if(!tr)return;const x=own(tr.dataset.d);
-  if(t.dataset.f==='on'){x.on=t.checked;renderDays()}else if(t.value)x[t.dataset.f]=t.value;changed()});
+  if(t.dataset.f==='on'){x.on=t.checked;renderDays()}else if(t.value){x[t.dataset.f]=t.value;tr.querySelector('.hbn').textContent=hbNote(tr.dataset.d,x)}changed()});
 $('pdays').addEventListener('click',e=>{if(e.target.id!=='pcopy')return;const f=Object.assign({},avail(DAYS[0]));
   for(const d of DAYS){const x=own(d);x.e=f.e;x.l=f.l}for(let w=0;w<7;w++){PS.set.days[w].e=f.e;PS.set.days[w].l=f.l}renderDays();changed()});
 const numF=[['pbuf','buf'],['plate','late'],['pmaxd','maxDay'],['pmaxl','maxLeg']];
@@ -413,13 +421,13 @@ $('pkeyforget').onclick=()=>{$('pkey').value='';GCACHE={};lsSet(GC,null);gkey='x
 let running=false,worker=null,noWorker=false;
 // showings each pick allows that could fit their day's window (travel aside), and the cinemas they use
 function candidates(){const s=PS.set,buf=+s.buf||0,late=+s.late||0;
-  const win=DAYS.map(day=>{const w=avail(day);if(!w||!w.on)return null;const e=parseHM(w.e)??0;let l=parseHM(w.l)??1440;if(l<=e)l+=1440;return {e,l}});
+  const win=DAYS.map(day=>{const w=avail(day);if(!w||!w.on)return null;return {e:parseHM(w.e)??0,l:homeBy(w)}});
   const used=new Set(),info=[],per=[],N=limit();
-  PS.picks.forEach((p,pi)=>{const F=FI[p.k],r={pi,p,match:0,win:0,homeBy:0,reason:null,si:-1},L=[];info.push(r);per.push(L);
+  PS.picks.forEach((p,pi)=>{const F=FI[p.k],r={pi,p,match:0,win:0,homeBy:0,hb:[],reason:null,si:-1},L=[];info.push(r);per.push(L);
     if(pi>=N){r.reason='limit';return}   // past the pick limit for this plan length: not planned
     if(!F){r.reason='gone';return}const cs=cinSet(p);
     for(const h of F.shows){if(!allows(p,D.shows[h.i].x,h.c,h.day,cs))continue;r.match++;
-      const w=win[h.di];if(!w||w.e>h.st+late)continue;if(h.en+buf>w.l){r.homeBy++;continue}L.push(h);used.add(h.c)}});
+      const w=win[h.di];if(!w||w.e>h.st+late)continue;if(h.en+buf>w.l){r.homeBy++;r.hb.push(h);continue}L.push(h);used.add(h.c)}});
   return {win,used,info,per,buf,late}}
 // solver time limit: 2.5 s up to 28 films, then +0.625 s per film (14.4 s at 47) since bigger searches need longer to finish
 const budgetFor=n=>n>28?2500+(n-28)*625:2500;
@@ -434,7 +442,7 @@ function buildProblem(){const s=PS.set,maxLeg=+s.maxLeg||0,ht=homeTravel();
   const films=[];
   info.forEach((r,pi)=>{if(r.reason)return;const days=DAYS.map(()=>[]);
     for(const h of per[pi]){const w=win[h.di],a=T[H*NC1+h.c],b=T[h.c*NC1+H];if(a<0||b<0)continue;
-      if(w.e+a>h.st+late)continue;if(h.en+buf+b>w.l){r.homeBy++;continue}r.win++;days[h.di].push({i:h.i,c:h.c,st:h.st,en:h.en})}
+      if(w.e+a>h.st+late)continue;if(h.en+buf+b>w.l){r.homeBy++;r.hb.push(h);continue}r.win++;days[h.di].push({i:h.i,c:h.c,st:h.st,en:h.en})}
     if(!r.match)r.reason='constraints';else if(!r.win)r.reason='window';else{r.si=films.length;films.push({days})}});
   return {P:{films,win,T,nc:NC,buf,late,maxDay:+s.maxDay||0,mode:s.obj,budget:budgetFor(films.length)},info,ht,win,T,E,buf,late,mode:s.obj,days:DAYS,lim:limit()}}
 // fetch Google transit/walk times for every leg among home + cinemas with candidate showings that isn't cached yet
@@ -519,7 +527,9 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
   // showings of the picks that only the "Home by" time ruled out (it defaults to midnight, which hides late showings)
   const nHB=ctx.info.reduce((n,x)=>n+x.homeBy,0),allMid=ctx.days.every(d=>{const a=avail(d);return !a.on||a.l==='00:00'});
   const hb=nHB?`<div class="banner">${nHB} showing${nHB>1?'s':''} of your picks ${nHB>1?'were':'was'} left out because ${nHB>1?'they finish':'it finishes'} too late ${noHome?'for':'to get home by'} your “Home by” time.
-    ${allMid?'“Home by” is midnight unless you change it':'You can change it'} under <b>When you’re free</b> in Settings.</div>`:'';
+    ${allMid?'“Home by” is midnight unless you change it':'You can change it'} under <b>When you’re free</b> in Settings.
+    <details class="hbl"><summary>Show ${nHB>1?'which showings':'which showing'}</summary><div class="hbw">${ctx.info.filter(x=>x.hb.length).map(x=>`<b>${esc(FI[x.p.k]?title(x.p.k):x.p.t)}</b>${miss.includes(x)?'':' <span class="meta">(in your plan at another time)</span>'}`+
+      x.hb.slice().sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:a.st-b.st).map(h=>`<div>${esc(dayLbl(h.day))} ${hm(h.st)}–${hm(h.en)} · ${esc(D.cinemas[h.c].name)}</div>`).join('')).join('')}</div></details></div>`:'';
   html=head+hb+(days.length?html:'<div class="pempty">Nothing could be scheduled. See below.</div>');
   if(miss.length)html+=`<div class="unf"><h3>Not scheduled (${miss.length})</h3>${miss.map(x=>`<div><b>${x.pi+1}. ${esc(FI[x.p.k]?title(x.p.k):x.p.t)}</b><span class="meta">${esc(why(x))}</span></div>`).join('')}</div>`;
   out.innerHTML=`<div class="res">${html}</div>`;banner()}
