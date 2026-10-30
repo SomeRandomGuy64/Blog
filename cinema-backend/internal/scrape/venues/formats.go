@@ -1,5 +1,6 @@
-// Package venues holds the one-off independent cinemas: Savoy CCM sites, Plaza Skipton,
-// Penistone Paramount, Pictureville, Stockport Plaza and Tideswell.
+// Package venues holds the independent cinemas: Savoy CCM sites, the taposapp (Plaza Skipton), Admit One
+// (Arc, Parkway Barnsley, Lockworks), Glitterfish (Parkway) and Jacro (Prince Charles, Cottage Road,
+// Cinemac) platforms, and one-offs: Penistone Paramount, Pictureville, Stockport Plaza and Tideswell.
 package venues
 
 import (
@@ -7,6 +8,7 @@ import (
 	"html"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -145,4 +147,28 @@ func urljoin(base, ref string) string {
 func classes(sel *goquery.Selection) []string {
 	c, _ := sel.Attr("class")
 	return strings.Fields(c)
+}
+
+var labelDateRe = regexp.MustCompile(`(?i)\b(?:([a-z]{3})[a-z]*\.?,?\s+)?(\d{1,2})\s*(?:st|nd|rd|th)?\s+([a-z]{3})`)
+
+// labelDate dates a yearless "Sat 31st Oct" / "Sunday, 1st November" / "Sun 01 Nov" label like guessYear
+// (the weekday, when given, picks the year). ok is false when the label is not a date.
+func labelDate(label string, ref time.Time) (day time.Time, ok bool, err error) {
+	m := labelDateRe.FindStringSubmatch(label)
+	if m == nil {
+		return time.Time{}, false, nil
+	}
+	mon, err := monthAbbr(strings.ToUpper(m[3][:1]) + strings.ToLower(m[3][1:]))
+	if err != nil {
+		return time.Time{}, false, nil // e.g. "Tomorrow 5 pm" is not a date
+	}
+	var wday string
+	for d := time.Sunday; d <= time.Saturday; d++ {
+		if m[1] != "" && strings.HasPrefix(strings.ToLower(d.String()), strings.ToLower(m[1])) {
+			wday = strings.ToLower(d.String())
+		}
+	}
+	n, _ := strconv.Atoi(m[2])
+	day, err = guessYear(n, mon, wday, ref)
+	return day, err == nil, err
 }

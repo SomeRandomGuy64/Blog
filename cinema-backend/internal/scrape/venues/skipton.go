@@ -19,9 +19,15 @@ var (
 	skiptonTimeRe = regexp.MustCompile(`^(\d{1,2}):(\d{2})`)
 )
 
-// PlazaSkipton scrapes the taposapp site's programme pages.
-func PlazaSkipton(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
-	const base = "https://plazaskipton.co.uk/"
+// Taposapp scrapes a taposapp site's programme pages (Plaza Skipton, Picture House Keighley, Rex Elland);
+// base is the site root with a trailing slash.
+func Taposapp(base string) scrape.Fetcher {
+	return func(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
+		return taposapp(s, base, from, to)
+	}
+}
+
+func taposapp(s *scrape.Session, base string, from, to time.Time) ([]scrape.Show, error) {
 	seen, rt := map[string]bool{}, map[string]int{}
 	var out []scrape.Show
 	for _, path := range []string{"", "coming-soon", "event-cinema"} {

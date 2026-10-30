@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html class="" lang="EN">
+<body>
+<header class="sticky top-0 a1-header-bg a1-header-border px-4" id="a1web-header" style="z-index: 25;">
+<div class="container mx-auto">
+</div>
+<div class="block md:hidden pb-1 md:pb-3">
+<div class="mb-3 bg-white nx-auto text-center p-1 text-white dark:text-white">
+<i class="a1-common2-a1-common-location-solid text-accent items-center justify-center align-middle text-white dark:text-white" id="cin_loc" style="font-size: 14px; margin-right: 1px;"></i>
+<select class="cinemaSelectMob text-black mx-auto" id="cinemaSelectMob" onchange="cinemaSelectMob()">
+<option class="bg-white" value="https://beeston.arccinema.co.uk">Beeston</option>
+<option class="bg-white" selected="selected" value="https://blackpool.arccinema.co.uk">Blackpool</option>
+<option class="bg-white" value="https://daventry.arccinema.co.uk">Daventry</option>
+<option class="bg-white" value="https://greatyarmouth.arccinema.co.uk">Great Yarmouth</option>
+<option class="bg-white" value="https://hucknall.arccinema.co.uk">Hucknall</option>
+<option class="bg-white" value="https://lewisham.arccinema.co.uk">Lewisham</option>
+<option class="bg-white" value="https://peterhead.arccinema.co.uk">Peterhead</option>
+<option class="bg-white" value="https://preston.arccinema.co.uk">Preston</option>
+<option class="bg-white" value="https://rotherham.arccinema.co.uk">Rotherham</option>
+</select>
+</div>
+</div>
+</header>
+<aside class="transform top-0 right-0 w-5/6 bg-white fixed h-full overflow-auto ease-in-out transition-all duration-300 z-30 translate-x-full" id="menuAside" style="z-index:9999;">
+<div class="flex flex-col h-full">
+<div class="border-b-2 py-4 px-12">
+<span class="toggleMenu text-secondary mt-1" id="closeMenu">
+<i class="icon icon-a1-common-cross text-sm align-bottom mr-2"></i>
+                Menu
+            </span>
+</div>
+<div class="flex flex-col flex-grow py-8 px-16">
+<ul class="list-none test">
+<li class="mb-8">
+<i class="a1-common2-a1-common-location-solid text-accent items-center justify-center align-middle" id="cin_loc" style="font-size: 14px; margin-right: 1px;"></i>
+<select class="cinemaSelectMob" id="cinemaSelectMob" onchange="cinemaSelectMob()">
+<option value="https://beeston.arccinema.co.uk">Beeston</option>
+<option selected="selected" value="https://blackpool.arccinema.co.uk">Blackpool</option>
+<option value="https://daventry.arccinema.co.uk">Daventry</option>
+<option value="https://greatyarmouth.arccinema.co.uk">Great Yarmouth</option>
+<option value="https://hucknall.arccinema.co.uk">Hucknall</option>
+<option value="https://lewisham.arccinema.co.uk">Lewisham</option>
+<option value="https://peterhead.arccinema.co.uk">Peterhead</option>
+<option value="https://preston.arccinema.co.uk">Preston</option>
+<option value="https://rotherham.arccinema.co.uk">Rotherham</option>
+</select>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="/whatson">Whats On</a>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="/whatson/Imax">IMAX</a>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="/whatson/earlybird">Early Bird</a>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="news/20981">Family</a>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="/comingsoon">Coming Soon</a>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="/news/21057">Membership</a>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="/cinema-info">Pricing &amp; Info</a>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="/whatson/specialevent1">HALLOWEEN</a>
+</li>
+</ul>
+</div>
+<div class="sticky bottom-0 pb-4">
+<div class="grid grid-cols-2">
+<div class="pl-2 pr-1">
+<a class="whatsOnButton_header inline-block btn-primary !bg-white !text-primary font-body text-center text-white text-sm w-full px-5 py-2 font-medium" href="https://backlot.admit-one.co.uk/register/">
+                        Register
+                    </a>
+</div>
+<div class="pl-1 pr-2">
+<a class="whatsOnButton_header inline-block btn-primary font-body text-center text-white text-sm w-full px-5 py-2 font-medium" href="https://backlot.admit-one.co.uk/account/">
+                        Login
+                    </a>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- START OF SEARCH MODAL -->
+<aside class="modal fixed w-full h-full top-0 left-0 flex items-center justify-center z-50" id="modalSearchBar" style="display:none;">
+<div class="absolute z-50 w-8 h-8 bg-white text-center pt-1.5 top-12 right-20 rounded-full" id="closeSearch">
+<i class="icon icon-a1-common-cross" onclick="hideSearchModal()"></i>
+</div>
+<div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-75" id="modal-overlay" onclick="hideSearchModal()"></div>
+<div class="absolute modal-container max-h-4/5 w-full md:w-3/5 mx-auto top-28 shadow-lg z-50 overflow-y-auto bg-white">
+<div class="modal-content text-center" id="modal-content">
+<div class="modal-login modal-body-header" id="modal-login">
+<div class="flex flex-col text-lg">
+<div class="text-2xl">
+<i class="icon icon-a1-common-search absolute right-3 top-3"></i>
+<input autocomplete="off" class="w-full border-b-2 py-2 px-4" id="searchBarInput" onkeyup="searchForPerformance()" placeholder="Search.." type="text"/>
+</div>
+<div class="flex w-full text-left text-black text-2xl">
+<ul id="performanceList">
+<li style="display: none;">
+<a class="p-3 block" href="/event/115969"> BTS WORLD TOUR 'ARIRANG' IN SÃO PAULO: LIVE VIEWING</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110080">Andre Rieus 2026 Christmas Concert: Let It Snow</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/115771">ANDREW LLOYD WEBBER'S STARLIGHT EXPRESS - LIVE ON STAGE</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/116476">Arnie and Barney</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/106891">Avengers: Doomsday</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/115491">Avengers: Doomsday 3D</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110406">Clayface</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/116612">Comédie Française (French language)  </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113950">Disney Junior Cinema Club 2026 </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/115176">Doctor Who: The Satan Pit</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/115515">DOOM AT DAWN: AVENGERS DOOMSDAY WITH BREAKFAST </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/114604">DRACULA 4K RESTORATION</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/106892">DUNE PART THREE</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/114488">Dune: Part Three -2D IMAX</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113257">EBENEZER</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/114363">Everest: The Other Side</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/116729">Everest: The Other Side (IMAX)</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/111053">Exhibition On Screen: Monet</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/111052">Exhibition On Screen: Renoir &amp; Love</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/116613">Fatherland (German language) </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/115265">FESTIVE FUN WITH PEPPA CINEMA EXPERIENCE</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/111616">Forgotten Island</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/116769">George Michael: The Faith Tour - IMAX</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/112475">Ghosts: The Possession Of Button House</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/112616">GIANT - The Play</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/115548">GODZILLA MINUS ZERO IMAX</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113436">Hadestown: The Musical</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/112148">Heart Of The Beast</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/108844">HEXED</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/115108">HOCUS POCUS</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113217">I Play Rocky</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/116509">JAK ZYC ZEBY NIE ZWARIOWAC (Polish)</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/105910">Minions &amp; Monsters</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/115112">MONSTER HOUSE</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/114059">Monster Mia</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113512">National Theatre Live: Golden Boy </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/116609">NAZA (Hebrew and English languages)</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113151">Other Mommy</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/115117">Ozzy &amp; Black Sabbath: Back To The Beginning</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/109935">Paw Patrol: The Dino Movie  </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/114209">Primetime</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/116722">Ramayana: Rise of a Legend (Malayalam)</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/116771">Ramayana: Rise of a Legend 3d IMAX (Hindi)</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110366">RBO 2026-27: The Met Opera  La Fanciulla Del West</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110369">RBO 2026-27: The Royal Ballet  Alices Adventures In Wonderland</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110363">RBO 2026-27: The Royal Ballet  Manon</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110372">RBO 2026-27: The Royal Ballet  Romeo &amp; Juliet</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110370">RBO 2026-27: The Royal Ballet  Swan Lake</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110365">RBO 2026-27: The Royal Ballet  The Nutcracker</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110364">RBO 2026-27: The Royal Opera  Carmen</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110368">RBO 2026-27: The Royal Opera  Così Fan Tutte</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110367">RBO 2026-27: The Royal Opera  Götterdämmerung</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110371">RBO 2026-27: The Royal Opera  Tosca</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110404">Resident Evil</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/114585">Resident Evil IMAX</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113205">Rocky 50th Anniversary 4K</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/116135">Room on the Broom and Tabby McTat</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/115106">SCREAM [30th ANNIVERSARY]</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/108028">Shaun the Sheep: The Beast of Mossy Bottom</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/114957">Stray Kids World Tour RUN IT LIVE VIEWING</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/108821">Street fighter </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/115253">Street fighter (IMAX) </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113947">Tad and the Magic Lamp</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/105537">The Hunger Games: Sunrise On The Reaping</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/116114">THE HUNGER GAMES: SUNRISE ON THE REAPING  3D</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/116115">THE HUNGER GAMES: SUNRISE ON THE REAPING  IMAX</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/116610">The Portuguese House (Spanish and Portuguese languages)  </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113271">V For Vendetta 20th Anniversary</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/108813">Verity</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/108510">Whalefall</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113301">Wicker</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/114953">Wild Horse Nine</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113504">Wildwood</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/116462">You can see everything </a>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- END OF SEARCH MODAL -->
+<!-- START OF MODAL -->
+<aside class="modal fixed w-full h-full top-0 left-0 flex items-center justify-center z-50" id="modalSitePicker" style="display:none;">
+<div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-75" id="modal-overlay"></div>
+<div class="modal-container max-h-4/5 w-4/5 md:w-1/2 lg:w-1/3 mx-auto rounded-xl shadow-lg z-50 overflow-y-auto bg-white" style="max-width:400px">
+<div class="modal-content text-center" id="modal-content">
+<div class="modal-login modal-body-header py-4 px-6" id="modal-login">
+<div class="flex flex-col">
+<div class="flex justify-center w-4/5 items-center text-center pb-3 mt-4 mx-auto">
+<p class="font-display text-2xl font-bold text-primary" id="">Welcome to <br/> Arc Cinemas</p>
+</div>
+<div class="flex flex-col my-2">
+<p>Chose your local cinema</p>
+<div class="input-select flex items-center mt-1 bg-white text-gray-600 placeholder-gray-700 focus:ring-gray-700">
+<select class="cinemaSelectModal my-2 w-full h-full p-2 bg-white" id="cinemaSelectModal">
+<option disabled="disabled" id="disabled_input" selected="true" value="">Select a Cinema</option>
+<option value="https://beeston.arccinema.co.uk">Beeston</option>
+<option selected="selected" value="https://blackpool.arccinema.co.uk">Blackpool</option>
+<option value="https://daventry.arccinema.co.uk">Daventry</option>
+<option value="https://greatyarmouth.arccinema.co.uk">Great Yarmouth</option>
+<option value="https://hucknall.arccinema.co.uk">Hucknall</option>
+<option value="https://lewisham.arccinema.co.uk">Lewisham</option>
+<option value="https://peterhead.arccinema.co.uk">Peterhead</option>
+<option value="https://preston.arccinema.co.uk">Preston</option>
+<option value="https://rotherham.arccinema.co.uk">Rotherham</option>
+</select>
+<!-- <i class="icon-a1-common-down -ml-6 cursor-pointer pointer-events-none text-gray-600"></i> -->
+</div>
+</div>
+<div class="flex flex-col mb-4">
+<span class="modal-close btn-primary w-full font-display font-semibold px-4 p-3" id="cinemaSelectButton" onclick="cinemaSelectModal()">Continue</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- END OF MODAL -->
+<div class="toggleMenu hidden fixed inset-0 bg-black bg-opacity-50 transition-opacity z-20" id="menuOverlay" style="z-index:999;"></div>
+<div class="bg-white dark:bg-gray-700">
+<div class="container mx-auto px-4 md:px-4">
+<div class="flex justify-between items-center py-4">
+<h1 class="text-accent text-xl dark:text-white leading-tight">What's On</h1>
+<p class="text-accent dark:text-white font-semibold">2026</p>
+</div>
+</div>
+</div>
+<div class="bg-white dark:bg-gray-700">
+<div class="container mx-auto px-4 md:px-4" style="padding-bottom: 10px;">
+<div class="flex bg-accent text-white py-4 px-4" id="OLCT_seatInstructText">
+<i class="flex icon-a1-common-information" style="margin-right:10px;"></i>
+<div class="flex font-display text-left text-sm font-extralight">
+                    Please note that the events below ARE sorted in alphabetical order
+                </div>
+</div>
+</div>
+</div>
+<div class="">
+<div class="bg-gray-100 dark:bg-accent" style="height:55px;overflow:hidden;">
+<div class="container mx-auto">
+<div class="grid grid-cols-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1 md:gap-4 overflow-hidden" id="scheduleTabs">
+<div class="col-span-1 w-full">
+<button class="tab w-full text-gray-600 dark:text-gray-100 whitespace-nowrap px-1 py-4 md:px-6 block focus:outline-none relative font-bold activeScheduleItem" data-date="31 October" data-picka="31/10/2026" data-target="1793404800">
+                    Tomorrow 
+                  </button>
+</div>
+<div class="block col-span-1 w-full">
+<button class="tab w-full text-gray-600 dark:text-gray-100 whitespace-nowrap px-1 py-4 md:px-6 block focus:outline-none" data-date="01 November" data-picka="01/11/2026" data-target="1793491200">
+                    Sun 01 Nov                  </button>
+</div>
+<div class="block col-span-1 w-full">
+</div>
+<div class="block col-span-1 w-full">
+</div>
+<div class="block col-span-1 w-full">
+</div>
+<!-- Placeholder for the empty space at the end -->
+<div class="col-span-2 md:col-span-1">
+<div id="date_top_container">
+<div class="date_top_half" style="width:100%">
+<label for="datepicker" style="width:100%">
+<div id="chooseDate_button" style="float:none;width:100%">
+<p style="display: inline-block;vertical-align: middle;">Choose Date</p>
+<i class="icon-a1-common-calendar" id="calenderIcon" style="color:#ffffff;display:inline-block;font-size: 20px;vertical-align: middle;"></i>
+</div>
+</label>
+<!--HERE-->
+<section class="section">
+<form>
+<fieldset>
+<input autofocus="" class="datepicker" data-value="" hidden="" id="datepicker" name="datepicker" type="text" value=""/>
+</fieldset>
+</form>
+</section>
+</div>
+<div class="date_bottom_half left a1-none a1-inlineBlock-md"></div>
+<div class="date_bottom_half right">
+<div clas="!w-full" id="datePickerContainer"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-white dark:bg-gray-700">
+<div class="container mx-auto pt-6 md:px-4" id="panels">
+<h2 class="text-primary text-xl px-2 md:px-0" id="selectedDateDisplay">
+      31 October    </h2>
+</div>
+</div>
+<div class="bg-white dark:bg-gray-700">
+<div class="container mx-auto px-4 md:px-4" id="panels">
+<div class="panel-0 whatson_panel tab-content divide-y block" id="panel_1793404800">
+<div class="grid grid-cols-none md:grid-cols-2 gap-4 py-3">
+<div class="py-4 px-4 md:p-4 bg-white dark:bg-gray-700 grid-container-border">
+<div class="grid grid-cols-3 grid-rows-auto grid-flow-col gap-4 place-content-start">
+<div class="row-start-1 col-span-1 row-span-1 md:row-span-2">
+<img alt="Arnie and Barney" class="object-contain object-left-top rounded-br-xl" src="/customFilmImages/116476_0.jpg"/>
+</div>
+<div class="row-start-1 col-span-2">
+<div class="flex flex-row justify-between items-center title_min-height">
+<h2 class="text-accent dark:text-white title_line-clamp">
+<a href="/event/116476">Arnie and Barney</a>
+</h2>
+<img alt="U" class="object-scale-down h-6 w-6" src="/ratings/UK/Usml.png"/>
+</div>
+<p class="text-black dark:text-white">Running time: <span class="text-base text-secondary">98 mins</span></p>
+<div class="flex flex-row justify-between items-center">
+<a class="font-body font-semibold text-base text-secondary" onclick="showTrailer('')">
+                Watch trailer
+                <i class="icon icon-a1-common-play align-middle ml-1"></i>
+</a>
+<a class="font-body font-semibold text-base text-secondary" href="/event/116476">
+                Details
+                <i class="icon-a1-icons-a1-shop-information align-middle ml-1"></i>
+</a>
+</div>
+</div>
+<div class="row-start-2 col-start-1 col-span-3 row-span-1 md:row-start-auto md:col-start-auto">
+<div class="grid grid-cols-1 gap-x-2 gap-y-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2">
+<a class="block btn-perf font-body text-center perfButton content-center align-middle" href="https://backlot.admit-one.co.uk/tickets/?perfCode=15903" style="display:inherit;">
+<span class="text-black bg-gray-100 border-primary border-solid border-2">
+</span>
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2">                 
+                        10:15 - <small>11:53</small>
+</span>
+</a>
+<a class="block btn-perf font-body text-center perfButton content-center align-middle" href="https://backlot.admit-one.co.uk/tickets/?perfCode=15905" style="display:inherit;">
+<span class="text-black bg-gray-100 border-primary border-solid border-2">
+</span>
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2">                 
+                        13:40 - <small>15:18</small>
+</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+<div class="py-4 px-4 md:p-4 bg-white dark:bg-gray-700 grid-container-border">
+<div class="grid grid-cols-3 grid-rows-auto grid-flow-col gap-4 place-content-start">
+<div class="row-start-1 col-span-1 row-span-1 md:row-span-2">
+<img alt="Everest: The Other Side (IMAX)" class="object-contain object-left-top rounded-br-xl" src="/customFilmImages/116729_0.jpg"/>
+</div>
+<div class="row-start-1 col-span-2">
+<div class="flex flex-row justify-between items-center title_min-height">
+<h2 class="text-accent dark:text-white title_line-clamp">
+<a href="/event/116729">Everest: The Other Side (IMAX)</a>
+</h2>
+<img alt="12A" class="object-scale-down h-6 w-6" src="/ratings/UK/12Asml.png"/>
+</div>
+<p class="text-black dark:text-white">Running time: <span class="text-base text-secondary">135 mins</span></p>
+<div class="flex flex-row justify-between items-center">
+<a class="font-body font-semibold text-base text-secondary" onclick="showTrailer('8gjOXAjeisY')">
+                Watch trailer
+                <i class="icon icon-a1-common-play align-middle ml-1"></i>
+</a>
+<a class="font-body font-semibold text-base text-secondary" href="/event/116729">
+                Details
+                <i class="icon-a1-icons-a1-shop-information align-middle ml-1"></i>
+</a>
+</div>
+</div>
+<div class="row-start-2 col-start-1 col-span-3 row-span-1 md:row-start-auto md:col-start-auto">
+<div class="grid grid-cols-1 gap-x-2 gap-y-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2">
+<a class="block btn-perf font-body text-center perfButton content-center align-middle" href="https://backlot.admit-one.co.uk/tickets/?perfCode=15895" style="display:inherit;">
+<span class="text-black bg-gray-100 border-primary border-solid border-2">
+<img alt="IMAX icon" class="inline-block" src="../assets/perftypeIcons/arc-cinemas_perf-icon-set_imax.svg" style=""/> </span>
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2">                 
+                        13:20 - <small>15:35</small>
+</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="panel-1 whatson_panel tab-content divide-y hidden" id="panel_1793491200">
+<div class="grid grid-cols-none md:grid-cols-2 gap-4 py-3">
+<div class="py-4 px-4 md:p-4 bg-white dark:bg-gray-700 grid-container-border">
+<div class="grid grid-cols-3 grid-rows-auto grid-flow-col gap-4 place-content-start">
+<div class="row-start-1 col-span-1 row-span-1 md:row-span-2">
+<img alt="Arnie and Barney" class="object-contain object-left-top rounded-br-xl" src="/customFilmImages/116476_0.jpg"/>
+</div>
+<div class="row-start-1 col-span-2">
+<div class="flex flex-row justify-between items-center title_min-height">
+<h2 class="text-accent dark:text-white title_line-clamp">
+<a href="/event/116476">Arnie and Barney</a>
+</h2>
+<img alt="U" class="object-scale-down h-6 w-6" src="/ratings/UK/Usml.png"/>
+</div>
+<p class="text-black dark:text-white">Running time: <span class="text-base text-secondary">98 mins</span></p>
+<div class="flex flex-row justify-between items-center">
+<a class="font-body font-semibold text-base text-secondary" onclick="showTrailer('')">
+                Watch trailer
+                <i class="icon icon-a1-common-play align-middle ml-1"></i>
+</a>
+<a class="font-body font-semibold text-base text-secondary" href="/event/116476">
+                Details
+                <i class="icon-a1-icons-a1-shop-information align-middle ml-1"></i>
+</a>
+</div>
+</div>
+<div class="row-start-2 col-start-1 col-span-3 row-span-1 md:row-start-auto md:col-start-auto">
+<div class="grid grid-cols-1 gap-x-2 gap-y-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2">
+<a class="block btn-perf font-body text-center perfButton content-center align-middle" href="https://backlot.admit-one.co.uk/tickets/?perfCode=15955" style="display:inherit;">
+<span class="text-black bg-gray-100 border-primary border-solid border-2">
+<img alt="Sensory Screening icon" class="inline-block" src="../assets/perftypeIcons/arc-cinemas_perf-icon-set_sensory-friendly.svg" style=""/> </span>
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2">                 
+                        10:15 - <small>11:53</small>
+</span>
+</a>
+<a class="block btn-perf font-body text-center perfButton content-center align-middle" href="https://backlot.admit-one.co.uk/tickets/?perfCode=15957" style="display:inherit;">
+<span class="text-black bg-gray-100 border-primary border-solid border-2">
+</span>
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2">                 
+                        13:40 - <small>15:18</small>
+</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+<div class="py-4 px-4 md:p-4 bg-white dark:bg-gray-700 grid-container-border">
+<div class="grid grid-cols-3 grid-rows-auto grid-flow-col gap-4 place-content-start">
+<div class="row-start-1 col-span-1 row-span-1 md:row-span-2">
+<img alt="Everest: The Other Side (IMAX)" class="object-contain object-left-top rounded-br-xl" src="/customFilmImages/116729_0.jpg"/>
+</div>
+<div class="row-start-1 col-span-2">
+<div class="flex flex-row justify-between items-center title_min-height">
+<h2 class="text-accent dark:text-white title_line-clamp">
+<a href="/event/116729">Everest: The Other Side (IMAX)</a>
+</h2>
+<img alt="12A" class="object-scale-down h-6 w-6" src="/ratings/UK/12Asml.png"/>
+</div>
+<p class="text-black dark:text-white">Running time: <span class="text-base text-secondary">135 mins</span></p>
+<div class="flex flex-row justify-between items-center">
+<a class="font-body font-semibold text-base text-secondary" onclick="showTrailer('8gjOXAjeisY')">
+                Watch trailer
+                <i class="icon icon-a1-common-play align-middle ml-1"></i>
+</a>
+<a class="font-body font-semibold text-base text-secondary" href="/event/116729">
+                Details
+                <i class="icon-a1-icons-a1-shop-information align-middle ml-1"></i>
+</a>
+</div>
+</div>
+<div class="row-start-2 col-start-1 col-span-3 row-span-1 md:row-start-auto md:col-start-auto">
+<div class="grid grid-cols-1 gap-x-2 gap-y-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2">
+<a class="block btn-perf font-body text-center perfButton content-center align-middle" href="https://backlot.admit-one.co.uk/tickets/?perfCode=15950" style="display:inherit;">
+<span class="text-black bg-gray-100 border-primary border-solid border-2">
+<img alt="IMAX icon" class="inline-block" src="../assets/perftypeIcons/arc-cinemas_perf-icon-set_imax.svg" style=""/> </span>
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2">                 
+                        13:20 - <small>15:35</small>
+</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+<div class="py-4 px-4 md:p-4 bg-white dark:bg-gray-700 grid-container-border">
+<div class="grid grid-cols-3 grid-rows-auto grid-flow-col gap-4 place-content-start">
+<div class="row-start-1 col-span-1 row-span-1 md:row-span-2">
+<img alt="RBO 2026-27: The Royal Ballet  Manon" class="object-contain object-left-top rounded-br-xl" src="/customFilmImages/110363_0.jpg"/>
+</div>
+<div class="row-start-1 col-span-2">
+<div class="flex flex-row justify-between items-center title_min-height">
+<h2 class="text-accent dark:text-white title_line-clamp">
+<a href="/event/110363">RBO 2026-27: The Royal Ballet  Manon</a>
+</h2>
+<img alt="TBC" class="object-scale-down h-6 w-6" src="/ratings/UK/TBCsml.gif"/>
+</div>
+<p class="text-black dark:text-white">Running time: <span class="text-base text-secondary">210 mins</span></p>
+<div class="flex flex-row justify-between items-center">
+<a class="font-body font-semibold text-base text-secondary" onclick="showTrailer('')">
+                Watch trailer
+                <i class="icon icon-a1-common-play align-middle ml-1"></i>
+</a>
+<a class="font-body font-semibold text-base text-secondary" href="/event/110363">
+                Details
+                <i class="icon-a1-icons-a1-shop-information align-middle ml-1"></i>
+</a>
+</div>
+</div>
+<div class="row-start-2 col-start-1 col-span-3 row-span-1 md:row-start-auto md:col-start-auto">
+<div class="grid grid-cols-1 gap-x-2 gap-y-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2">
+<a class="block btn-perf font-body text-center perfButton content-center align-middle" href="https://backlot.admit-one.co.uk/tickets/?perfCode=8907" style="display:inherit;">
+<span class="text-black bg-gray-100 border-primary border-solid border-2">
+<img alt="Arc Events icon" class="inline-block" src="../assets/perftypeIcons/arc-cinemas_perf-icon-set_arc-live.svg" style=""/> </span>
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2">                 
+                        14:00 - <small>17:30</small>
+</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-white dark:bg-gray-700 showTimeKey">
+<div class="container mx-auto py-4 md:px-4" id="panels">
+<div class="font-display font-bold text-lg pl-4">SYMBOL KEY</div>
+<hr class="my-2"/>
+<div class="inline-block px-4">
+<p class="text-accent dark:text-white inline-block">Available</p><span class="keyColor bg-primary inline-block"></span>
+</div>
+<div class="inline-block px-4 text-accent dark:text-white">
+<p class="text-accent dark:text-white inline-block">Sold Out</p><span class="keyColor inline-block bg-secondary soldOutOverride_color"></span>
+</div>
+<div class="inline-block border-l border-black">
+<div class="inline-block px-4 text-accent dark:text-white"><p class="text-accent dark:text-white inline-block">Subtitled   </p><span class="inline-block"><img alt=" icon" class="inline-block pr-2" src="../assets/perftypeIcons/arc-cinemas_perf-icon-set_subtitled.svg" style=""/></span></div><div class="inline-block px-4 text-accent dark:text-white"><p class="text-accent dark:text-white inline-block">No Wheelchair Access   </p><span class="inline-block"><img alt=" icon" class="inline-block pr-2" src="../assets/perftypeIcons/arc-cinemas_perf-icon-set_wheelchair-none.svg" style=""/></span></div> </div>
+</div>
+</div>
+<div class="toggleTrailer hidden fixed inset-0 bg-black bg-opacity-50 transition-opacity z-20" id="trailerOverlay">
+<div class="absolute inset-0 mx-auto my-auto w-screen h-auto md:w-[840px] md:h-[690px] pt-5" id="trailerViewport">
+<span class="text-white float-right py-2 px-2 cursor-pointer">Close<span class="pl-2">X</span></span>
+<iframe height="auto" id="trailerIframe" src="/loading" width="0"></iframe>
+</div>
+</div>
+<x-scripts></x-scripts>
+<!--<script src="/assets/script/app.js" type="module"></script>-->
+<img id="siteCodeCookie" src="https://arccinema.co.uk/setcookie/?s=ARC_BLA"><img id="siteCodeCookie" src="https://www.arccinema.co.uk/setcookie/?s=ARC_BLA">
+</img></img></body>
+</html>

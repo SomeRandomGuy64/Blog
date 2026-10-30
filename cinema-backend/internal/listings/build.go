@@ -14,11 +14,15 @@ import (
 
 // AdMinutes is the ads/trailers allowance before the film, for end-time estimates.
 var AdMinutes = map[string]int{"Odeon": 25, "Vue": 25, "Cineworld": 25, "Everyman": 25, "Showcase": 25,
-	"The Light": 25, "Reel": 25, "Picturehouse": 25, "Curzon": 25, "Independent": 10}
+	"The Light": 25, "Reel": 25, "Picturehouse": 25, "Curzon": 25, "Independent": 10,
+	// Arc and Parkway: assumed like the other commercial chains, not checked against their screenings.
+	"Arc": 25, "Parkway": 25}
 
 // CinemaAdMinutes overrides AdMinutes for single cinemas. Their end time is always start + ads +
 // runtime, even when the source gives one (HOME's Spektrix slot runs ~25 minutes past the film).
-var CinemaAdMinutes = map[string]int{"Hebden Bridge Picture House": 30, "Pictureville Bradford": 15, "HOME Manchester": 15}
+var CinemaAdMinutes = map[string]int{"Hebden Bridge Picture House": 30, "Pictureville Bradford": 15, "HOME Manchester": 15,
+	// The Dukes says films start on time, with no trailers or adverts.
+	"The Dukes Lancaster": 0}
 
 // adMinutes is the ads/trailers allowance at a cinema, and whether it is a per-cinema override.
 func adMinutes(name, chain string) (int, bool) {

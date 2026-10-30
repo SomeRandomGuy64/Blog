@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html class="" lang="EN">
+<body>
+<header class="sticky top-0 a1-header-bg a1-header-border pr-4 md:px-4" id="a1web-header" style="z-index: 25;">
+<div class="container mx-auto">
+<nav class="flex justify-between items-center a1-header-bg pr-4 md:px-1">
+<div class="flex justify-start items-center">
+<div class="mr-6 bg-white px-4 py-8">
+<a href="https://barnsley.parkwaycinemas.co.uk">
+<img alt="Site Logo" class="sm:h-[3.5rem] a1-header-logo" src="/assets/images/logo_large.png"/>
+</a>
+</div>
+<div class="ml-4 hidden lg:block">
+<ul class="list-none flex justify-evenly items-center space-x-8">
+<!-- <li class="lg:pr-0 xl:pr-8">
+                            <i class="icon-a1-common-location-solid text-white items-center justify-center align-middle" style="font-size: 14px; margin-right: 1px;"></i>
+                            <select class="cinemaSelect" id="cinemaSelect" onchange="cinemaSelect()">
+                                                        </select>
+                        </li> -->
+<li class="dropdown">
+<a class="dropdown-selector text-sm a1-header-color font-medium" href="/">
+                                        Whats On                                        <i class="a1-header-color text-xs align-middle dropdown-icon icon-a1-common-up"></i>
+</a>
+<div class="dropdown-content absolute a1-header-bg grid grid-cols-1 hidden min-w-max">
+<a class="dropdown-link grid-span-1 place-self-start text-sm a1-header-color m-4 font-medium" href="/whatson">Now Showing</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm a1-header-color m-4 font-medium" href="/comingsoon">Coming Soon</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm a1-header-color m-4 font-medium" href="/whatson/35mm">35mm</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm a1-header-color m-4 font-medium" href="/whatson/70mm">70mm</a>
+</div>
+</li>
+<li class="">
+<a class="text-sm a1-header-color font-medium" href="/whatson/senior-screen">Senior Screen</a>
+</li>
+<li class="">
+<a class="text-sm a1-header-color font-medium" href="/whatson/live-on-stage">Live on Stage</a>
+</li>
+<li class="">
+<a class="text-sm a1-header-color font-medium" href="/whatson/event-cinema">Event Cinema</a>
+</li>
+<li class="">
+<a class="text-sm a1-header-color font-medium" href="https://barnsleyparkway.admit-one.eu/?p=donations">Donate</a>
+</li>
+<li class="">
+<a class="text-sm a1-header-color font-medium" href="/news/3474">Gift Cards</a>
+</li>
+<li class="dropdown">
+<a class="dropdown-selector text-sm a1-header-color font-medium" href="/">
+                                        Cinema Info                                        <i class="a1-header-color text-xs align-middle dropdown-icon icon-a1-common-up"></i>
+</a>
+<div class="dropdown-content absolute a1-header-bg grid grid-cols-1 hidden min-w-max">
+<a class="dropdown-link grid-span-1 place-self-start text-sm a1-header-color m-4 font-medium" href="contact">Find Us</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm a1-header-color m-4 font-medium" href="/news/3479">Ticket Cinema Info</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm a1-header-color m-4 font-medium" href="/news/3475">Jobs</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm a1-header-color m-4 font-medium" href="/news/8408">Meerkat Movies</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm a1-header-color m-4 font-medium" href="/contact">Contact Us</a>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="flex justify-end">
+<div class="flex items-center justify-center">
+<a class="flex items-center justify-end mr-2" href="https://barnsleyparkway.admit-one.eu/payment">
+<i class="icon icon-a1-common-basket text-white text-2xl"></i>
+</a>
+<a class="px-3 py-2 ml-2 flex items-center justify-center mr-4" onclick="showSearchModal()">
+<i class="icon icon-a1-common-search text-white"></i>
+</a>
+</div>
+<div class="flex-initial">
+<div class="flex items-center justify-end lg:hidden">
+<span class="toggleMenu a1-header-color mt-1" id="openMenu">
+<i class="icon icon-a1-common-menu-burger"></i>
+</span>
+</div>
+<div class="hidden xl:flex xl:justify-end">
+<a class="whatsOnButton_header inline-block btn-primary font-body text-center text-white text-sm px-5 py-2 font-medium" href="contact">
+                            Get in Touch
+                        </a>
+</div>
+</div>
+</div>
+</nav>
+</div>
+</header>
+<aside class="flex flex-col justify-between transform top-0 right-0 w-5/6 bg-white fixed h-full overflow-auto ease-in-out transition-all duration-300 z-30 translate-x-full" id="menuAside" style="z-index:9999;">
+<div class="border-b-2 py-4 px-12">
+<span class="toggleMenu text-secondary mt-1" id="closeMenu">
+<i class="icon icon-a1-common-cross text-sm align-bottom mr-2"></i>
+            Menu
+        </span>
+</div>
+<div class="py-8 px-16 flex-auto">
+<ul class="list-none test">
+<li class="mb-8 dropdown">
+<a class="dropdown-selector flex justify-between text-sm text-secondary font-medium" href="/">
+                            Whats On                            <i class="dropdown-icon text-secondary font-medium align-middle icon-a1-common-up"></i>
+</a>
+<div class="dropdown-content grid grid-cols-1 place-content-center hidden">
+<a class="dropdown-link grid-span-1 place-self-start text-sm text-secondary font-medium ml-5 my-4" href="/whatson">Now Showing</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm text-secondary font-medium ml-5 my-4" href="/comingsoon">Coming Soon</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm text-secondary font-medium ml-5 my-4" href="/whatson/35mm">35mm</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm text-secondary font-medium ml-5 my-4" href="/whatson/70mm">70mm</a>
+</div>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="/whatson/senior-screen">Senior Screen</a>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="/whatson/live-on-stage">Live on Stage</a>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="/whatson/event-cinema">Event Cinema</a>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="https://barnsleyparkway.admit-one.eu/?p=donations">Donate</a>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="/news/3474">Gift Cards</a>
+</li>
+<li class="mb-8 dropdown">
+<a class="dropdown-selector flex justify-between text-sm text-secondary font-medium" href="/">
+                            Cinema Info                            <i class="dropdown-icon text-secondary font-medium align-middle icon-a1-common-up"></i>
+</a>
+<div class="dropdown-content grid grid-cols-1 place-content-center hidden">
+<a class="dropdown-link grid-span-1 place-self-start text-sm text-secondary font-medium ml-5 my-4" href="contact">Find Us</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm text-secondary font-medium ml-5 my-4" href="/news/3479">Ticket Cinema Info</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm text-secondary font-medium ml-5 my-4" href="/news/3475">Jobs</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm text-secondary font-medium ml-5 my-4" href="/news/8408">Meerkat Movies</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm text-secondary font-medium ml-5 my-4" href="/contact">Contact Us</a>
+</div>
+</li>
+</ul>
+</div>
+<div class="sticky bottom-0 w-full bg-white" style="z-index:10000;">
+<div class="py-4 px-4">
+<p class="text-sm">Stay connected</p>
+<div class="flex justify-start mt-4">
+<a class="flex-1" href="https://www.facebook.com/parkwaybarnsley/"><i class="icon icon-a1-common-facebook"></i></a>
+<a class="flex-1" href="https://twitter.com/ParkwayBarnsley"><i class="icon icon-a1-common-twitter"></i></a>
+<a class="flex-1" href="https://www.instagram.com/parkwaycinemabarnsley/"><i class="icon icon-a1-common-instagram"></i></a>
+<a class="flex-1" href="https://www.linkedin.com/company/parkway-cinema-barnsley"><i class="icon icon-a1-common-linkedin"></i></a>
+</div>
+</div>
+</div>
+</aside>
+<!-- START OF SEARCH MODAL -->
+<aside class="modal fixed w-full h-full top-0 left-0 flex items-center justify-center z-50" id="modalSearchBar" style="display:none;">
+<div class="absolute z-50 w-8 h-8 bg-white text-center pt-1.5 top-12 right-20 rounded-full" id="closeSearch">
+<i class="icon icon-a1-common-cross" onclick="hideSearchModal()"></i>
+</div>
+<div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-75" id="modal-overlay" onclick="hideSearchModal()"></div>
+<div class="absolute modal-container max-h-4/5 w-full md:w-3/5 mx-auto top-28 shadow-lg z-50 overflow-y-auto bg-white">
+<div class="modal-content text-center" id="modal-content">
+<div class="modal-login modal-body-header" id="modal-login">
+<div class="flex flex-col text-lg">
+<div class="text-2xl">
+<i class="icon icon-a1-common-search absolute right-3 top-3"></i>
+<input autocomplete="off" class="w-full border-b-2 py-2 px-4" id="searchBarInput" onkeyup="searchForPerformance()" placeholder="Search.." type="text"/>
+</div>
+<div class="flex w-full text-left text-black text-2xl">
+<ul id="performanceList">
+<li style="display: none;">
+<a class="p-3 block" href="/event/109016">André Rieus 2026 Christmas Concert: Let It Snow</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/115774">Andrew Lloyd Webber's Starlight Express - Live On Stage</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/105952">Avengers: Doomsday</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/111785">ELO AGAIN: THE ULTIMATE TRIBUTE TO JEFF LYNNE AND THE ELECTRIC LIGHT ORCHESTRA (2027) </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/111616">Forgotten Island</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/115753">GEORGE MICHAEL: THE FAITH TOUR</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/112475">Ghosts: The Possession Of Button House</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/11293">Hocus Pocus</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110369">RBO 2026-27: The Royal Ballet  Alices Adventures In Wonderland</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110372">RBO 2026-27: The Royal Ballet  Romeo &amp; Juliet</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110370">RBO 2026-27: The Royal Ballet  Swan Lake</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110365">RBO 2026-27: The Royal Ballet  The Nutcracker</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110364">RBO 2026-27: The Royal Opera  Carmen</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110368">RBO 2026-27: The Royal Opera  Così Fan Tutte</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110371">RBO 2026-27: The Royal Opera  Tosca</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/98636">Roy Chubby Brown: Live On Stage (2027)  </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113947">Tad and the Magic Lamp</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/116296">The Incomer</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/63475">The Polar Express: Pyjama Party</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/45028">THE UPBEAT BEATLES: 30TH ANNIVERSARY TOUR!  </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/114858">WE WATCH FILMS - ROBIN HOOD: PRINCE OF THIEVES  </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/114863">WE WATCH FILMS: WHEN HARRY MET SALLY...  </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113301">Wicker</a>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- END OF SEARCH MODAL -->
+<div class="toggleMenu hidden fixed inset-0 bg-black bg-opacity-50 transition-opacity z-20" id="menuOverlay" style="z-index:999;"></div>
+<!-- /81325059/Parkway_Barnsley_Responsive_LDR -->
+<div class="" id="ppb_bottom">
+<div class="container mx-auto p-4 pt-6 md:px-4 pb-0 md:pb-6">
+<div id="div-gpt-ad-1728911615483-0" style='min-width: 300px; min-height: 50px; text-align: -webkit-center;"'>
+</div>
+</div>
+</div> <div class="bg-white dark:bg-gray-700">
+<div class="container mx-auto px-4 md:px-4">
+<div class="flex justify-between items-center py-4">
+<h1 class="text-accent text-xl dark:text-white leading-tight">What's On</h1>
+<p class="text-accent dark:text-white font-semibold">2026</p>
+</div>
+</div>
+</div>
+<div class="bg-white dark:bg-gray-700">
+<div class="container mx-auto px-4 md:px-4" style="padding-bottom: 10px;">
+<div class="flex bg-accent text-white py-4 px-4" id="OLCT_seatInstructText">
+<i class="flex icon-a1-common-information" style="margin-right:10px;"></i>
+<div class="flex font-display text-left text-sm font-extralight">
+                    Please note that the events below ARE sorted in alphabetical order
+                </div>
+</div>
+</div>
+</div>
+<div class="">
+<div class="bg-gray-100 dark:bg-accent">
+<div class="container mx-auto propix_stickyHeader">
+<div class="splide" id="date_slider">
+<div class="tabs flex flex-row overflow-x-auto overflow-y-hidden md:overflow-x-hidden" id="scheduleTabs">
+<div class="splide__track">
+<div class="splide__list">
+<div class="splide__slide">
+<button class="tab text-gray-600 dark:text-gray-100 whitespace-nowrap p-4 md:px-6 block focus:outline-none relative font-bold activeScheduleItem" data-target="0">
+                                                Tomorrow
+                                            </button>
+</div>
+<div class="splide__slide">
+<button class="tab text-gray-600 dark:text-gray-100 whitespace-nowrap p-4 md:px-6 block focus:outline-none" data-target="1">
+                                                Sun 01 Nov                                            </button>
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+<div class="splide__slide">
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-white dark:bg-gray-700 showTimeKey">
+<!-- <div id="panels" class="container mx-auto py-4 md:px-4">
+            <div class="inline-block px-4">
+                <p class="text-accent dark:text-white inline-block">Available</p><span class="keyColor bg-primary inline-block"></span>
+            </div>
+            <div class="inline-block px-4 text-accent dark:text-white">
+            <p class="text-accent dark:text-white inline-block">Sold Out</p><span class="keyColor inline-block bg-secondary soldOutOverride_color"></span>
+            </div>
+        </div> -->
+</div>
+<div class="bg-white dark:bg-gray-700">
+<div class="container mx-auto px-4 md:px-0" id="panels">
+<div class="panel-0 tab-content divide-y block" id="panel0">
+<div class="grid grid-cols-none md:grid-cols-2 gap-4 py-3">
+<div class="py-4 px-4 md:p-4 bg-white dark:bg-gray-700 md:border md:dark:border-0 dark:bg-accent">
+<div class="grid grid-cols-3 grid-rows-auto grid-flow-col gap-4 place-content-start">
+<div class="row-start-1 col-span-1 row-span-1 md:row-span-2">
+<img alt="Ghosts: The Possession Of Button House" class="object-contain object-left-top rounded-br-xl" src="/customFilmImages/112475_0.jpg"/>
+</div>
+<div class="row-start-1 col-span-2">
+<div class="flex flex-row justify-between items-center">
+<h2 class="text-accent dark:text-white"><a href="event/112475">Ghosts: The Possession Of Button House</a></h2>
+<img alt="PG" class="object-scale-down h-6 w-6" src="https://images.admit-one.eu//ratings/UK/PGsml.png"/>
+</div>
+<p class="text-black dark:text-white">Running time: <span class="text-base text-secondary">100 mins</span></p>
+<div class="flex flex-row justify-between items-center">
+<a class="font-body font-semibold text-base text-secondary" onclick="showTrailer('')">
+                Watch trailer
+                <i class="icon icon-a1-common-play align-middle ml-1"></i>
+</a>
+<a class="font-body font-semibold text-base text-secondary" href="event/112475">
+                Details
+                <i class="icon-a1-icons-a1-shop-information align-middle ml-1"></i>
+</a>
+</div>
+</div>
+<div class="row-start-2 col-start-1 col-span-3 row-span-1 md:row-start-auto md:col-start-auto">
+<div class="grid grid-cols-3 gap-x-2 gap-y-3 md:grid-cols-3 lg:grid-cols-4">
+<a class="block btn-primary font-body text-center perfButton content-center align-middle" href="https://barnsleyparkway.admit-one.eu/tickets/?perfCode=33872" style="display:inherit;">
+<span class="bg-white border-primary border-solid text-primary border-2">
+<i class="a1-event-wheelchair-solid"></i>
+</span>
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2">                 
+                            13:45                          </span>
+</a>
+<a class="block btn-primary font-body text-center perfButton content-center align-middle" href="https://barnsleyparkway.admit-one.eu/tickets/?perfCode=33895" style="display:inherit;">
+<span class="bg-white border-primary border-solid text-primary border-2">
+<i class="a1-event-wheelchair-solid"></i>
+</span>
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2">                 
+                            19:45                          </span>
+</a>
+</div>
+</div>
+</div>
+</div>
+<div class="py-4 px-4 md:p-4 bg-white dark:bg-gray-700 md:border md:dark:border-0 dark:bg-accent">
+<div class="grid grid-cols-3 grid-rows-auto grid-flow-col gap-4 place-content-start">
+<div class="row-start-1 col-span-1 row-span-1 md:row-span-2">
+<img alt="Hocus Pocus" class="object-contain object-left-top rounded-br-xl" src="/customFilmImages/11293_0.jpg"/>
+</div>
+<div class="row-start-1 col-span-2">
+<div class="flex flex-row justify-between items-center">
+<h2 class="text-accent dark:text-white"><a href="event/11293">Hocus Pocus</a></h2>
+<img alt="PG" class="object-scale-down h-6 w-6" src="https://images.admit-one.eu//ratings/UK/PGsml.png"/>
+</div>
+<p class="text-black dark:text-white">Running time: <span class="text-base text-secondary">92 mins</span></p>
+<div class="flex flex-row justify-between items-center">
+<a class="font-body font-semibold text-base text-secondary" onclick="showTrailer('OFm_2RyxXjQ')">
+                Watch trailer
+                <i class="icon icon-a1-common-play align-middle ml-1"></i>
+</a>
+<a class="font-body font-semibold text-base text-secondary" href="event/11293">
+                Details
+                <i class="icon-a1-icons-a1-shop-information align-middle ml-1"></i>
+</a>
+</div>
+</div>
+<div class="row-start-2 col-start-1 col-span-3 row-span-1 md:row-start-auto md:col-start-auto">
+<div class="grid grid-cols-3 gap-x-2 gap-y-3 md:grid-cols-3 lg:grid-cols-4">
+<a class="block btn-primary font-body text-center perfButton content-center align-middle" href="https://barnsleyparkway.admit-one.eu/tickets/?perfCode=33873" style="display:inherit;">
+<span class="bg-white border-primary border-solid text-primary border-2">
+<i class="a1-event-wheelchair-solid"></i>
+</span>
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2">                 
+                            16:45                          </span>
+</a>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="panel-1 tab-content divide-y hidden" id="panel1">
+<div class="grid grid-cols-none md:grid-cols-2 gap-4 py-3">
+<div class="py-4 px-4 md:p-4 bg-white dark:bg-gray-700 md:border md:dark:border-0 dark:bg-accent">
+<div class="grid grid-cols-3 grid-rows-auto grid-flow-col gap-4 place-content-start">
+<div class="row-start-1 col-span-1 row-span-1 md:row-span-2">
+<img alt="Forgotten Island" class="object-contain object-left-top rounded-br-xl" src="/customFilmImages/111616_0.jpg"/>
+</div>
+<div class="row-start-1 col-span-2">
+<div class="flex flex-row justify-between items-center">
+<h2 class="text-accent dark:text-white"><a href="event/111616">Forgotten Island</a></h2>
+<img alt="PG" class="object-scale-down h-6 w-6" src="https://images.admit-one.eu//ratings/UK/PGsml.png"/>
+</div>
+<p class="text-black dark:text-white">Running time: <span class="text-base text-secondary">109 mins</span></p>
+<div class="flex flex-row justify-between items-center">
+<a class="font-body font-semibold text-base text-secondary" onclick="showTrailer('a8RHqN93qfo')">
+                Watch trailer
+                <i class="icon icon-a1-common-play align-middle ml-1"></i>
+</a>
+<a class="font-body font-semibold text-base text-secondary" href="event/111616">
+                Details
+                <i class="icon-a1-icons-a1-shop-information align-middle ml-1"></i>
+</a>
+</div>
+</div>
+<div class="row-start-2 col-start-1 col-span-3 row-span-1 md:row-start-auto md:col-start-auto">
+<div class="grid grid-cols-3 gap-x-2 gap-y-3 md:grid-cols-3 lg:grid-cols-4">
+<a class="block btn-primary font-body text-center perfButton content-center align-middle" href="https://barnsleyparkway.admit-one.eu/tickets/?perfCode=33875" style="display:inherit;">
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2">                 
+                            13:00                          </span>
+</a>
+</div>
+</div>
+</div>
+</div>
+<div class="py-4 px-4 md:p-4 bg-white dark:bg-gray-700 md:border md:dark:border-0 dark:bg-accent">
+<div class="grid grid-cols-3 grid-rows-auto grid-flow-col gap-4 place-content-start">
+<div class="row-start-1 col-span-1 row-span-1 md:row-span-2">
+<img alt="Ghosts: The Possession Of Button House" class="object-contain object-left-top rounded-br-xl" src="/customFilmImages/112475_0.jpg"/>
+</div>
+<div class="row-start-1 col-span-2">
+<div class="flex flex-row justify-between items-center">
+<h2 class="text-accent dark:text-white"><a href="event/112475">Ghosts: The Possession Of Button House</a></h2>
+<img alt="PG" class="object-scale-down h-6 w-6" src="https://images.admit-one.eu//ratings/UK/PGsml.png"/>
+</div>
+<p class="text-black dark:text-white">Running time: <span class="text-base text-secondary">100 mins</span></p>
+<div class="flex flex-row justify-between items-center">
+<a class="font-body font-semibold text-base text-secondary" onclick="showTrailer('')">
+                Watch trailer
+                <i class="icon icon-a1-common-play align-middle ml-1"></i>
+</a>
+<a class="font-body font-semibold text-base text-secondary" href="event/112475">
+                Details
+                <i class="icon-a1-icons-a1-shop-information align-middle ml-1"></i>
+</a>
+</div>
+</div>
+<div class="row-start-2 col-start-1 col-span-3 row-span-1 md:row-start-auto md:col-start-auto">
+<div class="grid grid-cols-3 gap-x-2 gap-y-3 md:grid-cols-3 lg:grid-cols-4">
+<a class="block btn-primary font-body text-center perfButton content-center align-middle" href="https://barnsleyparkway.admit-one.eu/tickets/?perfCode=33878" style="display:inherit;">
+<span class="bg-white border-primary border-solid text-primary border-2">
+<i class="a1-event-wheelchair-solid"></i>
+</span>
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2">                 
+                            13:15                          </span>
+</a>
+<a class="block btn-primary font-body text-center perfButton content-center align-middle" href="https://barnsleyparkway.admit-one.eu/tickets/?perfCode=33876" style="display:inherit;">
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2">                 
+                            16:00                          </span>
+</a>
+<a class="block btn-primary font-body text-center perfButton content-center align-middle" href="https://barnsleyparkway.admit-one.eu/tickets/?perfCode=33880" style="display:inherit;">
+<span class="bg-white border-primary border-solid text-primary border-2">
+<i class="a1-event-wheelchair-solid"></i>
+</span>
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2">                 
+                            19:00                          </span>
+</a>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- /81325059/Parkway_Barnsley_Responsive_FTR -->
+<div class="" id="ppb_bottom">
+<div class="container mx-auto px-4 py-6 md:px-4">
+<div id="div-gpt-ad-1728911796583-0" style="min-width: 300px; min-height: 50px; text-align: -webkit-center;">
+</div>
+</div>
+</div> <footer class="bg-gray-100" id="a1web-footer">
+<div class="container mx-auto px-6 pt-10 pb-8 md:px-4">
+<div class="flex gap-x-2 flex-col md:flex-row">
+<div class="flex flex-col flex-grow justify-start">
+<h4 class="font-display font-bold text-sm uppercase mb-2">Join the conversation</h4>
+<div class="flex flex-row justify-start">
+<div class="flex items-center w-10 h-10 justify-center align-middle border border-accent rounded-full mr-2">
+<a class="w-5 h-5 text-center" href="https://www.facebook.com/parkwaybarnsley/" target="_blank">
+<i class="icon-a1-common-facebook text-accent"></i>
+</a>
+</div>
+<div class="flex items-center w-10 h-10 justify-center align-middle border border-accent rounded-full mr-2">
+<a class="w-5 h-5 text-center" href="https://twitter.com/ParkwayBarnsley" target="_blank">
+<i class="icon-a1-common-twitter text-accent"></i>
+</a>
+</div>
+<div class="flex items-center w-10 h-10 justify-center align-middle border border-accent rounded-full mr-2">
+<a class="w-5 h-5 text-center" href="https://www.instagram.com/parkwaycinemabarnsley/" target="_blank">
+<i class="icon-a1-common-instagram text-accent"></i>
+</a>
+</div>
+<div class="flex items-center w-10 h-10 justify-center align-middle border border-accent rounded-full mr-2">
+<a class="w-5 h-5 text-center" href="https://www.linkedin.com/company/parkway-cinema-barnsley" target="_blank">
+<i class="icon-a1-common-linkedin text-accent"></i>
+</a>
+</div>
+</div>
+<div class="flex flex-row justify-start mt-6 gap-x-6">
+<div class="flex flex-col">
+<a class="my-2 text-secondary text-md" href="/terms">Terms and Conditions</a>
+<a class="my-2 text-secondary text-md" href="/privacy">Privacy Policy</a>
+</div>
+</div>
+</div>
+<div class="flex flex-col">
+<h4 class="font-display font-bold text-sm tracking-tight uppercase mb-4 md:mb-2">Receive our latest releases and offers</h4>
+<form action="https://barnsleyparkway.admit-one.eu/newsletter/" class="validate" id="mc-embedded-subscribe-form" method="post" name="mc-embedded-subscribe-form" novalidate="" target="_blank">
+<div class="mb-4">
+<input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="mce-EMAIL" name="EMAIL" placeholder="Your Email Address" type="email"/>
+</div>
+<div class="clear" id="mce-responses">
+<div class="response" id="mce-error-response" style="display:none"></div>
+<div class="response" id="mce-success-response" style="display:none"></div>
+</div>
+<div style="position: absolute; left: -5000px;"><input name="" tabindex="-1" type="text" value=""/></div>
+<div>
+<input class="w-full inline-block btn-primary font-body text-center text-white text-sm px-3 py-3 cursor-pointer" id="mc-embedded-subscribe" name="subscribe" type="submit" value="Subscribe"/>
+</div>
+</form>
+</div>
+</div>
+</div>
+<div class="container mx-auto px-6 md:px-0">
+<div class="border-t-2 border-white flex flex-col items-left">
+<div class="sm:w-2/3 text-left py-6">
+<p class="text-sm text-secondary mb-2">
+                    © 2026 62-68 Eldon Street, Barnsley                </p>
+</div>
+</div>
+</div>
+</footer>
+<div class="toggleTrailer hidden fixed inset-0 bg-black bg-opacity-50 transition-opacity z-20" id="trailerOverlay">
+<div class="absolute inset-0 mx-auto my-auto w-screen h-auto md:w-[840px] md:h-[690px] pt-5" id="trailerViewport">
+<span class="text-white float-right py-2 px-2 cursor-pointer">Close<span class="pl-2">X</span></span>
+<iframe height="auto" id="trailerIframe" src="/loading" width="0"></iframe>
+</div>
+</div>
+<x-scripts></x-scripts>
+<!--<script src="/assets/script/app.js" type="module"></script>-->
+</div></body>
+</html>

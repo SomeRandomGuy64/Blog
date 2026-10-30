@@ -24,13 +24,14 @@ func TestRegistry(t *testing.T) {
 		if !region.Valid(c.Region) {
 			t.Errorf("%q has region %q", c.Name, c.Region)
 		}
-		if c.Relay != (relayChains[c.Chain] || c.Name == "Plaza Cinema Skipton") {
+		if c.Relay != (relayChains[c.Chain] || relayCinemas[c.Name]) {
 			t.Errorf("%q: relay %v", c.Name, c.Relay)
 		}
 		chains[c.Chain]++
 	}
-	if chains["Independent"] != len(Places) {
-		t.Errorf("%d independents, %d places", chains["Independent"], len(Places))
+	// Arc and Parkway are hand-written small chains, located in Places like the independents.
+	if n := chains["Independent"] + chains["Arc"] + chains["Parkway"]; n != len(Places) {
+		t.Errorf("%d hand-written cinemas, %d places", n, len(Places))
 	}
 	for _, ch := range []string{"Odeon", "Curzon", "Cineworld", "Everyman", "Showcase", "Vue", "Picturehouse", "The Light", "Reel"} {
 		if chains[ch] == 0 {
