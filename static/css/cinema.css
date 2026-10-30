@@ -139,7 +139,7 @@
 .cinema-app details.pane:not([open])>summary::after{content:"▸"}
 .cinema-app .picker{position:relative}
 .cinema-app .picker input{width:100%}
-.cinema-app .sugg{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:320px;overflow:auto}
+.cinema-app .sugg{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:min(640px,70vh);overflow:auto}
 .cinema-app .sugg div{padding:7px 10px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:baseline}
 .cinema-app .sugg div.hl,.cinema-app .sugg div:hover{background:var(--time)}
 .cinema-app .sugg .meta{white-space:nowrap}
@@ -210,6 +210,7 @@
 .cinema-app .dtab tr:first-child td{border-top:0}
 .cinema-app .dtab input[type=time]{padding:3px 4px;font-size:13px;width:100%;min-width:0}
 .cinema-app .dtab tr.off input[type=time]{opacity:.4}
+.cinema-app .dtab .hbn{display:block;font-size:11px;color:var(--mute);white-space:nowrap}
 .cinema-app .dtab .dn{white-space:nowrap}
 .cinema-app .dtab th{font-weight:400;color:var(--mute);font-size:12px;text-align:left;padding:0 4px}
 .cinema-app .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
@@ -219,6 +220,14 @@
 .cinema-app .go{width:100%;padding:10px;font-size:15px;font-weight:700;background:var(--acc);color:#fff;border-color:var(--acc);border-radius:8px}
 .cinema-app .go:hover:not(:disabled){background:var(--acch);border-color:var(--acch)}
 .cinema-app .go:disabled{opacity:.5;cursor:default}
+.cinema-app input.rk{width:28px;min-width:0;padding:0;border:1px solid transparent;text-align:center;line-height:20px;box-sizing:border-box}
+.cinema-app input.rk:hover,.cinema-app input.rk:focus{border-color:var(--acci);background:var(--card);color:var(--ink)}
+.cinema-app .hbl{margin-top:6px}
+.cinema-app .hbl summary{cursor:pointer;font-weight:600}
+.cinema-app .hbw{max-height:260px;overflow:auto;margin-top:6px;font-variant-numeric:tabular-nums}
+.cinema-app .hbw b{display:inline-block;margin-top:6px}
+.cinema-app .card.nos{display:flex;gap:6px 10px;align-items:baseline;flex-wrap:wrap;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:10px;margin:0 0 10px}
+.cinema-app .nosl{color:var(--mute);font-size:13px;margin:6px 0 10px}
 .cinema-app .banner{background:var(--warnb);color:var(--warn);border-radius:10px;padding:8px 12px;font-size:13px;margin:0 0 12px}
 .cinema-app .pout.stale .res{opacity:.55}
 .cinema-app .stalenote{background:var(--premb);color:var(--prem);border-radius:10px;padding:7px 12px;font-size:13px;margin:0 0 10px}
