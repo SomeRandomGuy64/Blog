@@ -19,6 +19,22 @@ done = true
 notes = "Every independent is currently given 10 minutes. Hebden Bridge will be set to 30 minutes, Pictureville and HOME to 15."
 
 [[task]]
+priority = "high"
+title = "Fix \"Home by\" times after midnight"
+done = true
+notes = "A time before 05:00 now always means the next morning, even when \"Leave from\" is 00:00. Each day also shows when its time falls on the next day."
+
+[[task]]
+priority = "high"
+title = "Add 21 cinemas that use booking systems the site can already read"
+notes = "Savoy (Worksop, Boston, Corby, Doncaster, Grantham, Gainsborough, Catterick, Nottingham), Regent Marple, Mockingbird, Ritz Thirsk, The Dukes Lancaster, Broadway Nottingham, Tyneside, Derby Quad, MAC Birmingham, ICA, Warwick Arts Centre, Hyde Park Picture House, Northern Light Stretford and Ritz Belper."
+
+[[task]]
+priority = "high"
+title = "Check late journeys home properly"
+notes = "Google journey times are currently all looked up for a 17:00 departure, so a plan can send you home after the last train or bus. Late journeys will be looked up for late at night instead."
+
+[[task]]
 priority = "medium"
 title = "Choose the advert and trailer time for each cinema yourself"
 done = true
@@ -31,11 +47,90 @@ done = true
 notes = "\"Home by\" defaults to midnight, which quietly rules out late showings. The page will say how many were left out and why."
 
 [[task]]
-priority = "low"
-title = "No adverts for event cinema"
-notes = "Only possible if event showings can be reliably told apart, since cinema websites don't consistently mark them."
+priority = "medium"
+title = "Type a priority number"
+done = true
+notes = "Type a number on a film to move it, instead of dragging it."
+
+[[task]]
+priority = "medium"
+title = "See which showings \"Home by\" left out"
+done = true
+notes = "The note on your plan can now open up to list each showing that was left out."
+
+[[task]]
+priority = "medium"
+title = "Show cinemas with no showings"
+done = true
+notes = "Cinemas with nothing listed now still appear on the Listings tab, so they read as having nothing on and not as missing."
+
+[[task]]
+priority = "medium"
+title = "Show every film in the \"Add a film\" list"
+done = true
+notes = "The list now shows every match, not just the first 15, and it is taller."
+
+[[task]]
+priority = "medium"
+title = "No advert time at The Dukes Lancaster"
+notes = "The Dukes says on its website that films start on time with no trailers or adverts. This will be set when the cinema is added."
+
+[[task]]
+priority = "medium"
+title = "Plan further ahead"
+notes = "Cinemas publish more than the site collects, including the big chains: there are about 100 showings a week per cinema for the next month, and big releases go on sale two months ahead. The plan is to collect about 8 weeks and let plans start later. Plans would stay at 10 days long or less."
+
+[[task]]
+priority = "medium"
+title = "Add Arc, Parkway, Lockworks, Prince Charles, Cottage Road and Cinemac"
+notes = "These need new code to read their booking systems. Keighley and Elland only need a small change, and are included here."
+
+[[task]]
+priority = "medium"
+title = "Choose how you travel"
+notes = "Avoid trams or trains when there are problems, or plan by bike or car. These need a Google Maps key, because the built-in times are rough public transport estimates."
+
+[[task]]
+priority = "medium"
+title = "Set a different start and end point for each day"
+notes = "For days when you are coming from or going back to somewhere other than home, such as work."
+
+[[task]]
+priority = "medium"
+title = "Rank your preferred cinemas and screens"
+notes = "Tell the planner which cinemas and screens you would rather use, as a preference and not a strict rule. Screen choice only works where the cinema publishes screens, so not at Reel or The Light."
 
 [[task]]
 priority = "low"
-title = "Plan further ahead"
-notes = "Collect more than 16 days of listings from cinemas that publish early, like HOME and Pictureville, and let plans start later."
+title = "No adverts for event cinema"
+notes = "Cinema websites don't consistently mark event showings, but big series like NT Live, Royal Ballet and Met Opera can be recognised from their titles. Others may be missed."
+
+[[task]]
+priority = "low"
+title = "Add Omniplex"
+notes = "Likely possible, but not tested yet. There are 22 UK cinemas, 14 of them in Northern Ireland."
+
+[[task]]
+priority = "low"
+title = "Add smaller venues with a mixed programme"
+notes = "Wetherby, Ilkley, Phoenix Leicester, Helmsley Arts Centre, Edge Theatre, Otley Courthouse and Pocklington Arts Centre. Each needs its own work, and films are only part of the programme at several of them."
+
+[[task]]
+priority = "low"
+title = "See upcoming films and find out about new ones"
+notes = "A list of films already on sale weeks ahead is possible once the site collects further ahead, and so is marking what is new since your last visit. Films with no showtimes yet are harder. Real reminders would need accounts."
+
+[[task]]
+priority = "low"
+title = "Keep different films with the same title apart"
+notes = "Films are matched on title alone, so an old film can be merged with a new one of the same name, as happened with Pressure at HOME. This is rare, and running time may be enough to tell them apart."
+
+[[task]]
+priority = "low"
+title = "Add Manchester Film Weekender showings at Altrincham Little Theatre"
+notes = "Some of these may already appear, so this needs checking first. The Spanish season and the true start time are the likely gaps."
+
+[[task]]
+priority = "low"
+title = "Check the remaining requested cinemas"
+notes = "Still to confirm: BFI (blocks automatic access), Palace Malton, Vault Burnley, Block Cinema, Nickel, Royal Sutton Coldfield, Chorley Theatre, and which Electric Palace was meant. Student cinemas at York, Sheffield and Warwick are low priority. Not possible for now: Flix at Treehouse (no public listings), Stoke Film Theatre (not running), Edge Hill (students only) and Millgate (one film a month)."
