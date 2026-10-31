@@ -116,7 +116,7 @@ function rawTravel(ht){const T=new Int32Array(NC1*NC1).fill(-1),E=new Uint8Array
 
 // ---------- persisted state ----------
 // availability: set.days[0..6] = per-weekday template, set.dates["YYYY-MM-DD"] = a date the user edited (wins)
-const DEF={days:{},dates:{},start:'',len:7,buf:10,late:0,maxDay:'',maxLeg:'',obj:'most',pc:'',geo:null,gc:{},noHome:false,cin:[],ch:[],st:[],ads:{},travel:'T',noTram:false,noTrain:false,pts:{}};
+const DEF={days:{},dates:{},start:'',len:7,buf:10,late:0,maxDay:'',maxLeg:'',obj:'most',pc:'',geo:null,gc:{},noHome:false,cin:[],ch:[],st:[],ads:{},travel:'T',noTram:false,noTrain:false,pts:{},rank:[]};
 for(let w=0;w<7;w++)DEF.days[w]={on:true,e:'10:00',l:'00:00'};
 const saved=store.get(LSK)||{};
 const PS={picks:[],set:Object.assign({},DEF,saved.set||{})};
@@ -150,6 +150,22 @@ const avail=day=>PS.set.dates[day]||PS.set.days[wdOf(day)];
 function applyAds(){const A=PS.set.ads,o=D.cinemas.map(c=>A[c.name]);
   for(const h of SH){const m=o[h.c],d=D.shows[h.i].d;if(m==null){h.en0=h.enS;h.est=h.estS}else{h.en0=h.st0+m+(d>0?d:120);h.est=true}}}
 applyAds();
+// ranking (Settings): set.rank = your order, best first, of {ch} chains, {c} cinemas and {c,s} screens of a cinema. Names not in the current
+// listings (screens: not among that cinema's shows' `s`) are kept but neither shown nor applied, like the Settings cinema lists; rkOn() is what counts.
+// A showing's penalty is the place of the most specific entry that covers it (screen, then cinema, then chain), spread evenly over 0..PREFMAX minutes,
+// PREFMAX with no entry. It's charged per film on top of travel and waiting, so a less-liked cinema wins only by saving that much time.
+const PREFMAX=90,SCR=new Map();
+for(const s of D.shows)if(s.s){const n=D.cinemas[s.c].name;(SCR.get(n)||SCR.set(n,new Set()).get(n)).add(s.s)}
+const rkKey=x=>x.s!=null?'s\u0001'+x.c+'\u0001'+x.s:x.c!=null?'c\u0001'+x.c:'h\u0001'+x.ch;
+const rkName=x=>x.s!=null?x.c+' · '+x.s:x.c!=null?x.c:x.ch||'Other';
+const rkKnown=x=>x.s!=null?!!SCR.get(x.c)&&SCR.get(x.c).has(x.s):x.c!=null?CIDX.has(x.c):CHAINS.includes(x.ch);
+{const o=PS.set.rank,seen=new Set(),n=[];if(Array.isArray(o))for(const x of o){if(!x||typeof x!=='object')continue;
+  const r=typeof x.c==='string'&&x.c?(typeof x.s==='string'&&x.s?{c:x.c,s:x.s}:{c:x.c}):typeof x.ch==='string'?{ch:x.ch}:null;
+  if(r&&!seen.has(rkKey(r))){seen.add(rkKey(r));n.push(r)}}PS.set.rank=n}
+const rkOn=()=>PS.set.rank.filter(rkKnown);
+// -> null without a ranking, else D.shows index -> penalty in minutes
+function prefs(){const L=rkOn(),by=new Map();if(!L.length)return null;L.forEach((x,i)=>by.set(rkKey(x),Math.round(PREFMAX*i/L.length)));
+  return i=>{const s=D.shows[i],c=D.cinemas[s.c];return by.get(rkKey({c:c.name,s:s.s||''}))??by.get(rkKey({c:c.name}))??by.get(rkKey({ch:c.chain||''}))??PREFMAX}}
 // per-pick excluded dates (p.dd, null = any); an old weekday list (p.wd = allowed weekdays) becomes the dates it excluded
 const ddOf=p=>{let r=null;if(Array.isArray(p.dd))r=p.dd.filter(d=>isDay(d)&&d>=TD);
   else if(Array.isArray(p.wd)){r=[];for(let d=D0;d<=D.to;d=dadd(d,1))if(!p.wd.includes(wdOf(d)))r.push(d)}
@@ -406,6 +422,37 @@ $('padlist').addEventListener('change',e=>{const t=e.target;if(t.dataset.act!=='
   if(v===''||isNaN(+v)){delete PS.set.ads[n];t.value=''}else{PS.set.ads[n]=Math.min(90,Math.max(0,Math.round(+v)));t.value=PS.set.ads[n]}
   t.parentNode.classList.toggle('set',PS.set.ads[n]!=null);adChanged()});
 $('padclr').onclick=()=>{PS.set.ads={};renderAds();adChanged()};
+// ranking (Settings): add from one search box, reorder by rank number or ↑ ↓. Reordering happens among the entries shown; hidden ones stay where they are.
+const RKA=[...CHAINS.map(v=>({x:{ch:v},m:'Cinema type'})),...D.cinemas.map((c,i)=>({x:{c:c.name},m:rgn(i)||'Cinema'})).sort((a,b)=>a.x.c.localeCompare(b.x.c)),
+  ...[...SCR].flatMap(([c,S])=>[...S].sort((a,b)=>a.localeCompare(b,'en',{numeric:true})).map(s=>({x:{c,s},m:'Screen'})))];
+for(const a of RKA)a.h=rkName(a.x).toLowerCase();
+let rkHl=0,rkHits=[];
+function rkSugg(){const q=$('prkq').value.trim().toLowerCase().split(/\s+/).filter(Boolean),have=new Set(PS.set.rank.map(rkKey));
+  rkHits=RKA.filter(a=>!have.has(rkKey(a.x))&&(q.length?q.every(w=>a.h.includes(w)):a.x.s==null)).slice(0,60);rkHl=Math.min(rkHl,Math.max(0,rkHits.length-1));
+  $('prksugg').innerHTML=rkHits.length?rkHits.map((a,i)=>`<div data-i="${i}" class="${i===rkHl?'hl':''}"><span>${esc(rkName(a.x))}</span><span class="meta">${esc(a.m)}</span></div>`).join(''):'<div class="meta">Nothing to add by that name.</div>';
+  $('prksugg').hidden=false}
+function renderRank(){const L=rkOn(),n=L.length,el=$('prksum');
+  $('prklist').innerHTML=L.map((x,i)=>{const nm=esc(rkName(x));return `<li class="pick" data-i="${i}"><div class="prow"><input class="rk" type="text" inputmode="numeric" value="${i+1}" data-act="rk" aria-label="Rank of ${nm}" title="Type a number to move this">
+    <div class="pt"><b title="${nm}">${nm}</b><span class="meta">${x.s!=null?'Screen':x.c!=null?'Cinema':'Cinema type'}</span></div>
+    <div class="pbtn"><button type="button" data-act="up" title="Rank higher" aria-label="Move up"${i?'':' disabled'}>↑</button><button type="button" data-act="dn" title="Rank lower" aria-label="Move down"${i<n-1?'':' disabled'}>↓</button><button type="button" data-act="rm" title="Remove" aria-label="Remove">✕</button></div></div></li>`}).join('');
+  $('prkclr').hidden=!PS.set.rank.length;el.classList.toggle('any',!n);el.textContent=!n?'No preference':n<=2?L.map(rkName).join(', '):n+' ranked';el.title=L.map(rkName).join(', ')}
+function rkMove(i,j){const R=PS.set.rank,L=rkOn();if(j<0||j>=L.length||i===j)return;const x=L[i],t=L[j];R.splice(R.indexOf(x),1);R.splice(R.indexOf(t)+(j>i?1:0),0,x);renderRank();changed()}
+function rkAdd(a){if(!a)return;PS.set.rank.push({...a.x});$('prkq').value='';rkHl=0;renderRank();changed();rkSugg()}
+$('prkq').onfocus=rkSugg;$('prkq').oninput=()=>{rkHl=0;rkSugg()};$('prkq').onblur=()=>setTimeout(()=>{$('prksugg').hidden=true},120);
+$('prkq').onkeydown=e=>{const it=[...$('prksugg').querySelectorAll('[data-i]')];
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();rkHl=(rkHl+(e.key==='ArrowDown'?1:-1)+it.length)%Math.max(1,it.length);it.forEach((x,i)=>x.classList.toggle('hl',i===rkHl));it[rkHl]&&it[rkHl].scrollIntoView({block:'nearest'})}
+  else if(e.key==='Enter'){e.preventDefault();rkAdd(rkHits[rkHl])}
+  else if(e.key==='Escape'){$('prksugg').hidden=true;$('prkq').blur()}};
+$('prksugg').onmousedown=e=>{e.preventDefault();const d=e.target.closest('[data-i]');if(d)rkAdd(rkHits[+d.dataset.i])};
+$('prklist').addEventListener('click',e=>{const b=e.target.closest('[data-act]'),li=e.target.closest('li.pick');if(!b||!li)return;const i=+li.dataset.i,a=b.dataset.act;
+  if(a==='up')rkMove(i,i-1);else if(a==='dn')rkMove(i,i+1);
+  else if(a==='rm'){const R=PS.set.rank;R.splice(R.indexOf(rkOn()[i]),1);renderRank();changed()}});
+// typed rank number: same rules as the pick list's
+$('prklist').addEventListener('change',e=>{const t=e.target;if(t.dataset.act!=='rk')return;const i=+t.closest('li.pick').dataset.i,n=parseInt(t.value,10),m=rkOn().length;
+  if(!(n>0)||String(n)!==t.value.trim()){t.value=i+1;return}t.value=Math.min(n,m);rkMove(i,Math.min(n,m)-1)});
+$('prklist').addEventListener('focusin',e=>{if(e.target.dataset.act==='rk')e.target.select()});
+$('prklist').addEventListener('keydown',e=>{if(e.target.dataset.act==='rk'&&e.key==='Enter')e.target.blur()});
+$('prkclr').onclick=()=>{PS.set.rank=[];renderRank();changed()};
 const own=d=>PS.set.dates[d]||(PS.set.dates[d]=Object.assign({},avail(d)));
 $('pdays').addEventListener('change',e=>{const t=e.target,tr=t.closest('tr[data-d]');if(!tr)return;const x=own(tr.dataset.d);
   if(t.dataset.f==='on'){x.on=t.checked;renderDays()}else if(t.value){x[t.dataset.f]=t.value;tr.querySelector('.hbn').textContent=hbNote(tr.dataset.d,x)}changed()});
@@ -462,7 +509,7 @@ $('ppc').value=PS.set.pc||'';$('ppcgo').onclick=setPC;$('ppc').onkeydown=e=>{if(
 $('ppc').onchange=setPC;
 $('pnohome').onchange=e=>{PS.set.noHome=e.target.checked;pcStatus();renderDays();banner();renderGC();renderPicks();changed()};
 function updGo(){const ht=homeTravel(),n=PS.picks.filter(p=>FI[p.k]).length,bad=DAYS.find(ptBad);
-  $('pgo').disabled=!n||!ht||!!bad||running;if(!gBusy)$('pgo').textContent=running?(Math.min(n,limit())>28?`Planning… (up to ${Math.round(budgetFor(Math.min(n,limit()))/1000)} s)`:'Planning…'):!ht?'Set a starting postcode first':bad?`Check the postcode on ${dshort(bad)}`:'Plan my schedule'}
+  $('pgo').disabled=!n||!ht||!!bad||running;if(!gBusy)$('pgo').textContent=running?(Math.min(n,limit())>28?`Planning… (up to ${Math.round(budgetFor(Math.min(n,limit()))*(rkOn().length?2:1)/1000)} s)`:'Planning…'):!ht?'Set a starting postcode first':bad?`Check the postcode on ${dshort(bad)}`:'Plan my schedule'}
 // Google Maps key (own key, this browser only)
 function keyStatus(){const el=$('pkeyst'),n=Object.keys(GCACHE).length;$('pkeyforget').disabled=!gkey&&!n;
   el.className='pcst'+(gkey?' ok':'');
@@ -501,7 +548,7 @@ function candidates(){const s=PS.set,buf=+s.buf||0,late=+s.late||0;
 // solver time limit: 2.5 s up to 28 films, then +0.625 s per film (14.4 s at 47) since bigger searches need longer to finish
 const budgetFor=n=>n>28?2500+(n-28)*625:2500;
 function buildProblem(){const s=PS.set,maxLeg=+s.maxLeg||0,ht=homeTravel();
-  const {win,used,info,per,buf,late}=candidates(),{T,E}=rawTravel(ht),ends=dayEnds();
+  const {win,used,info,per,buf,late}=candidates(),{T,E}=rawTravel(ht),ends=dayEnds(),pen=prefs();
   // shortest-path closure via candidate cinemas (a journey may route past another cinema): keeps feasibility monotone,
   // which the solver relies on. Home is never an intermediate (in no-home mode its legs are 0 and would act as a
   // teleport); cinemas without candidates aren't either, so their unfetched estimates can't undercut fetched times.
@@ -524,10 +571,10 @@ function buildProblem(){const s=PS.set,maxLeg=+s.maxLeg||0,ht=homeTravel();
   const films=[];
   info.forEach((r,pi)=>{if(r.reason)return;const days=DAYS.map(()=>[]);
     for(const h of per[pi]){const w=win[h.di],a=dayTo(h.di,h.c),b=dayFr(h.di,h.c);if(a<0||b<0)continue;
-      if(w.e+a>h.st+late)continue;if(h.en+buf+b>w.l){r.homeBy++;r.hb.push(h);continue}r.win++;days[h.di].push({i:h.i,c:h.c,st:h.st,en:h.en})}
+      if(w.e+a>h.st+late)continue;if(h.en+buf+b>w.l){r.homeBy++;r.hb.push(h);continue}r.win++;const o={i:h.i,c:h.c,st:h.st,en:h.en},q=pen&&pen(h.i);if(q)o.p=q;days[h.di].push(o)}
     if(!r.match)r.reason='constraints';else if(!r.win)r.reason='window';else{r.si=films.length;films.push({days})}});
   const own=ends.some(x=>x.s||x.e)?{ds:dl.map(x=>x.a),de:dl.map(x=>x.b)}:{};
-  return {P:{films,win,T,nc:NC,buf,late,maxDay:+s.maxDay||0,mode:s.obj,budget:budgetFor(films.length),...own},info,ht,win,T,E,dl,buf,late,mode:s.obj,days:DAYS,lim:limit(),tp}}
+  return {P:{films,win,T,nc:NC,buf,late,maxDay:+s.maxDay||0,mode:s.obj,budget:budgetFor(films.length),...own},info,ht,win,T,E,dl,buf,late,mode:s.obj,days:DAYS,lim:limit(),tp,pen}}
 // fetch Google times (plus walking, for transit) for every leg the plan can use that isn't cached yet: between cinemas with
 // candidate showings, each day's own start / end with that day's cinemas, and home with all of them if some day still uses
 // it (the closure in buildProblem routes home's legs via every candidate cinema). Never between home and a point, or two points.
@@ -610,12 +657,12 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
     const u=r.unfit[x.si];if(!u)return '';
     if(ctx.mode==='strict'||!u.higher)return 'Clashes with your higher-priority picks.';
     return 'Only fits by dropping other picks. Leaving it out lets you see more films (or higher-ranked ones).'};
-  const miss=ctx.info.filter(x=>x.si<0||!r.chosen.includes(x.si));
-  const st=r.status==='optimal'?`<span class="st opt" title="Search finished: no plan sees more (or higher-priority) films, and none of those needs less travel and waiting">optimal</span>`
-    :r.status==='films'?`<span class="st opt" title="Proven: no plan sees more (or higher-priority) films. Travel and waiting were minimised as far as the time limit allowed">best films · travel near-optimal</span>`
+  const miss=ctx.info.filter(x=>x.si<0||!r.chosen.includes(x.si)),nRk=ctx.pen?days.reduce((n,dd)=>n+dd.seq.filter(i=>ctx.pen(i)<PREFMAX).length,0):0;
+  const st=r.status==='optimal'?`<span class="st opt" title="Search finished: no plan sees more (or higher-priority) films, and none of those ${ctx.pen?'better balances your ranking with travel and waiting':'needs less travel and waiting'}">optimal</span>`
+    :r.status==='films'?`<span class="st opt" title="Proven: no plan sees more (or higher-priority) films. ${ctx.pen?'Your ranking, travel and waiting were balanced':'Travel and waiting were minimised'} as far as the time limit allowed">best films · travel near-optimal</span>`
     :`<span class="st part" title="The search stopped at the time limit before it could prove this is the best possible; it is the best plan it found">best found in time</span>`;
   const head=`<div class="rsum"><div class="big">Seeing ${nGot} of ${nPick} film${nPick>1?'s':''}${days.length?` over ${days.length} day${days.length>1?'s':''}`:''}${st}</div>
-    <div class="meta">${noHome&&!anyPt||!days.length?'':(nEst?'~':'')+dur(totTr)+' total travel · '}${PS.set.obj==='strict'?'strict priority':'most films'} · solved in ${(r.wall/1000).toFixed(2)} s</div></div>`;
+    <div class="meta">${noHome&&!anyPt||!days.length?'':(nEst?'~':'')+dur(totTr)+' total travel · '}${PS.set.obj==='strict'?'strict priority':'most films'}${ctx.pen&&days.length?` · ${nRk} of ${nGot} at your ranked choices`:''} · solved in ${(r.wall/1000).toFixed(2)} s</div></div>`;
   // showings of the picks that only the "Home by" time ruled out (it defaults to midnight, which hides late showings)
   const nHB=ctx.info.reduce((n,x)=>n+x.homeBy,0),allMid=ctx.days.every(d=>{const a=avail(d);return !a.on||a.l==='00:00'});
   const hb=nHB?`<div class="banner">${nHB} showing${nHB>1?'s':''} of your picks ${nHB>1?'were':'was'} left out because ${nHB>1?'they finish':'it finishes'} too late ${anyEnd?'to reach the day’s end point by':noHome?'for':'to get home by'} your “Home by” time.
@@ -627,5 +674,5 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
   out.innerHTML=`<div class="res">${html}</div>`;banner()}
 
 function emptyOut(){if(!lastRes)$('pout').innerHTML='<div class="pempty">Add the films you want to see, set when you’re free, then press <b>Plan my schedule</b>.<br><br>The planner finds the schedule over your chosen dates that fits the most of your picks (or follows strict priority), using '+(tp==='B'?'cycling':tp==='D'?'driving':'public transport and walking')+' times between cinemas.</div>'}
-dateNote();renderDays();renderGC();renderAds();pcStatus();keyStatus();tmUI();banner();renderPicks();emptyOut();
+dateNote();renderDays();renderGC();renderAds();renderRank();pcStatus();keyStatus();tmUI();banner();renderPicks();emptyOut();
 }

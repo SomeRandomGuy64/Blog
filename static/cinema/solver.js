@@ -1,13 +1,15 @@
 /* Fazon Nexus · Cinema Planner — schedule optimiser. SOLVER is stringified (SOLVER.toString()) into a Blob Web Worker by planner.js, so it must stay a self-contained function declaration with no outer references. */
 // Self-contained schedule optimiser (also runs as an inline Blob worker; keep it free of outer references).
-// Input P: {films:[{days:[[{i,c,st,en}]...per day]}] in priority order (0 = most wanted),
+// Input P: {films:[{days:[[{i,c,st,en,p?}]...per day]}] in priority order (0 = most wanted); p = preference penalty in minutes (>= 0, absent = 0),
 //   win:[{e,l}|null per day] (minutes from that day's midnight; l may exceed 1440), T:Int32Array (nc+1)^2 minutes
 //   (-1 = unreachable; index nc = home; should be shortest-path closed so feasibility is monotone -> exact search), nc, buf, late, maxDay (0 = none), mode:'most'|'strict', budget ms,
 //   ds?, de?: [Int32Array(nc)|null per day], minutes from that day's own start / to its own end at each cinema (null or absent = home's row / column of T).
 //   They need the same closure: ds[d][c] <= ds[d][k] + T[k][c] and de[d][c] <= T[c][k] + de[d][k] for the cinemas k, c with showings on day d}
 //   Film sets are plain JS numbers used as bit sets (film f = 2**f), exact up to 2**53, so up to 47 films are supported
 //   (the planner sends at most 40); JS bitwise operators are 32-bit, so film sets only go through the helpers below.
-// Output: {status:'optimal'|'films' (film choice proven, travel not)|'timeout', days:[{d,seq:[showIdx],cost}], chosen:[f], unfit:{f:{higher}}, nodes, ms, memo}
+//   The objective is film score (count, or strict priority) first, then the sum of travel + waiting + p over the plan: p is charged to its
+//   showing, so the per-day DP stays exact, and it can only break ties between plans that see the same films.
+// Output: {status:'optimal'|'films' (film choice proven, travel not)|'timeout', days:[{d,seq:[showIdx],cost (travel + waiting, without p)}], chosen:[f], unfit:{f:{higher}}, nodes, ms, memo}
 function SOLVER(){
 "use strict";
 const pc32=x=>{x-=(x>>>1)&0x55555555;x=(x&0x33333333)+((x>>>2)&0x33333333);return (((x+(x>>>4))&0x0F0F0F0F)*0x01010101)>>>24};
@@ -20,7 +22,7 @@ const has=(S,f)=>f<31?((S<W31?S:S%W31)>>f&1)===1:(Math.floor(S/W31)>>(f-31)&1)==
 const add=(S,f)=>has(S,f)?S:S+BIT[f], del=(S,f)=>has(S,f)?S-BIT[f]:S;
 const or=(a,b)=>{const ah=Math.floor(a/W31),bh=Math.floor(b/W31);return ((ah|bh)>>>0)*W31+(((a-ah*W31)|(b-bh*W31))>>>0)};
 const EMPTY={groups:[],home:Infinity,hs:null,n:0};
-function solve(P){
+function run(P){
   if(P.films.length>47)throw new Error('The solver handles at most 47 films');
   const t0=Date.now(),budget=P.budget||2500,n=P.films.length,ND=P.win.length,NC1=P.nc+1,H=P.nc,T=P.T;
   const buf=P.buf||0,late=P.late||0,strict=P.mode==='strict',W=P.win,maxDay=P.maxDay>0?P.maxDay:99;
@@ -47,9 +49,9 @@ function solve(P){
   function last(d,S){let r=memo[d].get(S);if(r===undefined){r=build(d,S);memo[d].set(S,r);memoN++}return r}
   function build(d,S){
     const w=W[d],cnt=pc(S);if(!w||cnt>cap[d])return EMPTY;
-    const states=[];   // {s, cost: min travel+wait to finish s, mt: min travel alone (monotone lower bound), prev}
+    const states=[];   // {s, cost: min travel+wait+p to finish s, mt: min travel+p alone (monotone lower bound), prev}
     if(cnt===1){const f=low(S);
-      for(const s of cand[f][d]){const t=DS[d][s.c];if(t<0||w.e+t>s.st+late)continue;states.push({s,cost:t,mt:t,prev:null})}}
+      for(const s of cand[f][d]){const t=DS[d][s.c];if(t<0||w.e+t>s.st+late)continue;const v=t+(s.p||0);states.push({s,cost:v,mt:v,prev:null})}}
     else for(let b=S;b;){const f=low(b);b-=BIT[f];const Pr=last(d,S-BIT[f]);if(!Pr.n)continue;const G=Pr.groups;
       for(const s of cand[f][d]){let best=Infinity,bp=null,bmt=Infinity;
         for(const g of G){const t=tr(g.c,s.c);if(t<0)continue;
@@ -57,7 +59,7 @@ function solve(P){
           let lo=0,hi=E.length;while(lo<hi){const m=(lo+hi)>>1;if(E[m]<=T0)lo=m+1;else hi=m}
           if(lo>0){const x=g.st[g.pmi[lo-1]],v=x.cost-x.s.en+s.st-buf;if(v<best){best=v;bp=x}if(g.pmt[lo-1]+t<bmt)bmt=g.pmt[lo-1]+t}
           for(let k=lo;k<E.length&&E[k]<=T1;k++){const x=g.st[k],v=x.cost+t;if(v<best){best=v;bp=x}if(x.mt+t<bmt)bmt=x.mt+t}}
-        if(bp)states.push({s,cost:best,mt:bmt,prev:bp})}}
+        if(bp){const p=s.p||0;states.push({s,cost:best+p,mt:bmt+p,prev:bp})}}}
     if(!states.length)return EMPTY;
     const by=new Map();for(const x of states){const a=by.get(x.s.c);if(a)a.push(x);else by.set(x.s.c,[x])}
     const groups=[];let home=Infinity,hs=null,mth=Infinity;
@@ -180,13 +182,20 @@ function solve(P){
   // ---- reconstruct ----
   const out={status:!p1?'timeout':p2||best.key<=0?'optimal':'films',days:[],chosen:[],unfit:{},nodes,ms:Date.now()-t0,memo:memoN,cap:Array.from(cap)};
   const B=best.Sd;let chosenMask=0;
-  for(let d=0;d<ND;d++){const S=B[d];if(!S)continue;chosenMask=or(chosenMask,S);const R=last(d,S),seq=[];
-    for(let x=R.hs;x;x=x.prev)seq.push(x.s.i);
-    out.days.push({d,seq:seq.reverse(),cost:R.home})}
+  for(let d=0;d<ND;d++){const S=B[d];if(!S)continue;chosenMask=or(chosenMask,S);const R=last(d,S),seq=[];let pen=0;
+    for(let x=R.hs;x;x=x.prev){seq.push(x.s.i);pen+=x.s.p||0}
+    out.days.push({d,seq:seq.reverse(),cost:R.home-pen})}
   for(let f=0;f<n;f++){if(has(chosenMask,f)){out.chosen.push(f);continue}
     let higher=false;   // B[d] % 2**f = the picks on day d ranked above f
     for(const d of daysOf[f])if(fits(d,B[d]%BIT[f]+BIT[f])){higher=true;break}
     out.unfit[f]={higher}}   // higher=true: fits next to the higher-ranked picks (so it lost to lower-ranked ones on count)
   out.ms=Date.now()-t0;
   return out}
+// Penalties steer the search's order, so one that runs out of time could stop on fewer films than a search without them:
+// then search without them too and keep whichever sees more. 'films' and 'optimal' already prove the film choice.
+function solve(P){const r=run(P),n=P.films.length;
+  if(r.status!=='timeout'||!P.films.some(f=>f.days&&f.days.some(L=>L&&L.some(s=>s.p))))return r;
+  const r0=run({...P,films:P.films.map(f=>({days:(f.days||[]).map(L=>(L||[]).map(s=>({...s,p:0})))}))});
+  const val=R=>{let m=0;for(const f of R.chosen)m+=2**(n-1-f);return P.mode==='strict'?m:R.chosen.length*2**n+m};
+  return val(r0)>val(r)?r0:r}
 return {solve}}

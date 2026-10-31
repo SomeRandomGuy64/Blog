@@ -192,6 +192,12 @@
 .cinema-app .adl input[type=number]{margin-left:auto;width:64px;flex:0 0 64px;padding:2px 6px}
 .cinema-app .adl label.set span:first-of-type{font-weight:600;color:var(--acci)}
 .cinema-app .sugg .dim{opacity:.55}
+/* Settings ranking: the add box's results sit in the page flow, since .glim clips anything absolutely positioned */
+.cinema-app .rkadd{margin-top:6px}
+.cinema-app .rkadd .sugg{position:static;margin-top:4px;max-height:220px;box-shadow:none}
+.cinema-app .rkadd .sugg div{font-size:13px}
+.cinema-app .rkadd .sugg span:first-child{min-width:0;overflow-wrap:anywhere}
+.cinema-app #prklist{margin-top:8px}
 .cinema-app .chips{display:flex;flex-wrap:wrap;gap:5px}
 .cinema-app .chip{font-size:12.5px;padding:3px 9px;border-radius:99px;line-height:1.35}
 .cinema-app .chip.req{background:var(--okb);color:var(--ok);border-color:var(--ok);font-weight:600}
