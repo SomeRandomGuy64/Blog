@@ -82,6 +82,10 @@ function homeTravel(){
       to[c]=typeof a==='number'?Math.round(a):-1;fr[c]=typeof b==='number'?Math.round(b):-1}}
   for(let c=0;c<NC;c++){const C=CLL[c];if(C&&to[c]<0&&fr[c]<0)to[c]=fr[c]=estMin(hav(g.lat,g.lng,C.lat,C.lng))}
   return {to,fr,lat:g.lat,lng:g.lng}}
+// a day's own start or end point: straight-line estimates like home's (same shape as homeTravel(), so homeLeg() reads it too)
+function ptTravel(p){const to=new Int32Array(NC).fill(-1);
+  for(let c=0;c<NC;c++){const C=CLL[c];if(C)to[c]=estMin(hav(p.lat,p.lng,C.lat,C.lng))}
+  return {to,fr:to,lat:p.lat,lng:p.lng}}
 // Google times cache: {"T|lat,lng>lat,lng": [minutes|null (no route), day]} (+ "W|…" walking for short hops). The prefix
 // is the travel profile (routes.js prof()): T, Tt/Tr/Ttr (avoiding trams/trains), B cycling, D driving. tp = the one in use.
 const GK='fazon-cinema-gkey',GC='fazon-cinema-gtimes',GTTL=30,TODAY=Math.floor(Date.now()/864e5);
@@ -112,12 +116,22 @@ function rawTravel(ht){const T=new Int32Array(NC1*NC1).fill(-1),E=new Uint8Array
 
 // ---------- persisted state ----------
 // availability: set.days[0..6] = per-weekday template, set.dates["YYYY-MM-DD"] = a date the user edited (wins)
-const DEF={days:{},dates:{},start:'',len:7,buf:10,late:0,maxDay:'',maxLeg:'',obj:'most',pc:'',geo:null,gc:{},noHome:false,cin:[],ch:[],st:[],ads:{},travel:'T',noTram:false,noTrain:false};
+const DEF={days:{},dates:{},start:'',len:7,buf:10,late:0,maxDay:'',maxLeg:'',obj:'most',pc:'',geo:null,gc:{},noHome:false,cin:[],ch:[],st:[],ads:{},travel:'T',noTram:false,noTrain:false,pts:{}};
 for(let w=0;w<7;w++)DEF.days[w]={on:true,e:'10:00',l:'00:00'};
 const saved=store.get(LSK)||{};
 const PS={picks:[],set:Object.assign({},DEF,saved.set||{})};
 PS.set.days=Object.assign({},DEF.days,PS.set.days||{});if(!PS.set.gc||typeof PS.set.gc!=='object')PS.set.gc={};
 {const o=PS.set.dates,n={};if(o&&typeof o==='object')for(const d in o)if(isDay(d)&&d>=TD&&o[d]&&typeof o[d]==='object')n[d]=Object.assign({},DEF.days[0],o[d]);PS.set.dates=n}
+// a date's own start / end points: set.pts["YYYY-MM-DD"] = {s,e}, each {pc,lat,lng,area} or, until looked up, {pc,err?}. Past dates go, like set.dates.
+{const o=PS.set.pts,n={};if(o&&typeof o==='object'&&!Array.isArray(o))for(const d in o)if(isDay(d)&&d>=TD&&o[d]&&typeof o[d]==='object'){const r={};
+  for(const k of ['s','e']){const p=o[d][k];if(p&&typeof p.pc==='string'&&p.pc)r[k]=hasLL(p)?{pc:p.pc,lat:p.lat,lng:p.lng,area:typeof p.area==='string'?p.area:''}:{pc:p.pc,err:p.err}}
+  if(r.s||r.e)n[d]=r}PS.set.pts=n}
+const ptOf=(day,k)=>{const o=PS.set.pts[day];return o&&o[k]||null};
+const ptSame=p=>!PS.set.noHome&&normPC(p.pc)===normPC(PS.set.pc);   // the home postcode typed again is simply home
+const dayPt=(day,k)=>{const p=ptOf(day,k);return p&&hasLL(p)&&!ptSame(p)?p:null};
+const ptBad=day=>{if(!avail(day).on)return false;const a=ptOf(day,'s'),b=ptOf(day,'e');return !!(a&&!hasLL(a)||b&&!hasLL(b))};   // never quietly plan from home instead
+// each plan day's own points; null = home, or in no-home mode the first / last cinema
+const dayEnds=()=>DAYS.map(day=>avail(day).on?{s:dayPt(day,'s'),e:dayPt(day,'e')}:{s:null,e:null});
 // global cinema list (Settings): names of the cinemas every film is limited to ([] = any). Names not in the current
 // listings (another region's cinemas, one that's closed) are kept but neither shown nor applied: kn() is what counts,
 // and when none of them is here the list means "any". "Any cinema" clears them all. Per-pick cinema lists work the same.
@@ -312,10 +326,25 @@ $('pstart').onchange=()=>{PS.set.start=$('pstart').value;winChange()};
 $('plen').onchange=()=>{PS.set.len=+$('plen').value;winChange()};
 // availability per date (an untouched date follows its weekday's template)
 const hbNote=(day,x)=>x.on&&parseHM(x.l)>0&&homeBy(x)>=1440?'next day, '+dshort(dadd(day,1)):'';   // midnight itself needs no note
-function renderDays(){
-  $('pdays').innerHTML='<tr><th></th><th>Day</th><th>Leave from</th><th>Home by</th></tr>'+DAYS.map(day=>{const x=avail(day);
-    return `<tr class="${x.on?'':'off'}" data-d="${day}"><td><input type="checkbox" data-f="on"${x.on?' checked':''} aria-label="Free on ${esc(dayLbl(day))}"></td><td class="dn">${esc(dayLbl(day))}</td>
-     <td><input type="time" data-f="e" value="${esc(x.e)}"${x.on?'':' disabled'}></td><td><input type="time" data-f="l" value="${esc(x.l)}"${x.on?'':' disabled'} title="Earlier than the leave time, or before 05:00, means the next morning"><span class="hbn">${esc(hbNote(day,x))}</span></td></tr>`}).join('')+
+// a day's own start and end postcodes open in a row under it ("Start/end" button)
+const PTO=new Set(),ptBusy=new WeakSet(),PTK=[['s','Start'],['e','End']];
+const ptB=day=>{const a=ptOf(day,'s'),b=ptOf(day,'e');return a&&b?'Own both':a?'Own start':b?'Own end':'Start/end'};
+function ptStat(day,k){const p=ptOf(day,k);if(!p)return ['',''];
+  if(ptBusy.has(p))return ['','Looking up '+fmtPC(p.pc)+'…'];
+  if(hasLL(p))return ['ok',ptSame(p)?'✓ Same as home':'✓ '+fmtPC(p.pc)+(p.area?' · '+p.area:'')];
+  return ['bad',p.err==='fmt'?'That doesn’t look like a UK postcode.':p.err==='nf'?'Postcode '+fmtPC(p.pc)+' not found.':
+    p.err==='net'?'Couldn’t reach postcodes.io to look up '+fmtPC(p.pc)+' (offline?). Press Enter to try again.':'Not looked up yet. Press Enter to try again.']}
+const ptField=(day,[k,lb],noHome)=>{const p=ptOf(day,k),[c,m]=ptStat(day,k);
+  return `<label>${lb}<input type="text" data-pt="${k}" value="${esc(p?p.pc:'')}" placeholder="${noHome?(k==='s'?'First cinema':'Last cinema'):'Home'}" maxlength="12" autocomplete="off" spellcheck="false" aria-label="${lb} postcode on ${esc(dayLbl(day))}"><span class="pcst ${c}" data-ps="${k}">${esc(m)}</span></label>`};
+// repaint one day's status lines only: a lookup can finish while the next box is being typed in
+function ptRow(day){const T=$('pdays'),r=T.querySelector(`tr[data-pd="${day}"]`),b=T.querySelector(`tr[data-d="${day}"] .ptb`);
+  if(b){b.textContent=ptB(day);b.classList.toggle('on',!!PS.set.pts[day])}
+  if(r)for(const [k] of PTK){const [c,m]=ptStat(day,k),el=r.querySelector(`[data-ps="${k}"]`),i=r.querySelector(`[data-pt="${k}"]`),p=ptOf(day,k);el.className='pcst '+c;el.textContent=m;if(p&&i!==document.activeElement)i.value=p.pc}}
+function renderDays(){const noHome=!!PS.set.noHome;
+  $('pdays').innerHTML='<tr><th></th><th>Day</th><th>Leave from</th><th>Home by</th></tr>'+DAYS.map(day=>{const x=avail(day),open=x.on&&(PTO.has(day)||ptBad(day));
+    return `<tr class="${x.on?'':'off'}" data-d="${day}"><td><input type="checkbox" data-f="on"${x.on?' checked':''} aria-label="Free on ${esc(dayLbl(day))}"></td><td class="dn">${esc(dayLbl(day))}${x.on?`<button type="button" class="ptb${PS.set.pts[day]?' on':''}" aria-expanded="${open}" title="Start or finish this day somewhere else">${esc(ptB(day))}</button>`:''}</td>
+     <td><input type="time" data-f="e" value="${esc(x.e)}"${x.on?'':' disabled'}></td><td><input type="time" data-f="l" value="${esc(x.l)}"${x.on?'':' disabled'} title="Earlier than the leave time, or before 05:00, means the next morning"><span class="hbn">${esc(hbNote(day,x))}</span></td></tr>
+     <tr class="ptr" data-pd="${day}"${open?'':' hidden'}><td colspan="4"><div class="ptg">${PTK.map(K=>ptField(day,K,noHome)).join('')}</div><div class="pth">Empty = ${noHome?'the first or last cinema':'home'}. “Leave from” is then when you can leave the start, “Home by” when you must reach the end.</div></td></tr>`}).join('')+
    (DAYS.length>1?'<tr><td></td><td colspan="3"><button class="ib" id="pcopy">Copy first day’s times to all</button></td></tr>':'')}
 // cinemas for all films (Settings): sorted by distance from home when known, else grouped by chain
 // (cinemas whose chain the Settings cinema types rule out are greyed; counts honour the Settings screen types)
@@ -380,41 +409,60 @@ $('padclr').onclick=()=>{PS.set.ads={};renderAds();adChanged()};
 const own=d=>PS.set.dates[d]||(PS.set.dates[d]=Object.assign({},avail(d)));
 $('pdays').addEventListener('change',e=>{const t=e.target,tr=t.closest('tr[data-d]');if(!tr)return;const x=own(tr.dataset.d);
   if(t.dataset.f==='on'){x.on=t.checked;renderDays()}else if(t.value){x[t.dataset.f]=t.value;tr.querySelector('.hbn').textContent=hbNote(tr.dataset.d,x)}changed()});
-$('pdays').addEventListener('click',e=>{if(e.target.id!=='pcopy')return;const f=Object.assign({},avail(DAYS[0]));
+$('pdays').addEventListener('click',e=>{const pb=e.target.closest('.ptb');
+  if(pb){const day=pb.closest('tr[data-d]').dataset.d,r=$('pdays').querySelector(`tr[data-pd="${day}"]`);r.hidden=!r.hidden;pb.setAttribute('aria-expanded',!r.hidden);if(r.hidden)PTO.delete(day);else PTO.add(day);return}
+  if(e.target.id!=='pcopy')return;const f=Object.assign({},avail(DAYS[0]));
   for(const d of DAYS){const x=own(d);x.e=f.e;x.l=f.l}for(let w=0;w<7;w++){PS.set.days[w].e=f.e;PS.set.days[w].l=f.l}renderDays();changed()});
+async function ptSet(day,k,raw){const n=normPC(raw),S=PS.set,c=ptOf(day,k);if(!n&&!c)return;const o=S.pts[day]||(S.pts[day]={});
+  if(!n){delete o[k];if(!o.s&&!o.e)delete S.pts[day];ptRow(day);changed();return}
+  if(c&&normPC(c.pc)===n&&(hasLL(c)||ptBusy.has(c)))return;
+  const p={pc:fmtPC(n)};o[k]=p;
+  if(!PCRE.test(n)){p.pc=String(raw).trim().slice(0,12);p.err='fmt';ptRow(day);changed();return}
+  let g=pcKnown(n,p.pc);
+  if(!g){ptBusy.add(p);ptRow(day);changed();
+    try{g=await pcFetch(p.pc);if(!g)p.err='nf'}catch(err){p.err='net'}
+    ptBusy.delete(p);if(ptOf(day,k)!==p)return}   // changed again meanwhile
+  if(g)Object.assign(p,{pc:fmtPC(g.pc||p.pc),lat:g.lat,lng:g.lng,area:g.area||''});
+  ptRow(day);changed()}
+$('pdays').addEventListener('change',e=>{const t=e.target,k=t.dataset.pt;if(k)ptSet(t.closest('tr[data-pd]').dataset.pd,k,t.value)});
+$('pdays').addEventListener('keydown',e=>{const t=e.target,k=t.dataset.pt;if(!k||e.key!=='Enter')return;e.preventDefault();ptSet(t.closest('tr[data-pd]').dataset.pd,k,t.value)});
 const numF=[['pbuf','buf'],['plate','late'],['pmaxd','maxDay'],['pmaxl','maxLeg']];
 for(const [id,k] of numF){$(id).value=PS.set[k];$(id).onchange=()=>{const v=$(id).value.trim();PS.set[k]=v===''?(k==='buf'||k==='late'?0:''):Math.max(0,+v||0);changed()}}
 $('pobj').value=PS.set.obj;$('pobj').onchange=()=>{PS.set.obj=$('pobj').value;changed()};
 // postcode
 function pcStatus(){const s=PS.set,el=$('ppcst');$('pnohome').checked=!!s.noHome;$('ppc').disabled=$('ppcgo').disabled=!!s.noHome;
-  if(s.noHome){el.className='pcst';el.textContent='Each day starts at the first cinema; times are for the first film and the last film’s end.';return}
+  if(s.noHome){el.className='pcst';el.textContent='Each day starts at the first cinema; times are for the first film and the last film’s end. A day with its own start or end postcode uses that instead.';return}
   if(s.geo&&normPC(s.geo.pc)===normPC(s.pc)){el.className='pcst ok';el.textContent='✓ '+fmtPC(s.geo.pc)+(s.geo.area?' · '+s.geo.area:'')}
   else if(!s.pc){el.className='pcst';el.textContent='Enter the postcode you’ll leave from and return to.'}}
 let pcBusy=false;
+const PCRE=/^[A-Z]{1,2}[0-9][A-Z0-9]?[0-9][A-Z]{2}$/;
+function pcKnown(n,pc){const s=PS.set;
+  return D.home&&normPC(D.home.postcode)===n&&hasLL(D.home)?{pc,lat:D.home.lat,lng:D.home.lng,area:(D.home.label||'').replace(/\s*\([^)]*\)\s*$/,'')||'Home'}:s.gc[n]||(s.geo&&normPC(s.geo.pc)===n?s.geo:null)}
+// postcodes.io: -> {pc,lat,lng,area}, or null if there's no such postcode; throws if it can't be reached
+async function pcFetch(pc){const s=PS.set,ac=typeof AbortController!=='undefined'?new AbortController():null,tm=ac&&setTimeout(()=>ac.abort(),8000);
+  const r=await fetch('https://api.postcodes.io/postcodes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({postcodes:[pc]}),signal:ac&&ac.signal});
+  tm&&clearTimeout(tm);if(!r.ok)throw new Error('HTTP '+r.status);
+  const j=await r.json(),res=j&&j.result&&j.result[0]&&j.result[0].result;
+  if(!res||typeof res.latitude!=='number')return null;
+  const g={pc:res.postcode||pc,lat:res.latitude,lng:res.longitude,area:[res.admin_ward,res.admin_district].filter(Boolean).join(', ')};
+  s.gc[normPC(pc)]=g;const ks=Object.keys(s.gc);if(ks.length>8)delete s.gc[ks[0]];return g}
 async function setPC(){const raw=$('ppc').value,n=normPC(raw),s=PS.set,el=$('ppcst');if(pcBusy)return;
-  if(!n){s.pc='';s.geo=null;pcStatus();changed();renderGC();renderPicks();banner();return}
-  if(!/^[A-Z]{1,2}[0-9][A-Z0-9]?[0-9][A-Z]{2}$/.test(n)){el.className='pcst bad';el.textContent='That doesn’t look like a UK postcode.';return}
+  if(!n){s.pc='';s.geo=null;pcStatus();renderDays();changed();renderGC();renderPicks();banner();return}
+  if(!PCRE.test(n)){el.className='pcst bad';el.textContent='That doesn’t look like a UK postcode.';return}
   s.pc=fmtPC(n);$('ppc').value=s.pc;
-  let g=null;
-  if(D.home&&normPC(D.home.postcode)===n&&hasLL(D.home))g={pc:s.pc,lat:D.home.lat,lng:D.home.lng,area:(D.home.label||'').replace(/\s*\([^)]*\)\s*$/,'')||'Home'};
-  else if(s.gc[n])g=s.gc[n];
-  else{pcBusy=true;el.className='pcst';el.textContent='Looking up '+s.pc+'…';
-    try{const ac=typeof AbortController!=='undefined'?new AbortController():null,tm=ac&&setTimeout(()=>ac.abort(),8000);
-      const r=await fetch('https://api.postcodes.io/postcodes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({postcodes:[s.pc]}),signal:ac&&ac.signal});
-      tm&&clearTimeout(tm);if(!r.ok)throw new Error('HTTP '+r.status);
-      const j=await r.json(),res=j&&j.result&&j.result[0]&&j.result[0].result;
-      if(!res||typeof res.latitude!=='number'){pcBusy=false;s.geo=null;el.className='pcst bad';el.textContent='Postcode '+s.pc+' not found.';save();banner();return}
-      g={pc:res.postcode||s.pc,lat:res.latitude,lng:res.longitude,area:[res.admin_ward,res.admin_district].filter(Boolean).join(', ')};
-      s.gc[n]=g;const ks=Object.keys(s.gc);if(ks.length>8)delete s.gc[ks[0]];
+  let g=pcKnown(n,s.pc);
+  if(!g){pcBusy=true;el.className='pcst';el.textContent='Looking up '+s.pc+'…';
+    try{g=await pcFetch(s.pc);
+      if(!g){pcBusy=false;s.geo=null;el.className='pcst bad';el.textContent='Postcode '+s.pc+' not found.';save();banner();return}
     }catch(err){pcBusy=false;el.className='pcst bad';el.textContent='Couldn’t reach postcodes.io to look up '+s.pc+' (offline?). Try again.'+(s.geo?' Still using '+fmtPC(s.geo.pc)+'.':'');
       if(s.geo)s.pc=fmtPC(s.geo.pc);return}
     pcBusy=false}
-  s.geo=g;pcStatus();banner();renderGC();renderPicks();changed()}
+  s.geo=g;pcStatus();renderDays();banner();renderGC();renderPicks();changed()}
 $('ppc').value=PS.set.pc||'';$('ppcgo').onclick=setPC;$('ppc').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();setPC()}};
 $('ppc').onchange=setPC;
-$('pnohome').onchange=e=>{PS.set.noHome=e.target.checked;pcStatus();banner();renderGC();renderPicks();changed()};
-function updGo(){const ht=homeTravel(),n=PS.picks.filter(p=>FI[p.k]).length;
-  $('pgo').disabled=!n||!ht||running;if(!gBusy)$('pgo').textContent=running?(Math.min(n,limit())>28?`Planning… (up to ${Math.round(budgetFor(Math.min(n,limit()))/1000)} s)`:'Planning…'):!ht?'Set a starting postcode first':'Plan my schedule'}
+$('pnohome').onchange=e=>{PS.set.noHome=e.target.checked;pcStatus();renderDays();banner();renderGC();renderPicks();changed()};
+function updGo(){const ht=homeTravel(),n=PS.picks.filter(p=>FI[p.k]).length,bad=DAYS.find(ptBad);
+  $('pgo').disabled=!n||!ht||!!bad||running;if(!gBusy)$('pgo').textContent=running?(Math.min(n,limit())>28?`Planning… (up to ${Math.round(budgetFor(Math.min(n,limit()))/1000)} s)`:'Planning…'):!ht?'Set a starting postcode first':bad?`Check the postcode on ${dshort(bad)}`:'Plan my schedule'}
 // Google Maps key (own key, this browser only)
 function keyStatus(){const el=$('pkeyst'),n=Object.keys(GCACHE).length;$('pkeyforget').disabled=!gkey&&!n;
   el.className='pcst'+(gkey?' ok':'');
@@ -453,29 +501,50 @@ function candidates(){const s=PS.set,buf=+s.buf||0,late=+s.late||0;
 // solver time limit: 2.5 s up to 28 films, then +0.625 s per film (14.4 s at 47) since bigger searches need longer to finish
 const budgetFor=n=>n>28?2500+(n-28)*625:2500;
 function buildProblem(){const s=PS.set,maxLeg=+s.maxLeg||0,ht=homeTravel();
-  const {win,used,info,per,buf,late}=candidates(),{T,E}=rawTravel(ht);
+  const {win,used,info,per,buf,late}=candidates(),{T,E}=rawTravel(ht),ends=dayEnds();
   // shortest-path closure via candidate cinemas (a journey may route past another cinema): keeps feasibility monotone,
   // which the solver relies on. Home is never an intermediate (in no-home mode its legs are 0 and would act as a
   // teleport); cinemas without candidates aren't either, so their unfetched estimates can't undercut fetched times.
   for(const k of used)for(let a=0;a<NC1;a++){const ak=T[a*NC1+k];if(ak<0)continue;
     for(let b=0;b<NC1;b++){const kb=T[k*NC1+b];if(kb<0)continue;const v=ak+kb,i=a*NC1+b,ab=T[i];if(ab<0||v<ab){T[i]=v;E[i]=E[a*NC1+k]|E[k*NC1+b]}}}
+  // a day's own start / end legs get the same closure, but only via that day's candidate cinemas: those are all the day
+  // needs, and the only ones fetchTimes() asks about, so an unfetched estimate can't undercut a fetched time. Its points
+  // are never intermediates either. Same order as above: closure first, then the journey limit.
+  const dayC=DAYS.map(()=>new Set());for(const L of per)for(const h of L)dayC[h.di].add(h.c);
+  const legs=(pt,cs,back)=>{const L=new Int32Array(NC),Le=new Uint8Array(NC);for(let c=0;c<NC;c++)[L[c],Le[c]]=homeLeg(pt,c,back);
+    const v=L.slice(),e=Le.slice();
+    for(const k of cs){if(L[k]<0)continue;for(const c of cs){const i=back?c*NC1+k:k*NC1+c,kc=T[i];if(kc<0)continue;
+      const w=L[k]+kc;if(v[c]<0||w<v[c]){v[c]=w;e[c]=Le[k]|E[i]}}}
+    if(maxLeg>0)for(let c=0;c<NC;c++)if(v[c]>maxLeg)v[c]=-1;return [v,e]};
+  // dl[d] = {s,e: the day's points, a,ae / b,be: minutes and estimate flags by cinema from s / to e, null = T's home legs}
+  const dl=ends.map(({s:p,e:q},d)=>{const r={s:p,e:q,a:null,ae:null,b:null,be:null};
+    if(p)[r.a,r.ae]=legs(ptTravel(p),dayC[d],false);if(q)[r.b,r.be]=legs(ptTravel(q),dayC[d],true);return r});
+  const dayTo=(d,c)=>dl[d].a?dl[d].a[c]:T[H*NC1+c],dayFr=(d,c)=>dl[d].b?dl[d].b[c]:T[c*NC1+H];
   if(maxLeg>0)for(let a=0;a<NC1;a++)for(let b=0;b<NC1;b++)if(a!==b&&T[a*NC1+b]>maxLeg)T[a*NC1+b]=-1;
   const films=[];
   info.forEach((r,pi)=>{if(r.reason)return;const days=DAYS.map(()=>[]);
-    for(const h of per[pi]){const w=win[h.di],a=T[H*NC1+h.c],b=T[h.c*NC1+H];if(a<0||b<0)continue;
+    for(const h of per[pi]){const w=win[h.di],a=dayTo(h.di,h.c),b=dayFr(h.di,h.c);if(a<0||b<0)continue;
       if(w.e+a>h.st+late)continue;if(h.en+buf+b>w.l){r.homeBy++;r.hb.push(h);continue}r.win++;days[h.di].push({i:h.i,c:h.c,st:h.st,en:h.en})}
     if(!r.match)r.reason='constraints';else if(!r.win)r.reason='window';else{r.si=films.length;films.push({days})}});
-  return {P:{films,win,T,nc:NC,buf,late,maxDay:+s.maxDay||0,mode:s.obj,budget:budgetFor(films.length)},info,ht,win,T,E,buf,late,mode:s.obj,days:DAYS,lim:limit(),tp}}
-// fetch Google times (plus walking, for transit) for every leg among home + cinemas with candidate showings that isn't cached yet
+  const own=ends.some(x=>x.s||x.e)?{ds:dl.map(x=>x.a),de:dl.map(x=>x.b)}:{};
+  return {P:{films,win,T,nc:NC,buf,late,maxDay:+s.maxDay||0,mode:s.obj,budget:budgetFor(films.length),...own},info,ht,win,T,E,dl,buf,late,mode:s.obj,days:DAYS,lim:limit(),tp}}
+// fetch Google times (plus walking, for transit) for every leg the plan can use that isn't cached yet: between cinemas with
+// candidate showings, each day's own start / end with that day's cinemas, and home with all of them if some day still uses
+// it (the closure in buildProblem routes home's legs via every candidate cinema). Never between home and a point, or two points.
 async function fetchTimes(ht){const {used,per,buf,late}=candidates(),cs=[...used].filter(c=>CLL[c]),nodes=cs.map(c=>CLL[c]),h=HLL(ht);
   // cinema a -> b can only be used if, on some day, a candidate showing at a ends (plus buffer) before one at b starts
   const ND=DAYS.length,minEn=new Float64Array(NC*ND).fill(Infinity),maxSt=new Float64Array(NC*ND).fill(-Infinity);
   for(const L of per)for(const x of L){const i=x.c*ND+x.di;if(x.en<minEn[i])minEn[i]=x.en;if(x.st>maxSt[i])maxSt[i]=x.st}
   const link=(a,b)=>{for(let d=0;d<ND;d++)if(minEn[a*ND+d]+buf<=maxSt[b*ND+d]+late)return true;return false};
   if(h)nodes.push(h);
+  const hi=cs.length,ids=new Map(),id=q=>{const k=llk(q);if(!ids.has(k)){ids.set(k,nodes.length);nodes.push({lat:q.lat,lng:q.lng})}return ids.get(k)};
+  const want=new Set(),on=(c,d)=>minEn[c*ND+d]<Infinity;
+  dayEnds().forEach((x,d)=>{if(!cs.some(c=>on(c,d)))return;
+    cs.forEach((c,i)=>{if(x.s){if(on(c,d))want.add(id(x.s)+'>'+i)}else if(h)want.add(hi+'>'+i);
+      if(x.e){if(on(c,d))want.add(i+'>'+id(x.e))}else if(h)want.add(i+'>'+hi)})});
   const G=GROUTES(),need=[],p=tp;   // p: results are filed under the choice they were asked for, even if it changes meanwhile
   for(let i=0;i<nodes.length;i++)for(let j=0;j<nodes.length;j++){if(i===j)continue;const A=nodes[i],B=nodes[j];
-    if(i<cs.length&&j<cs.length&&!link(cs[i],cs[j]))continue;
+    if(i<cs.length&&j<cs.length?!link(cs[i],cs[j]):!want.has(i+'>'+j))continue;
     const t=!gHit(gk(p,A,B)),w=G.walks(p)&&G.near(A,B)&&!gHit(gk('W',A,B));if(t||w)need.push({i,j,t,w})}
   if(!need.length){gErr=null;return}
   gBusy=true;const prog=(d,n,note)=>{$('pgo').textContent=`Fetching travel times… ${d}/${n}${note?' ('+note+')':''}`};
@@ -492,7 +561,7 @@ function solveAsync(P){return new Promise(res=>{
     worker.onmessage=e=>res(e.data);
     worker.onerror=e=>{e.preventDefault&&e.preventDefault();noWorker=true;try{worker.terminate()}catch(x){}worker=null;local()};
     worker.postMessage(P)}catch(err){noWorker=true;worker=null;local()}})}
-$('pgo').onclick=async()=>{if(running)return;const ht0=homeTravel();if(!ht0)return;
+$('pgo').onclick=async()=>{if(running||DAYS.some(ptBad))return;const ht0=homeTravel();if(!ht0)return;
   running=true;updGo();const t=performance.now();
   if(gkey)try{await fetchTimes(ht0)}catch(err){gBusy=false;gErr=`Couldn’t fetch Google travel times (${String(err&&err.message||err)}). Using ${estW(tp)}.`}
   if(gkey&&OPEN.size)renderPicks();updGo();const ctx=buildProblem();
@@ -504,30 +573,30 @@ $('pgo').onclick=async()=>{if(running)return;const ht0=homeTravel();if(!ht0)retu
 const gmap=(o,d,p)=>'https://www.google.com/maps/dir/?api=1'+(o?'&origin='+o.lat+','+o.lng:'')+(d?'&destination='+d.lat+','+d.lng:'')+'&travelmode='+(p==='B'?'bicycling':p==='D'?'driving':'transit');
 function renderResult(){const {r,ctx}=lastRes,out=$('pout');
   if(r.error){out.innerHTML=`<div class="banner err">Planner error: ${esc(r.error)}</div>`;lastRes.legs=null;banner();return}
-  const {ht,win,T,E,buf}=ctx,noHome=ht.none;
+  const {ht,win,T,E,dl,buf}=ctx,noHome=ht.none,anyPt=dl.some(x=>x.s||x.e),anyEnd=dl.some(x=>x.e);
   const nPick=ctx.info.length,nGot=r.chosen.length;let totTr=0,html='',nLeg=0,nEst=0;
-  const tilde=i=>{nLeg++;if(E[i]){nEst++;return '~'}return ''};
+  const tilde=e=>{nLeg++;if(e){nEst++;return '~'}return ''};
   // what a leg's time is: transit needs no word; a cycling/driving plan's fallback estimate is not a cycling/driving time
-  const how=i=>ctx.tp[0]==='T'?'':E[i]?' (public transport estimate)':ctx.tp==='B'?' cycle':' drive';
+  const how=e=>ctx.tp[0]==='T'?'':e?' (public transport estimate)':ctx.tp==='B'?' cycle':' drive';
   const days=r.days.slice().sort((a,b)=>a.d-b.d);
-  for(const dd of days){const w=win[dd.d],seq=dd.seq.map(i=>SH[i]);let tl='',trv=0,t0=null,tEnd=null,dayEst=false;
+  for(const dd of days){const w=win[dd.d],o=dl[dd.d],free0=noHome&&!o.s,free1=noHome&&!o.e,seq=dd.seq.map(i=>SH[i]);let tl='',trv=0,t0=null,tEnd=null,dayEst=false;
     seq.forEach((h,j)=>{const s=D.shows[h.i],C=CLL[h.c],nm=D.cinemas[h.c].name;let arr;
-      if(j===0){if(noHome){arr=h.st;t0=h.st}else{const t=T[H*NC1+h.c],leave=Math.max(w.e,h.st-t);arr=leave+t;t0=leave;trv+=t;
-          const ti=tilde(H*NC1+h.c);dayEst=dayEst||!!ti;
-          tl+=`<div class="ev home">Leave home <b>${hm(leave)}</b></div><div class="ev leg">${ti}${dur(t)}${how(H*NC1+h.c)} to ${esc(nm)}${C?` · <a href="${gmap(null,C,ctx.tp)}" target="_blank" rel="noopener">route</a>`:''}</div>`}}
+      if(j===0){if(free0){arr=h.st;t0=h.st}else{const t=o.a?o.a[h.c]:T[H*NC1+h.c],fe=o.a?o.ae[h.c]:E[H*NC1+h.c],leave=Math.max(w.e,h.st-t);arr=leave+t;t0=leave;trv+=t;
+          const ti=tilde(fe);dayEst=dayEst||!!ti;
+          tl+=`<div class="ev home">Leave ${o.s?esc(fmtPC(o.s.pc)):'home'} <b>${hm(leave)}</b></div><div class="ev leg">${ti}${dur(t)}${how(fe)} to ${esc(nm)}${C?` · <a href="${gmap(o.s,C,ctx.tp)}" target="_blank" rel="noopener">route</a>`:''}</div>`}}
       else{const p=seq[j-1],P0=CLL[p.c],dep=p.en+buf,t=T[p.c*NC1+h.c];arr=dep+t;trv+=t;
-        const wait=h.st-arr,ti=t===0?'':tilde(p.c*NC1+h.c);dayEst=dayEst||!!ti;
-        tl+=`<div class="ev leg">${t===0?`Same cinema · next film ${wait>0?'in '+dur(h.st-p.en):'straight after'}`:`Leave ${hm(dep)} · ${ti}${dur(t)}${how(p.c*NC1+h.c)} to ${esc(nm)}${P0&&C?` · <a href="${gmap(P0,C,ctx.tp)}" target="_blank" rel="noopener">route</a>`:''}`}${t>0&&wait>=15?` · ${dur(wait)} spare`:''}</div>`}
+        const wait=h.st-arr,ti=t===0?'':tilde(E[p.c*NC1+h.c]);dayEst=dayEst||!!ti;
+        tl+=`<div class="ev leg">${t===0?`Same cinema · next film ${wait>0?'in '+dur(h.st-p.en):'straight after'}`:`Leave ${hm(dep)} · ${ti}${dur(t)}${how(E[p.c*NC1+h.c])} to ${esc(nm)}${P0&&C?` · <a href="${gmap(P0,C,ctx.tp)}" target="_blank" rel="noopener">route</a>`:''}`}${t>0&&wait>=15?` · ${dur(wait)} spare`:''}</div>`}
       const lateBy=Math.round(arr-h.st),bd=tagBadges(s.x);
       tl+=`<div class="ev film"><div><span class="ftm">${hm(h.st)}–${h.est?'~':''}${hm(h.en)}</span> <span class="fti">${esc(title(h.k))}</span></div>
         <div class="fmeta">${esc(nm)}${staleNote(h.c)?' '+staleNote(h.c):''}${s.s?' · '+esc(s.s):''}${s.u?` · <a class="book" href="${esc(s.u)}" target="_blank" rel="noopener">Book</a>`:''}</div>
         ${bd?`<div>${bd}</div>`:''}${lateBy>0?`<div class="note">Arrives ~${lateBy} min after the listed start (during the ads/trailers)</div>`:''}</div>`;
       tEnd=h.en});
     const L=seq[seq.length-1],LC=CLL[L.c];
-    if(!noHome){const t=T[L.c*NC1+H],dep=L.en+buf,ti=tilde(L.c*NC1+H);trv+=t;tEnd=dep+t;dayEst=dayEst||!!ti;
-      tl+=`<div class="ev leg">Leave ${hm(dep)} · ${ti}${dur(t)}${how(L.c*NC1+H)} home${LC?` · <a href="${gmap(LC,null,ctx.tp)}" target="_blank" rel="noopener">route</a>`:''}</div><div class="ev home">Home by <b>${seq.some(h=>h.est)||dayEst?'~':''}${hm(tEnd)}</b></div>`}
+    if(!free1){const t=o.b?o.b[L.c]:T[L.c*NC1+H],fe=o.b?o.be[L.c]:E[L.c*NC1+H],dep=L.en+buf,ti=tilde(fe),eL=o.e&&esc(fmtPC(o.e.pc));trv+=t;tEnd=dep+t;dayEst=dayEst||!!ti;
+      tl+=`<div class="ev leg">Leave ${hm(dep)} · ${ti}${dur(t)}${how(fe)} ${eL?'to '+eL:'home'}${LC?` · <a href="${gmap(LC,o.e,ctx.tp)}" target="_blank" rel="noopener">route</a>`:''}</div><div class="ev home">${eL?'Finish at '+eL:'Home by'} <b>${seq.some(h=>h.est)||dayEst?'~':''}${hm(tEnd)}</b></div>`}
     totTr+=trv;
-    html+=`<div class="iday"><div class="ih"><b>${esc(dayLbl(ctx.days[dd.d]))}</b><span class="meta">${seq.length} film${seq.length>1?'s':''} · ${noHome?'':'out '}${hm(t0)}–${hm(tEnd)}${noHome?'':' · '+(dayEst?'~':'')+dur(trv)+' travel'}</span></div><div class="tl">${tl}</div></div>`}
+    html+=`<div class="iday"><div class="ih"><b>${esc(dayLbl(ctx.days[dd.d]))}</b><span class="meta">${seq.length} film${seq.length>1?'s':''} · ${free0&&free1?'':'out '}${hm(t0)}–${hm(tEnd)}${free0&&free1?'':' · '+(dayEst?'~':'')+dur(trv)+' travel'}</span></div><div class="tl">${tl}</div></div>`}
   lastRes.legs={n:nLeg,est:nEst};
   // unfitted
   const why=x=>{const p=x.p;
@@ -536,7 +605,7 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
     if(x.reason==='constraints'&&gNote(p))return gNote(p)+'.';
     const s=PS.set;
     if(x.reason==='constraints')return kn(p.cin).length||p.st.length||p.req.length||p.exc.length||ddIn(p).length||kn(s.cin).length||knch(s.ch).length||s.st.length?'No upcoming showings match your cinema / screen type / tag / day choices.':'No upcoming showings.';
-    if(x.reason==='window')return `None of its ${x.match} matching showing${x.match>1?'s':''}${p.st.length?' ('+p.st.join(' / ')+')':''} fit your available times${noHome?'':' with travel from and back home'}${+PS.set.maxLeg?' and journey limit':''}`+
+    if(x.reason==='window')return `None of its ${x.match} matching showing${x.match>1?'s':''}${p.st.length?' ('+p.st.join(' / ')+')':''} fit your available times${anyPt?' with travel from and to each day’s start and end':noHome?'':' with travel from and back home'}${+PS.set.maxLeg?' and journey limit':''}`+
       (!x.homeBy?'':(x.homeBy===x.match?(x.match>1?' (all of them end':' (it ends'):` (${x.homeBy} of them ${x.homeBy>1?'end':'ends'}`)+' too late for your “Home by” time)')+'.';
     const u=r.unfit[x.si];if(!u)return '';
     if(ctx.mode==='strict'||!u.higher)return 'Clashes with your higher-priority picks.';
@@ -546,10 +615,10 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
     :r.status==='films'?`<span class="st opt" title="Proven: no plan sees more (or higher-priority) films. Travel and waiting were minimised as far as the time limit allowed">best films · travel near-optimal</span>`
     :`<span class="st part" title="The search stopped at the time limit before it could prove this is the best possible; it is the best plan it found">best found in time</span>`;
   const head=`<div class="rsum"><div class="big">Seeing ${nGot} of ${nPick} film${nPick>1?'s':''}${days.length?` over ${days.length} day${days.length>1?'s':''}`:''}${st}</div>
-    <div class="meta">${noHome||!days.length?'':(nEst?'~':'')+dur(totTr)+' total travel · '}${PS.set.obj==='strict'?'strict priority':'most films'} · solved in ${(r.wall/1000).toFixed(2)} s</div></div>`;
+    <div class="meta">${noHome&&!anyPt||!days.length?'':(nEst?'~':'')+dur(totTr)+' total travel · '}${PS.set.obj==='strict'?'strict priority':'most films'} · solved in ${(r.wall/1000).toFixed(2)} s</div></div>`;
   // showings of the picks that only the "Home by" time ruled out (it defaults to midnight, which hides late showings)
   const nHB=ctx.info.reduce((n,x)=>n+x.homeBy,0),allMid=ctx.days.every(d=>{const a=avail(d);return !a.on||a.l==='00:00'});
-  const hb=nHB?`<div class="banner">${nHB} showing${nHB>1?'s':''} of your picks ${nHB>1?'were':'was'} left out because ${nHB>1?'they finish':'it finishes'} too late ${noHome?'for':'to get home by'} your “Home by” time.
+  const hb=nHB?`<div class="banner">${nHB} showing${nHB>1?'s':''} of your picks ${nHB>1?'were':'was'} left out because ${nHB>1?'they finish':'it finishes'} too late ${anyEnd?'to reach the day’s end point by':noHome?'for':'to get home by'} your “Home by” time.
     ${allMid?'“Home by” is midnight unless you change it':'You can change it'} under <b>When you’re free</b> in Settings.
     <details class="hbl"><summary>Show ${nHB>1?'which showings':'which showing'}</summary><div class="hbw">${ctx.info.filter(x=>x.hb.length).map(x=>`<b>${esc(FI[x.p.k]?title(x.p.k):x.p.t)}</b>${miss.includes(x)?'':' <span class="meta">(in your plan at another time)</span>'}`+
       x.hb.slice().sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:a.st-b.st).map(h=>`<div>${esc(dayLbl(h.day))} ${hm(h.st)}–${hm(h.en)} · ${esc(D.cinemas[h.c].name)}</div>`).join('')).join('')}</div></details></div>`:'';

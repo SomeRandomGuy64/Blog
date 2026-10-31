@@ -216,6 +216,16 @@
 .cinema-app .dtab .hbn{display:block;font-size:11px;color:var(--mute);white-space:nowrap}
 .cinema-app .dtab .dn{white-space:nowrap}
 .cinema-app .dtab th{font-weight:400;color:var(--mute);font-size:12px;text-align:left;padding:0 4px}
+.cinema-app .dtab .ptb{display:block;max-width:100%;padding:0;border:0;background:none;color:var(--mute);font-size:11px;line-height:1.3;text-decoration:underline;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.cinema-app .dtab .ptb.on{color:var(--ok)}
+.cinema-app .dtab tr.ptr td{border-top:0;padding:0 4px 6px 30px}
+.cinema-app .dtab .ptg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.cinema-app .dtab .ptg label{min-width:0;font-size:12px;color:var(--mute)}
+.cinema-app .dtab .ptg input{display:block;box-sizing:border-box;width:100%;min-width:0;padding:3px 6px;font-size:13px;text-transform:uppercase}
+.cinema-app .dtab .ptg input::placeholder{text-transform:none}
+.cinema-app .dtab .ptg .pcst{display:block;font-size:11.5px;overflow-wrap:anywhere}
+.cinema-app .dtab .pth{margin-top:3px;font-size:11.5px;color:var(--mute)}
+@media (max-width:400px){.cinema-app .dtab tr.ptr td{padding-left:4px}}
 .cinema-app .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
 .cinema-app .sgrid label{font-size:12.5px;color:var(--mute);display:flex;flex-direction:column;justify-content:space-between;gap:3px}  /* inputs sit at the bottom so a row lines up even when one label wraps */
 .cinema-app .sgrid input,.cinema-app .sgrid select{color:var(--ink);font-size:14px;padding:5px 8px;width:100%}
