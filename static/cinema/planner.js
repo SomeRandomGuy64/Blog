@@ -665,7 +665,7 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
     <div class="meta">${noHome&&!anyPt||!days.length?'':(nEst?'~':'')+dur(totTr)+' total travel · '}${PS.set.obj==='strict'?'strict priority':'most films'}${ctx.pen&&days.length?` · ${nRk} of ${nGot} at your ranked choices`:''} · solved in ${(r.wall/1000).toFixed(2)} s</div></div>`;
   // showings of the picks that only the "Home by" time ruled out (it defaults to midnight, which hides late showings)
   const nHB=ctx.info.reduce((n,x)=>n+x.homeBy,0),allMid=ctx.days.every(d=>{const a=avail(d);return !a.on||a.l==='00:00'});
-  const hb=nHB?`<div class="banner">${nHB} showing${nHB>1?'s':''} of your picks ${nHB>1?'were':'was'} left out because ${nHB>1?'they finish':'it finishes'} too late ${anyEnd?'to reach the day’s end point by':noHome?'for':'to get home by'} your “Home by” time.
+  const hb=nHB?`<div class="banner">${nHB} showing${nHB>1?'s':''} of your picks ${nHB>1?'were':'was'} left out because ${nHB>1?'they finish':'it finishes'} too late ${anyEnd?'to get to where you’re finishing by':noHome?'for':'to get home by'} your “Home by” time.
     ${allMid?'“Home by” is midnight unless you change it':'You can change it'} under <b>When you’re free</b> in Settings.
     <details class="hbl"><summary>Show ${nHB>1?'which showings':'which showing'}</summary><div class="hbw">${ctx.info.filter(x=>x.hb.length).map(x=>`<b>${esc(FI[x.p.k]?title(x.p.k):x.p.t)}</b>${miss.includes(x)?'':' <span class="meta">(in your plan at another time)</span>'}`+
       x.hb.slice().sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:a.st-b.st).map(h=>`<div>${esc(dayLbl(h.day))} ${hm(h.st)}–${hm(h.en)} · ${esc(D.cinemas[h.c].name)}</div>`).join('')).join('')}</div></details></div>`:'';

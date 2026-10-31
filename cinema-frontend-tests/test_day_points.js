@@ -174,7 +174,7 @@ const nh = s => s.replace(/solved in [\d.]+ s/, '');
 { const late = [{ k: 'a', c: 0, t: D1s + 'T21:00:00', e: D1s + 'T23:00:00', d: 110, x: [] }], LATE = { ...GYM, lat: 52.0, lng: -1.0 };
   const near = page({ shows: late, picks: [{ k: 'a' }] }), hn = await near.plan(); ok(/Seeing 1 of 1/.test(hn), 'home by: reachable from home');
   const t = page({ shows: late, picks: [{ k: 'a' }], set: { pts: { [D1s]: { e: LATE } } } }), h = await t.plan();
-  ok(/Seeing 0 of 1/.test(h) && /too late to reach the day’s end point by your “Home by” time/.test(h) && /with travel from and to each day’s start and end/.test(h), 'home by: a far end point rules the showing out and the note says so');
+  ok(/Seeing 0 of 1/.test(h) && /too late to get to where you’re finishing by your “Home by” time/.test(h) && /with travel from and to each day’s start and end/.test(h), 'home by: a far end point rules the showing out and the note says so');
   const u = page({ shows: late, picks: [{ k: 'a' }], set: { dates: { [D1s]: { on: true, e: '18:00', l: '00:00' } }, pts: { [D1s]: { s: LATE } } } }), hu = await u.plan(); ok(/Seeing 0 of 1/.test(hu) && !/too late to reach/.test(hu), 'leave from: a far start rules it out at the other end'); }
 // no-home mode: set sides are honoured, the other stays the first / last cinema
 { const a = page({ set: { noHome: true, pc: '', geo: null } }), ha = await a.plan(); ok(!/Leave home|Home by|out \d/.test(ha) && !('ds' in a.P), 'no-home: unchanged without points');
