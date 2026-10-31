@@ -290,6 +290,12 @@ var buxtonVenue = spektrixVenue{
 	screen: func(e map[string]any, i obj, p string) string { return strOr(str(e, "attribute_Venue"), p) },
 }
 
+var dukesVenue = spektrixVenue{
+	client: "dukeslancaster",
+	isFilm: func(e map[string]any) bool { return str(e, "attribute_CinemaOrStage") == "Cinema" },
+	urlTpl: "https://dukeslancaster.org/book-now?id={num}",
+}
+
 func HomeManchester(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
 	return homeVenue.fetch(s, from, to)
 }
@@ -308,4 +314,8 @@ func AltrinchamGarrick(s *scrape.Session, from, to time.Time) ([]scrape.Show, er
 
 func BuxtonOperaHouse(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
 	return buxtonVenue.fetch(s, from, to)
+}
+
+func DukesLancaster(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
+	return dukesVenue.fetch(s, from, to)
 }

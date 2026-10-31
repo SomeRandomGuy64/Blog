@@ -136,3 +136,11 @@ func TestPeakSubtitled(t *testing.T) {
 		t.Errorf("peakSubtitled = %v, want %v", got, want)
 	}
 }
+
+func TestDukesFilter(t *testing.T) {
+	for stage, want := range map[string]bool{"Cinema": true, "Stage": false, "Other": false, "": false} {
+		if got := dukesVenue.isFilm(map[string]any{"attribute_CinemaOrStage": stage}); got != want {
+			t.Errorf("CinemaOrStage %q: film = %v, want %v", stage, got, want)
+		}
+	}
+}

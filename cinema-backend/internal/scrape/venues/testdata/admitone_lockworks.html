@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html class="" lang="EN">
+<body>
+<header class="sticky top-0 a1-header-bg a1-header-border px-4" id="a1web-header" style="z-index: 25;">
+<div class="container mx-auto">
+<nav class="flex justify-between items-center a1-header-bg px-4 md:px-1 py-4 md:py-6">
+<div class="flex justify-start items-center">
+<div class="mr-6">
+<a href="https://www.lockworkscinema.co.uk">
+<img alt="Site Logo" class="a1-header-logo h-18" src="/assets/images/logo_large.png"/>
+</a>
+</div>
+<div class="ml-4 hidden lg:block">
+<ul class="list-none flex justify-evenly items-center space-x-8">
+<li class="dropdown">
+<a class="dropdown-selector text-sm a1-header-color font-medium" href="/">
+                                        Whats On                                        <i class="a1-header-color text-xs align-middle dropdown-icon icon-a1-common-down"></i>
+</a>
+<div class="dropdown-content absolute a1-header-bg grid grid-cols-1 hidden min-w-max">
+<a class="dropdown-link grid-span-1 place-self-start text-sm a1-header-color m-4 font-medium" href="/whatson">Now Showing</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm a1-header-color m-4 font-medium" href="/whatson/lockworksseniors">Lockworks Seniors</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm a1-header-color m-4 font-medium" href="/whatson/lockworkslibrary">Lockworks Library</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm a1-header-color m-4 font-medium" href="/whatson/subtitled">Subtitled</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm a1-header-color m-4 font-medium" href="/whatson/autismfriendly">Autism Friendly</a>
+</div>
+</li>
+<li class="">
+<a class="text-sm a1-header-color font-medium" href="/about">About Us</a>
+</li>
+<li class="">
+<a class="text-sm a1-header-color font-medium" href="/faq">FAQ</a>
+</li>
+<li class="">
+<a class="text-sm a1-header-color font-medium" href="/comingsoon">Coming Soon</a>
+</li>
+<li class="">
+<a class="text-sm a1-header-color font-medium" href="/cinemas">Cinemas</a>
+</li>
+<li class="">
+<a class="text-sm a1-header-color font-medium" href="https://lockworkscinema.admit-one.co.uk/?p=giftcard">Gift Cards</a>
+</li>
+<li class="">
+<a class="text-sm a1-header-color font-medium" href="/contact">Contact Us</a>
+</li>
+</ul>
+</div>
+</div>
+<div class="flex justify-end">
+<div class="flex items-center justify-center">
+<a class="flex items-center justify-end mr-2" href="https://lockworkscinema.admit-one.co.uk/payment">
+<i class="icon icon-a1-common-basket text-white text-2xl"></i>
+</a>
+</div>
+<div class="flex-initial">
+<div class="flex items-center justify-end lg:hidden">
+<a class="bg-black rounded-full px-3 py-2 flex items-center justify-center" href="https://lockworkscinema.admit-one.co.uk/account">
+<i class="icon icon-a1-common-account text-white"></i>
+</a>
+<a class="bg-black rounded-full px-3 py-2 mr-2 flex items-center justify-center" onclick="showSearchModal()">
+<i class="icon icon-a1-common-search text-white"></i>
+</a>
+<span class="toggleMenu a1-header-color mt-1" id="openMenu">
+<i class="icon icon-a1-common-menu-burger"></i>
+</span>
+</div>
+<div class="hidden lg:flex xl:hidden xl:justify-end">
+<a class="bg-black rounded-full px-3 py-2 flex items-center justify-center" onclick="showSearchModal()">
+<i class="icon icon-a1-common-search text-white"></i>
+</a>
+<a class="whatsOnButton_header inline-block btn-primary ml-2 rounded-lg font-body text-center text-white text-sm px-5 py-2 font-medium" href="https://lockworkscinema.admit-one.co.uk/account">
+                                Login
+                            </a>
+<a class="whatsOnButton_header inline-block btn-accent ml-2 rounded-lg font-body text-center text-white text-sm px-5 py-2 font-medium" href="https://lockworkscinema.admit-one.co.uk/register">
+                                Register
+                            </a>
+</div>
+</div>
+</div>
+</nav>
+</div>
+</header>
+<aside class="transform top-0 right-0 w-5/6 bg-white fixed h-full overflow-auto ease-in-out transition-all duration-300 z-30 translate-x-full" id="menuAside" style="z-index:9999;">
+<div class="border-b-2 py-4 px-12">
+<span class="toggleMenu text-secondary mt-1" id="closeMenu">
+<i class="icon icon-a1-common-cross text-sm align-bottom mr-2"></i>
+            Menu
+        </span>
+</div>
+<div class="py-8 px-16">
+<ul class="list-none test">
+<li class="mb-8 dropdown">
+<a class="dropdown-selector flex justify-between text-sm text-secondary font-medium" href="/">
+                            Whats On                            <i class="dropdown-icon text-secondary font-medium align-middle icon-a1-common-down"></i>
+</a>
+<div class="dropdown-content grid grid-cols-1 place-content-center hidden">
+<a class="dropdown-link grid-span-1 place-self-start text-sm text-secondary font-medium ml-5 my-4" href="/whatson">Now Showing</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm text-secondary font-medium ml-5 my-4" href="/whatson/lockworksseniors">Lockworks Seniors</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm text-secondary font-medium ml-5 my-4" href="/whatson/lockworkslibrary">Lockworks Library</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm text-secondary font-medium ml-5 my-4" href="/whatson/subtitled">Subtitled</a>
+<a class="dropdown-link grid-span-1 place-self-start text-sm text-secondary font-medium ml-5 my-4" href="/whatson/autismfriendly">Autism Friendly</a>
+</div>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="/about">About Us</a>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="/faq">FAQ</a>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="/comingsoon">Coming Soon</a>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="/cinemas">Cinemas</a>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="https://lockworkscinema.admit-one.co.uk/?p=giftcard">Gift Cards</a>
+</li>
+<li class="mb-8">
+<a class="text-sm text-secondary font-medium" href="/contact">Contact Us</a>
+</li>
+</ul>
+<div class="absolute bottom-0 mb-16">
+<p class="text-sm">Stay connected</p>
+<div class="flex justify-start mt-4">
+<a class="flex-1" href="https://www.facebook.com/profile.php?id=61573187092756"><i class="icon icon-a1-common-facebook"></i></a>
+<a class="flex-1" href="https://www.instagram.com/lockworkscinemas"><i class="icon icon-a1-common-instagram"></i></a>
+</div>
+</div>
+</div>
+</aside>
+<!-- START OF SEARCH MODAL -->
+<aside class="modal fixed w-full h-full top-0 left-0 flex items-center justify-center z-50" id="modalSearchBar" style="display:none;">
+<div class="absolute z-50 w-8 h-8 bg-white text-center pt-1.5 top-12 right-20 rounded-full" id="closeSearch">
+<i class="icon icon-a1-common-cross" onclick="hideSearchModal()"></i>
+</div>
+<div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-75" id="modal-overlay" onclick="hideSearchModal()"></div>
+<div class="absolute modal-container max-h-4/5 w-full md:w-3/5 mx-auto top-28 shadow-lg z-50 overflow-y-auto bg-white">
+<div class="modal-content text-center" id="modal-content">
+<div class="modal-login modal-body-header" id="modal-login">
+<div class="flex flex-col text-lg">
+<div class="text-2xl">
+<i class="icon icon-a1-common-search absolute right-3 top-3"></i>
+<input autocomplete="off" class="w-full border-b-2 py-2 px-4" id="searchBarInput" onkeyup="searchForPerformance()" placeholder="Search.." type="text"/>
+</div>
+<div class="flex w-full text-left text-black text-2xl">
+<ul id="performanceList">
+<li style="display: none;">
+<a class="p-3 block" href="/event/114404"> Its A Wonderful Life - 80th Anniversary</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/109016">André Rieus 2026 Christmas Concert: Let It Snow</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/115771">ANDREW LLOYD WEBBER'S STARLIGHT EXPRESS - LIVE ON STAGE</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/105952">Avengers: Doomsday</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/15063">Carrie</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110406">Clayface</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/115176">Doctor Who: The Satan Pit</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/112932">Donnie Darko 4K (25th Anniversary)</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/105951">Dune: Part Three</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113257">EBENEZER</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/74258">Elf</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/111616">Forgotten Island</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/114430">George Michael: The Faith Tour</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/112475">Ghosts: The Possession Of Button House</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/112616">GIANT - The Play</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/14923">Halloween</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/36332">Home Alone.</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/102282">How The Grinch Stole Christmas (25th Anniversary)</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/114845">I Love Boosters</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/3889">Monster House</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113512">National Theatre Live: Golden Boy </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/115470">NT LIVE: HAY FEVER</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/65287">Oxide Ghosts - The Brass Eye Tapes + Q&amp;A</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/114494">Pan's Labyrinth (20th Anniversary)</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/111950">Pressure</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/91478">Pretty Woman (1990)</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/114209">Primetime</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110366">RBO 2026-27: The Met Opera  La Fanciulla Del West</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110369">RBO 2026-27: The Royal Ballet  Alices Adventures In Wonderland</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110372">RBO 2026-27: The Royal Ballet  Romeo &amp; Juliet</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110370">RBO 2026-27: The Royal Ballet  Swan Lake</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110365">RBO 2026-27: The Royal Ballet  The Nutcracker</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110364">RBO 2026-27: The Royal Opera  Carmen</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110368">RBO 2026-27: The Royal Opera  Così Fan Tutte</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110367">RBO 2026-27: The Royal Opera  Götterdämmerung</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/110371">RBO 2026-27: The Royal Opera  Tosca</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/114423">See It First  Dune: Part Three</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113530">SENSE AND SENSIBILITY </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/111614">Street Fighter</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113947">Tad and the Magic Lamp</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/109927">The Dog Stars </a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/111887">The End Of Oak Street</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/105537">The Hunger Games: Sunrise On The Reaping</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/21696">The Muppet Christmas Carol</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/105274">The Polar Express.</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/112596">The Social Reckoning</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113215">THE UPRISING</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113271">V For Vendetta 20th Anniversary</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113301">Wicker</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/114953">Wild Horse Nine</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/113504">Wildwood</a>
+</li>
+<li style="display: none;">
+<a class="p-3 block" href="/event/116405">You can see everything </a>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- END OF SEARCH MODAL -->
+<!-- START OF MODAL -->
+<aside class="modal fixed w-full h-full top-0 left-0 flex items-center justify-center z-50" id="modalSitePicker" style="display:none;">
+<div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-75" id="modal-overlay"></div>
+<div class="modal-container max-h-4/5 w-4/5 md:w-1/2 lg:w-1/3 mx-auto rounded-xl shadow-lg z-50 overflow-y-auto bg-white" style="max-width:400px">
+<div class="modal-content text-center" id="modal-content">
+<div class="modal-login modal-body-header py-4 px-6" id="modal-login">
+<div class="flex flex-col">
+<div class="flex justify-center w-4/5 items-center text-center pb-3 mt-4 mx-auto">
+<p class="font-display text-2xl font-bold text-primary" id="">Welcome to <br/> LANDING_CIRCUIT_NAME</p>
+</div>
+<div class="flex flex-col my-2">
+<p>Chose your local cinema</p>
+<div class="input-select flex items-center mt-1 bg-white text-gray-600 placeholder-gray-700 focus:ring-gray-700">
+<select class="cinemaSelectModal my-2 w-full h-full p-2 bg-white" id="cinemaSelectModal">
+<option disabled="disabled" id="disabled_input" selected="true" value="">Select a Cinema</option>
+</select>
+<!-- <i class="icon-a1-common-down -ml-6 cursor-pointer pointer-events-none text-gray-600"></i> -->
+</div>
+</div>
+<div class="flex flex-col mb-4">
+<span class="modal-close btn-primary w-full font-display font-semibold px-4 p-3" id="cinemaSelectButton" onclick="cinemaSelectModal()">Continue</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- END OF MODAL -->
+<div class="toggleMenu hidden fixed inset-0 bg-black bg-opacity-50 transition-opacity z-20" id="menuOverlay" style="z-index:999;"></div>
+<!-- /81325059/Lockworks_Responsive_Flexi_Leader -->
+<div class="bg-body" id="ppb_bottom">
+<div class="container mx-auto px-4 pt-6 md:px-4 pb-0 md:pb-6">
+<div id="div-gpt-ad-1749556695153-0" style="min-width: 300px; min-height: 50px; text-align: -webkit-center;">
+</div>
+</div>
+</div>
+<div class="bg-body dark:bg-gray-700">
+<div class="container mx-auto px-4 md:px-4">
+<div class="flex justify-between items-center py-4">
+<h1 class="text-white text-xl dark:text-white leading-tight">What's On</h1>
+<p class="text-white dark:text-white font-semibold">2026</p>
+</div>
+</div>
+</div>
+<div class="bg-body dark:bg-gray-700">
+<div class="container mx-auto px-4 md:px-4" style="padding-bottom: 10px;">
+<div class="flex bg-secondary text-white py-4 px-4" id="OLCT_seatInstructText">
+<i class="flex icon-a1-common-information" style="margin-right:10px;"></i>
+<div class="flex font-display text-left text-sm font-extralight">
+                    Please note that the events below ARE sorted in alphabetical order
+                </div>
+</div>
+</div>
+</div>
+<div class="">
+<div class="bg-secondary dark:bg-accent" style="height:55px;overflow:hidden;">
+<div class="container mx-auto">
+<div class="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-5 xl:grid-cols-6 gap-1 md:gap-4 overflow-hidden" id="scheduleTabs">
+<div class="col-span-1 w-full">
+<button class="tab w-full text-white dark:text-gray-100 whitespace-nowrap px-1 py-4 md:px-6 block focus:outline-none relative font-bold activeScheduleItem" data-date="31 October" data-picka="31/10/2026" data-target="20261031">
+                    Tomorrow 
+                  </button>
+</div>
+<div class="block col-span-1 w-full">
+<button class="tab w-full text-white dark:text-gray-100 whitespace-nowrap px-1 py-4 md:px-6 block focus:outline-none" data-date="01 November" data-picka="01/11/2026" data-target="20261101">
+                    Sun 01 Nov                  </button>
+</div>
+<div class="block col-span-1 w-full">
+<button class="tab w-full text-white dark:text-gray-100 whitespace-nowrap px-1 py-4 md:px-6 block focus:outline-none" data-date="02 November" data-picka="02/11/2026" data-target="20261102">
+                    Mon 02 Nov                  </button>
+</div>
+<div class="block col-span-1 w-full">
+<button class="tab w-full text-white dark:text-gray-100 whitespace-nowrap px-1 py-4 md:px-6 block focus:outline-none" data-date="03 November" data-picka="03/11/2026" data-target="20261103">
+                    Tue 03 Nov                  </button>
+</div>
+<!-- Placeholder for the empty space at the end -->
+<div class="col-span-2 md:col-span-1">
+<div id="date_top_container">
+<div class="date_top_half" style="width:100%">
+<label for="datepicker" style="width:100%">
+<div class="rounded-lg" id="chooseDate_button" style="float:none;width:100%">
+<p style="display: inline-block;vertical-align: middle;">Choose Date</p>
+<i class="icon-a1-common-calendar" id="calenderIcon" style="color:#ffffff;display:inline-block;font-size: 20px;vertical-align: middle;"></i>
+</div>
+</label>
+<!--HERE-->
+<section class="section">
+<form>
+<fieldset>
+<input autofocus="" class="datepicker" data-value="" hidden="" id="datepicker" name="datepicker" type="text" value=""/>
+</fieldset>
+</form>
+</section>
+</div>
+<div class="date_bottom_half left a1-none a1-inlineBlock-md"></div>
+<div class="date_bottom_half right">
+<div clas="!w-full" id="datePickerContainer"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-body dark:bg-gray-700">
+<div class="container mx-auto pt-6 md:px-4" id="panels">
+<h2 class="text-white text-xl px-2 md:px-0" id="selectedDateDisplay">
+      31 October    </h2>
+</div>
+</div>
+<div class="bg-body dark:bg-gray-700 showTimeKey">
+<div class="container mx-auto py-4 md:px-4" id="panels">
+<div class="inline-block px-4">
+<p class="text-white dark:text-white inline-block">Available</p><span class="keyColor bg-primary inline-block"></span>
+</div>
+<div class="inline-block px-4 text-accent dark:text-white">
+<p class="text-white dark:text-white inline-block">Sold Out</p><span class="keyColor inline-block bg-secondary soldOutOverride_color"></span>
+</div>
+</div>
+</div>
+<div class="bg-body dark:bg-gray-700">
+<div class="container mx-auto px-4 md:px-4" id="panels">
+<div class="panel-0 whatson_panel tab-content divide-y block" id="panel_20261031">
+<div class="grid grid-cols-none md:grid-cols-1 gap-4 py-3">
+<div class="py-4 px-4 md:p-4 bg-body dark:bg-gray-700 grid-container-border border-b-2 border-black">
+<div class="grid grid-cols-6 grid-rows-auto grid-flow-col gap-4 place-content-start">
+<div class="row-start-1 col-span-1 row-span-1 md:row-span-1">
+<img alt="Carrie" class="object-contain object-left-top rounded-br-xl" src="/filmimages/small/15063.jpg"/>
+</div>
+<div class="row-start-1 col-span-5">
+<div class="flex flex-row justify-between items-center">
+<h2 class="text-white"><a href="event/15063">Carrie</a></h2>
+<img alt="15" class="object-scale-down h-12 w-12" src="/ratings/UK/15lrg.png"/>
+</div>
+<p class="text-white">Running time: <span class="text-base text-white">98 mins</span></p>
+<div class="hidden md:block">
+<div class="flex flex-row justify-between items-center">
+<p class="text-white py-3 flex-grow">This classic horror movie based on Stephen King's first novel stars Sissy Spacek as Carrie White, a shy, diffident teenager who is the butt of practical jokes at her small-town high school. Her blind panic at her first menstruation, a result of ignorance and religious guilt drummed into her by her fanatical mother, Margaret (Piper Laurie), only causes her classmates' vicious cruelty to escalate, despite the attentions of her overly solicitous gym teacher (Betty Buckley). Finally, when the venomous Chris Hargenson (Nancy Allen) engineers a reprehensible prank at the school prom, Carrie lashes out in a horrifying display of her heretofore minor telekinetic powers. The talented supporting cast includes John Travolta, P.J. Soles, and William Katt.</p>
+<div class="flex-shrink-0 text-right"> <!-- Added this div for fixed width -->
+<a class="w-full block font-body font-semibold text-base text-white" onclick="showTrailer('qfBM7VSw_yI')">
+                        Watch trailer
+                        <i class="icon icon-a1-common-play align-middle ml-1"></i>
+</a>
+<a class="w-full block font-body font-semibold mt-4 text-base text-white" href="event/15063">
+                        Details
+                        <i class="icon-a1-icons-a1-shop-information align-middle ml-1"></i>
+</a>
+</div>
+</div>
+</div>
+<!-- <div class="row-start-2 col-start-1 col-span-3 row-span-1 md:row-start-auto md:col-start-auto"> -->
+<div class="row-start-2 col-start-1 col-span-6 row-span-1 hidden md:block mt-6">
+<div class="block md:hidden mb-5">
+<div class="flex flex-row justify-between items-center">
+<a class="font-body font-semibold text-base text-white" onclick="showTrailer('qfBM7VSw_yI')">
+                            Watch trailer
+                            <i class="icon icon-a1-common-play align-middle ml-1"></i>
+</a>
+<a class="font-body font-semibold text-base text-white" href="event/15063">
+                            Details
+                            <i class="icon-a1-icons-a1-shop-information align-middle ml-1"></i>
+</a>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-x-2 gap-y-3 md:grid-cols-3 lg:grid-cols-4">
+<a class="block btn-primary rounded-lg font-body text-center perfButton content-center align-middle" href="https://lockworkscinema.admit-one.co.uk/performance/8354/" style="display:inherit;">
+<span class="text-black bg-gray-100 border-primary border-solid border-2 rounded-lg">
+<i class="a1-event-wheelchair-solid"></i>
+</span>
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2 rounded-lg">                 
+                        17:45                    </span>
+</a>
+</div>
+</div>
+</div>
+<!-- <div class="row-start-2 col-start-1 col-span-3 row-span-1 md:row-start-auto md:col-start-auto"> -->
+<div class="row-start-2 col-start-1 col-span-6 row-span-1 block md:hidden">
+<div class="block md:hidden mb-5">
+<p class="text-white py-3">This classic horror movie based on Stephen King's first novel stars Sissy Spacek as Carrie White, a shy, diffident teenager who is the butt of practical jokes at her small-town high school. Her blind panic at her first menstruation, a result of ignorance and religious guilt drummed into her by her fanatical mother, Margaret (Piper Laurie), only causes her classmates' vicious cruelty to escalate, despite the attentions of her overly solicitous gym teacher (Betty Buckley). Finally, when the venomous Chris Hargenson (Nancy Allen) engineers a reprehensible prank at the school prom, Carrie lashes out in a horrifying display of her heretofore minor telekinetic powers. The talented supporting cast includes John Travolta, P.J. Soles, and William Katt.</p>
+<div class="flex flex-row justify-between items-center">
+<a class="font-body font-semibold text-base text-white" onclick="showTrailer('qfBM7VSw_yI')">
+                        Watch trailer
+                        <i class="icon icon-a1-common-play align-middle ml-1"></i>
+</a>
+<a class="font-body font-semibold text-base text-white" href="event/15063">
+                        Details
+                        <i class="icon-a1-icons-a1-shop-information align-middle ml-1"></i>
+</a>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-x-2 gap-y-3 md:grid-cols-3 lg:grid-cols-4">
+<a class="block btn-primary rounded-lg font-body text-center perfButton content-center align-middle" href="https://lockworkscinema.admit-one.co.uk/performance/8354/" style="display:inherit;">
+<span class="text-black bg-gray-100 border-primary border-solid border-2 rounded-lg">
+<i class="a1-event-wheelchair-solid"></i>
+</span>
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2 rounded-lg">                 
+                        17:45                    </span>
+</a>
+</div>
+</div>
+</div>
+</div>
+<div class="py-4 px-4 md:p-4 bg-body dark:bg-gray-700 grid-container-border border-b-2 border-black">
+<div class="grid grid-cols-6 grid-rows-auto grid-flow-col gap-4 place-content-start">
+<div class="row-start-1 col-span-1 row-span-1 md:row-span-1">
+<img alt="Clayface" class="object-contain object-left-top rounded-br-xl" src="/filmimages/small/110406.jpg"/>
+</div>
+<div class="row-start-1 col-span-5">
+<div class="flex flex-row justify-between items-center">
+<h2 class="text-white"><a href="event/110406">Clayface</a></h2>
+<img alt="18" class="object-scale-down h-12 w-12" src="/ratings/UK/18lrg.png"/>
+</div>
+<p class="text-white">Running time: <span class="text-base text-white">109 mins</span></p>
+<div class="hidden md:block">
+<div class="flex flex-row justify-between items-center">
+<p class="text-white py-3 flex-grow">DC Studios' first-ever foray into the genre, Clayface is a horror thriller from director James Watkins, starring Tom Rhys Harries in the title role of the Gotham City villain. Clayface unravels one man's horrifying descent from rising Hollywood star to revenge-filled monster in a story that explores the loss of one's identity and humanity, corrosive love, and the dark underbelly of scientific ambition.</p>
+<div class="flex-shrink-0 text-right"> <!-- Added this div for fixed width -->
+<a class="w-full block font-body font-semibold text-base text-white" onclick="showTrailer('OGO4Mqvo3jI&amp;t=17s')">
+                        Watch trailer
+                        <i class="icon icon-a1-common-play align-middle ml-1"></i>
+</a>
+<a class="w-full block font-body font-semibold mt-4 text-base text-white" href="event/110406">
+                        Details
+                        <i class="icon-a1-icons-a1-shop-information align-middle ml-1"></i>
+</a>
+</div>
+</div>
+</div>
+<!-- <div class="row-start-2 col-start-1 col-span-3 row-span-1 md:row-start-auto md:col-start-auto"> -->
+<div class="row-start-2 col-start-1 col-span-6 row-span-1 hidden md:block mt-6">
+<div class="block md:hidden mb-5">
+<div class="flex flex-row justify-between items-center">
+<a class="font-body font-semibold text-base text-white" onclick="showTrailer('OGO4Mqvo3jI&amp;t=17s')">
+                            Watch trailer
+                            <i class="icon icon-a1-common-play align-middle ml-1"></i>
+</a>
+<a class="font-body font-semibold text-base text-white" href="event/110406">
+                            Details
+                            <i class="icon-a1-icons-a1-shop-information align-middle ml-1"></i>
+</a>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-x-2 gap-y-3 md:grid-cols-3 lg:grid-cols-4">
+<a class="block btn-primary rounded-lg font-body text-center perfButton content-center align-middle" href="https://lockworkscinema.admit-one.co.uk/performance/9084/" style="display:inherit;">
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2 rounded-lg">                 
+                        14:00                    </span>
+</a>
+<a class="block btn-primary rounded-lg font-body text-center perfButton content-center align-middle" href="https://lockworkscinema.admit-one.co.uk/performance/9083/" style="display:inherit;">
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2 rounded-lg">                 
+                        19:30                    </span>
+</a>
+</div>
+</div>
+</div>
+<!-- <div class="row-start-2 col-start-1 col-span-3 row-span-1 md:row-start-auto md:col-start-auto"> -->
+<div class="row-start-2 col-start-1 col-span-6 row-span-1 block md:hidden">
+<div class="block md:hidden mb-5">
+<p class="text-white py-3">DC Studios' first-ever foray into the genre, Clayface is a horror thriller from director James Watkins, starring Tom Rhys Harries in the title role of the Gotham City villain. Clayface unravels one man's horrifying descent from rising Hollywood star to revenge-filled monster in a story that explores the loss of one's identity and humanity, corrosive love, and the dark underbelly of scientific ambition.</p>
+<div class="flex flex-row justify-between items-center">
+<a class="font-body font-semibold text-base text-white" onclick="showTrailer('OGO4Mqvo3jI&amp;t=17s')">
+                        Watch trailer
+                        <i class="icon icon-a1-common-play align-middle ml-1"></i>
+</a>
+<a class="font-body font-semibold text-base text-white" href="event/110406">
+                        Details
+                        <i class="icon-a1-icons-a1-shop-information align-middle ml-1"></i>
+</a>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-x-2 gap-y-3 md:grid-cols-3 lg:grid-cols-4">
+<a class="block btn-primary rounded-lg font-body text-center perfButton content-center align-middle" href="https://lockworkscinema.admit-one.co.uk/performance/9084/" style="display:inherit;">
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2 rounded-lg">                 
+                        14:00                    </span>
+</a>
+<a class="block btn-primary rounded-lg font-body text-center perfButton content-center align-middle" href="https://lockworkscinema.admit-one.co.uk/performance/9083/" style="display:inherit;">
+<span class="px-3 py-3 lg:py-1 border-primary border-solid border-2 rounded-lg">                 
+                        19:30                    </span>
+</a>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- /81325059/Lockworks_Responsive_Flexi_Footer -->
+<div class="bg-body" id="ppb_bottom">
+<div class="container mx-auto px-4 py-6 md:px-4">
+<div id="div-gpt-ad-1749557041789-0" style="min-width: 300px; min-height: 50px; text-align: -webkit-center;">
+</div>
+</div>
+</div> <footer class="bg-black" id="a1web-footer">
+<div class="container mx-auto px-6 pt-10 pb-8 md:px-4">
+<div class="flex gap-x-2 flex-col md:flex-row">
+<div class="flex flex-col flex-grow justify-start">
+<h4 class="font-display font-bold text-sm uppercase mb-2 text-white">Join the conversation</h4>
+<div class="flex flex-row justify-start">
+<div class="flex items-center w-10 h-10 justify-center align-middle border border-accent rounded-full mr-2">
+<a class="w-5 h-5 text-center" href="https://www.facebook.com/profile.php?id=61573187092756" target="_blank">
+<i class="icon-a1-common-facebook text-white"></i>
+</a>
+</div>
+<div class="flex items-center w-10 h-10 justify-center align-middle border border-accent rounded-full mr-2">
+<a class="w-5 h-5 text-center" href="https://www.instagram.com/lockworkscinemas" target="_blank">
+<i class="icon-a1-common-instagram text-white"></i>
+</a>
+</div>
+</div>
+<div class="flex flex-row justify-start mt-6 gap-x-6">
+<div class="flex flex-col">
+<a class="my-2 text-white text-md" href="/terms">Terms and Conditions</a>
+<a class="my-2 text-white text-md" href="/privacy">Privacy Policy</a>
+</div>
+</div>
+</div>
+<div class="flex flex-col">
+<h4 class="font-display font-bold text-sm tracking-tight uppercase mb-4 md:mb-2 text-white">Receive our latest releases and offers</h4>
+<form action="https://lockworkscinema.admit-one.co.uk/newsletter/" class="validate" id="mc-embedded-subscribe-form" method="post" name="mc-embedded-subscribe-form" novalidate="" target="_blank">
+<div class="mb-4">
+<input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="mce-EMAIL" name="EMAIL" placeholder="Your Email Address" type="email"/>
+</div>
+<div class="clear" id="mce-responses">
+<div class="response" id="mce-error-response" style="display:none"></div>
+<div class="response" id="mce-success-response" style="display:none"></div>
+</div>
+<div style="position: absolute; left: -5000px;"><input name="" tabindex="-1" type="text" value=""/></div>
+<div>
+<input class="w-full inline-block btn-primary font-body text-center text-white text-sm px-3 py-3 cursor-pointer" id="mc-embedded-subscribe" name="subscribe" type="submit" value="Subscribe"/>
+</div>
+</form>
+</div>
+</div>
+</div>
+<div class="container mx-auto px-6 md:px-0">
+<div class="border-t-2 border-white flex flex-col items-left">
+<div class="sm:w-2/3 text-left py-6">
+<p class="text-sm text-white mb-2">
+                    © 2026 Lockworks Cinema, Chubb Buildings, Wolverhampton, WV1 1HT                </p>
+</div>
+</div>
+</div>
+</footer>
+<div class="toggleTrailer hidden fixed inset-0 bg-black bg-opacity-50 transition-opacity z-20" id="trailerOverlay">
+<div class="absolute inset-0 mx-auto my-auto w-screen h-auto md:w-[840px] md:h-[690px] pt-5" id="trailerViewport">
+<span class="text-white float-right py-2 px-2 cursor-pointer">Close<span class="pl-2">X</span></span>
+<iframe height="auto" id="trailerIframe" src="/loading" width="0"></iframe>
+</div>
+</div>
+<!-- <div id="updateCookiePrefsContainer" class="fixed bottom-0 cursor-pointer right-0 p-2 text-white bg-black">
+  <p onclick="showCookieManager()">Manage Cookies</p>
+</div> -->
+<!-- A1 Cookie Manager Start ===========================================  -->
+<div class="hidden fixed inset-0 bg-black/50 transition-opacity" id="cookieOverlay"></div>
+<img alt="Cookie Pixel" height="1" id="cookiePixel" src="" style="display:none;" width="1">
+<div class="hidden w-full p-2 fixed bottom-0 bg-white" id="a1CookieBar">
+<div class="flex flex-col md:flex-row items-center justify-between" id="cookieBar">
+<div class="p-3">
+<p class="text-black">We use cookies on our website to personalise and improve your experience and ensure the website works correctly. View our Cookie Policy.</p>
+</div>
+<div class="flex p-3">
+<button class="btn-primary px-3 py-3 m-2" id="all_cookies" onclick="setCookieCookie('ALL')">Accept All</button>
+<button class="btn-primary px-3 py-3 m-2 hidden" id="save_cookies" onclick="checkCookiePrefs()">Save Preferences</button>
+<button class="btn-primary px-3 ml-2 py-3 m-2" id="manage_cookies" onclick="manageCookies()">Manage</button>
+<button class="btn-secondary px-3 ml-2 py-3 m-2" id="reject_all" onclick="rejectAllCookie()">Reject All</button>
+</div>
+</div>
+<div class="hidden overflow-scroll no-scrollbar" id="cookieManage">
+<div id="cookieOptions">
+<div id="cookieOption">
+<div class="flex justify-between items-center p-2" id="cookieSwitch">
+<div class="flex-1 flex items-center hover:bg-gray-200 hover:text-black" onclick="toggleDropdown('Necessary')">
+<div class="p-2">
+<i class="dropdownToggle text-xs icon-a1-common-up align-middle" id="dropdownToggle_Necessary"></i>
+</div>
+<div class="p-2">
+<h3 class="text-black">Necessary</h3>
+<p class="text-black">Necessary cookies are required to enable the basic features of this site, such as providing secure log-in or adjusting your consent preferences. These cookies do not store any personally identifiable data.</p>
+</div>
+</div>
+<div class="p-2 mx-4">
+<div class="cookiePrefs_input flex items-center justify-between">
+<input checked="" class="bg-gray-300 border-gray-400 ring-gray-400 checked:bg-primary checked:hover:bg-primary checked:focus:bg-primary checked:active:bg-primary checked:ring-primary checked:focus:ring-primary checked:active:ring-primary disabled:opacity-60 disabled:cursor-not-allowedrounded h-6 w-6 cursor-pointer" disabled="" id="Necessary" title="Necessary" type="checkbox"/>
+</div>
+</div>
+</div>
+<div class="cookieFurtherInfo hidden" id="cookieBreakdown_Necessary">
+<ul class="cookieTable w-full bg-gray-100 text-black p-4 mx-4 my-2">
+<li class="text-black">
+<strong>Cookie:</strong>
+                  A1WCC</li>
+<li class="text-black">
+<strong>Duration::</strong>
+                  1 year</li>
+<li class="text-black">
+<strong>Description:</strong>
+                  This cookie is stored to understand how our users would like us to use their cookies according to their preferences.</li>
+</ul>
+<ul class="cookieTable w-full bg-gray-100 text-black p-4 mx-4 my-2">
+<li class="text-black">
+<strong>Cookie:</strong>
+                  PHPSESSID</li>
+<li class="text-black">
+<strong>Duration::</strong>
+                  SESSION</li>
+<li class="text-black">
+<strong>Description:</strong>
+                  The PHPSESSID cookie is vital as it allows us to keep a user's order tied to their session throughout the entire booking process.</li>
+</ul>
+<ul class="cookieTable w-full bg-gray-100 text-black p-4 mx-4 my-2">
+<li class="text-black">
+<strong>Cookie:</strong>
+                  SITECODE</li>
+<li class="text-black">
+<strong>Duration::</strong>
+                  1 year</li>
+<li class="text-black">
+<strong>Description:</strong>
+                  Used to ensure user is kept on the correct site</li>
+</ul>
+<ul class="cookieTable w-full bg-gray-100 text-black p-4 mx-4 my-2">
+<li class="text-black">
+<strong>Cookie:</strong>
+                  SITECODE-URI</li>
+<li class="text-black">
+<strong>Duration::</strong>
+                  1 year</li>
+<li class="text-black">
+<strong>Description:</strong>
+                  Used to ensure user is kept on the correct site</li>
+</ul>
+</div> <!-- END cookieBreakdown -->
+</div> <!-- END cookieOption -->
+<div id="cookieOption">
+<div class="flex justify-between items-center p-2" id="cookieSwitch">
+<div class="flex-1 flex items-center hover:bg-gray-200 hover:text-black" onclick="toggleDropdown('Analytics')">
+<div class="p-2">
+<i class="dropdownToggle text-xs icon-a1-common-up align-middle" id="dropdownToggle_Analytics"></i>
+</div>
+<div class="p-2">
+<h3 class="text-black">Analytics</h3>
+<p class="text-black">Analytical cookies are used to understand how visitors interact with the website. These cookies help provide information on metrics such as the number of visitors, bounce rate, traffic source, etc.</p>
+</div>
+</div>
+<div class="p-2 mx-4">
+<div class="cookiePrefs_input flex items-center justify-between">
+<input class="bg-gray-300 border-gray-400 ring-gray-400 checked:bg-primary checked:hover:bg-primary checked:focus:bg-primary checked:active:bg-primary checked:ring-primary checked:focus:ring-primary checked:active:ring-primary disabled:opacity-60 disabled:cursor-not-allowedrounded h-6 w-6 cursor-pointer" id="Analytics" title="Analytics" type="checkbox"/>
+</div>
+</div>
+</div>
+<div class="cookieFurtherInfo hidden" id="cookieBreakdown_Analytics">
+<ul class="cookieTable w-full bg-gray-100 text-black p-4 mx-4 my-2">
+<li class="text-black">
+<strong>Cookie:</strong>
+                  _ga</li>
+<li class="text-black">
+<strong>Duration::</strong>
+                  1 year</li>
+<li class="text-black">
+<strong>Description:</strong>
+                  GA cookie description</li>
+</ul>
+<ul class="cookieTable w-full bg-gray-100 text-black p-4 mx-4 my-2">
+<li class="text-black">
+<strong>Cookie:</strong>
+                  _gid</li>
+<li class="text-black">
+<strong>Duration::</strong>
+                  1 day</li>
+<li class="text-black">
+<strong>Description:</strong>
+                  GID Cookie Description</li>
+</ul>
+</div> <!-- END cookieBreakdown -->
+</div> <!-- END cookieOption -->
+</div> <!-- END cookieOptions -->
+</div> <!-- END cookieManage" -->
+</div> <!-- END a1CookieBar -->
+<!-- A1 Cookie Manager End  ==============================================  -->
+<x-scripts></x-scripts>
+<!--<script src="/assets/script/app.js" type="module"></script>-->
+<!-- <script src="/assets\script\cookies.js?v=1793404044"></script> -->
+</img></body>
+</html>

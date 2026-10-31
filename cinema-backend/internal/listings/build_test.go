@@ -177,3 +177,14 @@ func TestCinemaAdMinutes(t *testing.T) {
 		}
 	}
 }
+
+func TestZeroAdMinutes(t *testing.T) { // an override of 0 is a real value, not "unset"
+	now := time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC)
+	from := scrape.Day(now)
+	got := Build([]scrape.Cinema{{Name: "The Dukes Lancaster", Chain: "Independent"}}, map[string]Entry{
+		"The Dukes Lancaster": {Updated: now, Shows: []scrape.Show{{Film: "Klara and the Sun", Start: "2026-10-20T14:00", Duration: 116}}},
+	}, from, from.AddDate(0, 0, 6), now)
+	if got.Cinemas[0].Ads != 0 || got.Shows[0].E != "2026-10-20T15:56" {
+		t.Errorf("ads %d, end %s; want 0, 15:56", got.Cinemas[0].Ads, got.Shows[0].E)
+	}
+}

@@ -23,6 +23,9 @@ var webedia = map[string]string{
 // relayChains block the server's datacentre IP, so their cinemas are scraped by cinema-relay.
 var relayChains = map[string]bool{"Odeon": true, "Cineworld": true, "Vue": true, "Curzon": true}
 
+// relayCinemas are the independents that block it too (taposapp sites).
+var relayCinemas = map[string]bool{"Plaza Cinema Skipton": true, "Picture House Keighley": true, "Rex Cinema Elland": true}
+
 //go:embed chains.json
 var chainsJSON []byte
 
@@ -59,7 +62,15 @@ func build() []scrape.Cinema {
 	ind("Cultplex", "https://cultplex.co.uk", venues.Cultplex)
 	ind("Hebden Bridge Picture House", "https://hebdenbridgepicturehouse.co.uk", venues.HebdenBridge)
 	ind("Liverpool Plaza Community Cinema", "https://plazacinema.org.uk", venues.PlazaCrosby)
-	add("Plaza Cinema Skipton", "Independent", "https://plazaskipton.co.uk", true, venues.PlazaSkipton)
+	// taposapp sites block the server's IP too, so they are relay cinemas.
+	for _, i := range [][2]string{{"Plaza Cinema Skipton", "https://plazaskipton.co.uk"},
+		{"Picture House Keighley", "https://picturehousekeighley.co.uk"}, {"Rex Cinema Elland", "https://rexelland.co.uk"}} {
+		pages := []string{} // Keighley and Elland's event-cinema pages list films but no showtimes: skip the home request
+		if i[0] != "Plaza Cinema Skipton" {
+			pages = []string{"", "coming-soon"}
+		}
+		add(i[0], "Independent", i[1], relayCinemas[i[0]], venues.Taposapp(i[1]+"/", pages...))
+	}
 	ind("Penistone Paramount", "https://penistoneparamount.co.uk", venues.Penistone)
 	ind("Pictureville Bradford", "https://www.scienceandmediamuseum.org.uk/cinema/listings", venues.Pictureville)
 	ind("Stockport Plaza", "https://stockportplaza.co.uk/whats-on/type/film/", venues.StockportPlaza)
@@ -69,6 +80,21 @@ func build() []scrape.Cinema {
 	ind("Storyhouse Chester", "https://www.storyhouse.com", ticketing.StoryhouseChester)
 	ind("Altrincham Garrick Playhouse", "https://www.altrinchamgarrick.co.uk", ticketing.AltrinchamGarrick)
 	ind("Buxton Opera House", "https://buxtonoperahouse.org.uk", ticketing.BuxtonOperaHouse)
+	ind("The Dukes Lancaster", "https://dukeslancaster.org", ticketing.DukesLancaster)
+	ind("Lockworks Cinema Wolverhampton", "https://lockworkscinema.co.uk", venues.AdmitOne("https://lockworkscinema.co.uk"))
+	ind("Prince Charles Cinema", "https://princecharlescinema.com/whats-on/", venues.Jacro("https://princecharlescinema.com/whats-on/"))
+	ind("Cottage Road Cinema", "https://cottageroad.co.uk", venues.Jacro("https://cottageroad.co.uk/"))
+	ind("Cinemac Macclesfield", "https://cinemac.org.uk", venues.Jacro("https://cinemac.org.uk/"))
+	// Arc and Parkway are small chains of their own (no chains.json: no discovery for them).
+	for _, site := range []string{"Beeston", "Blackpool", "Daventry", "Great Yarmouth", "Hucknall", "Preston", "Rotherham", "Peterhead"} {
+		u := "https://" + strings.ToLower(strings.ReplaceAll(site, " ", "")) + ".arccinema.co.uk"
+		add("Arc "+site, "Arc", u, false, venues.AdmitOne(u))
+	}
+	add("Parkway Barnsley", "Parkway", "https://barnsley.parkwaycinemas.co.uk", false, venues.AdmitOne("https://barnsley.parkwaycinemas.co.uk"))
+	for _, site := range []string{"Beverley", "Cleethorpes", "Louth", "Workington"} {
+		u := "https://" + strings.ToLower(site) + ".parkwaycinemas.co.uk"
+		add("Parkway "+site, "Parkway", u, false, venues.Glitterfish(u))
+	}
 	// Not scraped: King Street Townhouse (private-hire only), Square Chapel Halifax (closed 2025).
 	return cs
 }
