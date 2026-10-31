@@ -83,7 +83,7 @@ func parseConfig() config {
 	flag.DurationVar(&c.timeout, "cinema-timeout", envDur("CINEMAD_CINEMA_TIMEOUT", 5*time.Minute), "per-cinema scrape timeout ($CINEMAD_CINEMA_TIMEOUT)")
 	flag.IntVar(&c.workers, "workers", envInt("CINEMAD_WORKERS", 8), "parallel cinemas ($CINEMAD_WORKERS)")
 	flag.Int64Var(&c.maxBody, "max-body", int64(envInt("CINEMAD_MAX_BODY", 16<<20)), "max ingest body bytes, after decompression ($CINEMAD_MAX_BODY)")
-	flag.IntVar(&c.days, "days", envInt("CINEMAD_DAYS", scrape.DefaultDays), "days served, from today ($CINEMAD_DAYS)")
+	flag.IntVar(&c.days, "days", envInt("CINEMAD_DAYS", scrape.ServerDays), "days scraped and served, from today; relay cinemas stay at their shorter window ($CINEMAD_DAYS)")
 	flag.Func("regions", "comma-separated default regions, always hot ($CINEMAD_REGIONS; default "+strings.Join(region.Default, ",")+")", func(v string) error {
 		r, err := parseRegions(v)
 		c.regions = r

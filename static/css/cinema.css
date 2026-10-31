@@ -117,12 +117,12 @@
 .cinema-app .grp { margin-bottom: 6px; }
 .cinema-app .grp:last-child { margin-bottom: 0; }
 .cinema-app .day { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 2px 0; }
-.cinema-app .dl { width: 60px; flex: none; color: var(--mute); font-size: 12px; }
+.cinema-app .dl { width: 72px; flex: none; color: var(--mute); font-size: 12px; }
 .cinema-app a.t, .cinema-app a.t:visited { font-variant-numeric: tabular-nums; font-size: 12.5px; padding: 2px 7px; border-radius: 4px; background: var(--time); color: var(--ink); }
 .cinema-app a.t:hover { background: var(--timeh); text-decoration: none; }
 .cinema-app a[href].t:hover { box-shadow: inset 0 -2px 0 var(--acc); }
 .cinema-app .empty { color: var(--mute); padding: 30px 0; text-align: center; }
-@media (max-width: 640px) { .cinema-app .row { grid-template-columns: 1fr; } .cinema-app .dl { width: 52px; } }
+@media (max-width: 640px) { .cinema-app .row { grid-template-columns: 1fr; } .cinema-app .dl { width: 66px; } }
 
 /* ---- schedule (planner) ---- */
 .cinema-app .hrow{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between}
@@ -192,6 +192,12 @@
 .cinema-app .adl input[type=number]{margin-left:auto;width:64px;flex:0 0 64px;padding:2px 6px}
 .cinema-app .adl label.set span:first-of-type{font-weight:600;color:var(--acci)}
 .cinema-app .sugg .dim{opacity:.55}
+/* Settings ranking: the add box's results sit in the page flow, since .glim clips anything absolutely positioned */
+.cinema-app .rkadd{margin-top:6px}
+.cinema-app .rkadd .sugg{position:static;margin-top:4px;max-height:220px;box-shadow:none}
+.cinema-app .rkadd .sugg div{font-size:13px}
+.cinema-app .rkadd .sugg span:first-child{min-width:0;overflow-wrap:anywhere}
+.cinema-app #prklist{margin-top:8px}
 .cinema-app .chips{display:flex;flex-wrap:wrap;gap:5px}
 .cinema-app .chip{font-size:12.5px;padding:3px 9px;border-radius:99px;line-height:1.35}
 .cinema-app .chip.req{background:var(--okb);color:var(--ok);border-color:var(--ok);font-weight:600}
@@ -203,6 +209,9 @@
 .cinema-app .srow input[type=text]{flex:1 1 120px;min-width:0;text-transform:uppercase}
 .cinema-app .chk{display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer}
 .cinema-app .pcst{font-size:12.5px;width:100%}
+.cinema-app .tmode{display:flex;flex-wrap:wrap;gap:4px 14px;margin:0 0 6px}
+.cinema-app .tmode[hidden]{display:none}
+.cinema-app .tmode .chk.off{opacity:.55;cursor:default}
 .cinema-app .pcst.ok{color:var(--ok)}
 .cinema-app .pcst.bad{color:var(--err)}
 .cinema-app .dtab{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 10px}
@@ -213,6 +222,16 @@
 .cinema-app .dtab .hbn{display:block;font-size:11px;color:var(--mute);white-space:nowrap}
 .cinema-app .dtab .dn{white-space:nowrap}
 .cinema-app .dtab th{font-weight:400;color:var(--mute);font-size:12px;text-align:left;padding:0 4px}
+.cinema-app .dtab .ptb{display:block;max-width:100%;padding:0;border:0;background:none;color:var(--mute);font-size:11px;line-height:1.3;text-decoration:underline;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.cinema-app .dtab .ptb.on{color:var(--ok)}
+.cinema-app .dtab tr.ptr td{border-top:0;padding:0 4px 6px 30px}
+.cinema-app .dtab .ptg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.cinema-app .dtab .ptg label{min-width:0;font-size:12px;color:var(--mute)}
+.cinema-app .dtab .ptg input{display:block;box-sizing:border-box;width:100%;min-width:0;padding:3px 6px;font-size:13px;text-transform:uppercase}
+.cinema-app .dtab .ptg input::placeholder{text-transform:none}
+.cinema-app .dtab .ptg .pcst{display:block;font-size:11.5px;overflow-wrap:anywhere}
+.cinema-app .dtab .pth{margin-top:3px;font-size:11.5px;color:var(--mute)}
+@media (max-width:400px){.cinema-app .dtab tr.ptr td{padding-left:4px}}
 .cinema-app .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
 .cinema-app .sgrid label{font-size:12.5px;color:var(--mute);display:flex;flex-direction:column;justify-content:space-between;gap:3px}  /* inputs sit at the bottom so a row lines up even when one label wraps */
 .cinema-app .sgrid input,.cinema-app .sgrid select{color:var(--ink);font-size:14px;padding:5px 8px;width:100%}

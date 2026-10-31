@@ -93,6 +93,7 @@ func Indy(baseURL string) scrape.Fetcher {
 			scrape.Header("referer", baseURL+"/")}
 		var out []scrape.Show
 		seen := map[string]bool{}
+		to = scrape.DailyTo(from, to)
 		// the API is UTC: pad a day each side
 		for _, d := range scrape.Days(from.AddDate(0, 0, -1), to.AddDate(0, 0, 1)) {
 			body := map[string]any{"query": indyQuery,

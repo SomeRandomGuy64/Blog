@@ -79,7 +79,8 @@ notes = "The Dukes says on its website that films start on time with no trailers
 [[task]]
 priority = "medium"
 title = "Plan further ahead"
-notes = "Cinemas publish more than the site collects, including the big chains: there are about 100 showings a week per cinema for the next month, and big releases go on sale two months ahead. The plan is to collect about 8 weeks and let plans start later. Plans would stay at 10 days long or less."
+done = true
+notes = "Many cinemas now have 8 weeks of listings, and a plan can start on any day that has listings. Plans stay at 10 days long or less. Odeon, Cineworld, Vue, Curzon and a few smaller cinemas stay at 16 days, so later dates have fewer showings."
 
 [[task]]
 priority = "medium"
@@ -90,16 +91,19 @@ notes = "Now on the site, along with Picture House Keighley, Rex Cinema Elland a
 [[task]]
 priority = "medium"
 title = "Choose how you travel"
+done = true
 notes = "Avoid trams or trains when there are problems, or plan by bike or car. These need a Google Maps key, because the built-in times are rough public transport estimates."
 
 [[task]]
 priority = "medium"
 title = "Set a different start and end point for each day"
+done = true
 notes = "For days when you are coming from or going back to somewhere other than home, such as work."
 
 [[task]]
 priority = "medium"
 title = "Rank your preferred cinemas and screens"
+done = true
 notes = "Tell the planner which cinemas and screens you would rather use, as a preference and not a strict rule. Screen choice only works where the cinema publishes screens, so not at Reel or The Light."
 
 [[task]]

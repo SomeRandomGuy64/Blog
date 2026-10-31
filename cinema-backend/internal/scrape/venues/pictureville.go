@@ -22,7 +22,7 @@ var (
 func Pictureville(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
 	const base = "https://www.scienceandmediamuseum.org.uk"
 	var out []scrape.Show
-	for _, day := range scrape.Days(from, to) {
+	for _, day := range scrape.Days(from, scrape.DailyTo(from, to)) {
 		ds := day.Format(scrape.DateFmt)
 		var res struct {
 			Items []struct {
