@@ -23,8 +23,8 @@ var webedia = map[string]string{
 // relayChains block the server's datacentre IP, so their cinemas are scraped by cinema-relay.
 var relayChains = map[string]bool{"Odeon": true, "Cineworld": true, "Vue": true, "Curzon": true}
 
-// relayCinemas are the independents that block it too (taposapp sites).
-var relayCinemas = map[string]bool{"Plaza Cinema Skipton": true, "Picture House Keighley": true, "Rex Cinema Elland": true}
+// relayCinemas are the independents that block it too (taposapp sites, Cottage Road).
+var relayCinemas = map[string]bool{"Plaza Cinema Skipton": true, "Picture House Keighley": true, "Rex Cinema Elland": true, "Cottage Road Cinema": true}
 
 //go:embed chains.json
 var chainsJSON []byte
@@ -53,7 +53,7 @@ func build() []scrape.Cinema {
 		{"Rex Cinema Wilmslow", "https://www.rexcinemawilmslow.com"}, {"Northern Light Cinema Sale", "https://www.tnlcinemasale.co.uk"}} {
 		add(i[0], "Independent", i[1], false, ticketing.Indy(i[1]))
 	}
-	ind := func(name, url string, f scrape.Fetcher) { add(name, "Independent", url, false, f) }
+	ind := func(name, url string, f scrape.Fetcher) { add(name, "Independent", url, relayCinemas[name], f) }
 	ind("Leigh Film Factory", "https://leighfilmfactory.com", ticketing.LeighFilmFactory)
 	ind("Southport Bijou Cinema", "https://southportbijoucinema.co.uk", ticketing.SouthportBijou)
 	ind("Partington Theatre Glossop", "https://peakfilmsociety.org/whats-on/", ticketing.PartingtonGlossop)
