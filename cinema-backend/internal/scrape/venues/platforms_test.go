@@ -1,6 +1,9 @@
 package venues
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"slices"
 	"strings"
@@ -139,5 +142,69 @@ func TestLabelDate(t *testing.T) {
 	}
 	if _, ok, _ := labelDate("Now Playing", ref); ok {
 		t.Error("labelDate(Now Playing) should not be a date")
+	}
+}
+
+func TestJacroRelativeDatesAndBaby(t *testing.T) { // "Today"/"Tomorrow" headings use the fetch date, not the window start
+	html := `<div class="jacro-event"><h3><a>Rosemary's Baby</a></h3><ul class="performance-list-items">
+<div class="heading">Today</div><li><a href="/booknow/1">6:00 pm</a></li>
+<div class="heading">Tomorrow</div><li><a href="/booknow/2">20:30</a></li>
+<div class="heading">Sat 7th Nov</div><li><a href="/booknow/3">14:00</a></li></ul></div>`
+	doc, _ := scrape.Doc([]byte(html))
+	got, err := jacroParse(doc, "https://x/", d("2026-10-30"), d("2026-10-30"), d("2026-11-14"))
+	shows(t, got, err, 3)
+	if got[0].Start != "2026-10-30T18:00" || got[1].Start != "2026-10-31T20:30" {
+		t.Errorf("relative days = %s, %s", got[0].Start, got[1].Start)
+	}
+	for _, s := range got {
+		if slices.Contains(s.Formats, "Parent & Baby") {
+			t.Errorf("%q tagged %v", s.Film, s.Formats)
+		}
+	}
+	if got, _ = jacroParse(doc, "https://x/", d("2026-10-30"), d("2026-10-31"), d("2026-10-31")); len(got) != 1 { // from is not "today"
+		t.Errorf("window 31 Oct: %d shows, want 1", len(got))
+	}
+}
+
+func TestTitleTagsBaby(t *testing.T) {
+	for in, want := range map[string][]string{"The Boss Baby": {}, "Rosemary's Baby": {},
+		"Parent & Baby: Wicked": {"Parent & Baby"}, "Parent and Baby Screening - Dune": {"Parent & Baby"},
+		"RBO 2026-27: The Royal Ballet - Manon": {"Live/Event Cinema"}} {
+		if got := titleTags(in); !slices.Equal(got, want) {
+			t.Errorf("titleTags(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestTaposappOptionalPages(t *testing.T) {
+	page := `<div class="programme-film"><div class="programme-film-title"><a href="/film/a">Film A</a></div>
+<div class="programme-showtime-date">31st Oct</div><div class="programme-performance-times">
+<a class="programme-performance-time" href="/book/1">19:55</a></div></div>`
+	var hits []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits = append(hits, r.URL.Path)
+		if r.URL.Path == "/" || r.URL.Path == "/coming-soon" {
+			w.Write([]byte(page))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+	s, err := scrape.NewSession(context.Background(), scrape.NewMemo())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	got, err := Taposapp(srv.URL+"/")(s, d("2026-10-30"), d("2026-11-14")) // event-cinema 404s: harmless
+	shows(t, got, err, 1)
+	if len(hits) != 3 {
+		t.Errorf("default pages: %v", hits)
+	}
+	hits = nil
+	if _, err = Taposapp(srv.URL+"/", "", "coming-soon")(s, d("2026-10-30"), d("2026-11-14")); err != nil || len(hits) != 2 {
+		t.Errorf("listed pages: %v, %v", hits, err)
+	}
+	if _, err = Taposapp(srv.URL+"/x/")(s, d("2026-10-30"), d("2026-11-14")); err == nil { // main page 404 still fails
+		t.Error("main page 404 should fail")
 	}
 }

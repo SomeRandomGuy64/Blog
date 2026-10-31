@@ -65,7 +65,11 @@ func build() []scrape.Cinema {
 	// taposapp sites block the server's IP too, so they are relay cinemas.
 	for _, i := range [][2]string{{"Plaza Cinema Skipton", "https://plazaskipton.co.uk"},
 		{"Picture House Keighley", "https://picturehousekeighley.co.uk"}, {"Rex Cinema Elland", "https://rexelland.co.uk"}} {
-		add(i[0], "Independent", i[1], relayCinemas[i[0]], venues.Taposapp(i[1]+"/"))
+		pages := []string{} // Keighley and Elland's event-cinema pages list films but no showtimes: skip the home request
+		if i[0] != "Plaza Cinema Skipton" {
+			pages = []string{"", "coming-soon"}
+		}
+		add(i[0], "Independent", i[1], relayCinemas[i[0]], venues.Taposapp(i[1]+"/", pages...))
 	}
 	ind("Penistone Paramount", "https://penistoneparamount.co.uk", venues.Penistone)
 	ind("Pictureville Bradford", "https://www.scienceandmediamuseum.org.uk/cinema/listings", venues.Pictureville)

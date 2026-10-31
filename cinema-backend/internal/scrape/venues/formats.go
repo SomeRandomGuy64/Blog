@@ -8,6 +8,7 @@ import (
 	"html"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -70,6 +71,19 @@ func fmtTags(text string) []string {
 		if r.re.MatchString(t) {
 			tags = append(tags, r.tag)
 		}
+	}
+	return tags
+}
+
+var parentBabyRe = regexp.MustCompile(`parent\s*(&|and)\s*baby`)
+
+// titleTags is fmtTags for a film title. A bare "baby"/"babies" in a title ("Rosemary's Baby", "The Boss
+// Baby") is not a parent-and-baby screening, so that tag needs the full phrase; the other rules stay,
+// since titles carry genuine event/format words ("RBO ...: The Royal Ballet", "(Subtitled)").
+func titleTags(title string) []string {
+	tags := fmtTags(title)
+	if !parentBabyRe.MatchString(strings.ToLower(title)) {
+		tags = slices.DeleteFunc(tags, func(t string) bool { return t == "Parent & Baby" })
 	}
 	return tags
 }

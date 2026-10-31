@@ -15,6 +15,10 @@ import (
 
 var jacroTimeRe = regexp.MustCompile(`(?i)(\d{1,2}):(\d{2})\s*(am|pm)?`)
 
+// jacroRelRe matches a relative date label. today is the fetch date in London, not the window start
+// (from may be later), so it is passed separately.
+var jacroRelRe = regexp.MustCompile(`(?i)^\s*(today|tomorrow)\b`)
+
 // jacroTags maps Prince Charles' tag classes (<span class="tag 35mm">) to format tags.
 var jacroTags = map[string]string{"35mm": "35mm", "70mm": "70mm", "4k": "4K", "sub": "Subtitled", "hoh": "Subtitled",
 	"sing-along": "Sing-along", "q-a": "Q&A", "preview": "Preview"}
@@ -52,7 +56,7 @@ func jacroParse(doc *goquery.Document, page string, today, from, to time.Time) (
 			rt = film.Find("i.fa-film").First().Parent()
 		}
 		dur := scrape.Mins(scrape.TextS(rt))
-		filmTags := scrape.Uniq(append(fmtTags(title), svFormats(title)...))
+		filmTags := scrape.Uniq(append(titleTags(title), svFormats(title)...))
 		var day time.Time
 		film.Find(`div.heading, div.neworderpf > span:first-of-type, ` +
 			`div.jacro-date-showtime-list > div:not(.perfbtns):not(.neworderpf), a[href*="booknow/"]`).EachWithBreak(
@@ -92,7 +96,12 @@ func jacroParse(doc *goquery.Document, page string, today, from, to time.Time) (
 					})
 					return true
 				}
-				d, ok, err := labelDate(scrape.TextS(el), today)
+				label := scrape.TextS(el)
+				if m := jacroRelRe.FindStringSubmatch(label); m != nil { // "Today" / "Tomorrow" headings
+					day = today.AddDate(0, 0, map[string]int{"today": 0, "tomorrow": 1}[strings.ToLower(m[1])])
+					return true
+				}
+				d, ok, err := labelDate(label, today)
 				if err != nil {
 					ferr = err
 					return false

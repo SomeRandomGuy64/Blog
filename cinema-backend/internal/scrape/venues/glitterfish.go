@@ -62,7 +62,7 @@ func glitterfishParse(body []byte, base string, from, to time.Time) ([]scrape.Sh
 		if f.ProgrammeType == 3 || f.ProgrammeType == 4 { // Event Cinema / Live on Stage
 			tags0 = append(tags0, "Live/Event Cinema")
 		}
-		tags0 = append(tags0, fmtTags(f.Title)...)
+		tags0 = append(tags0, titleTags(f.Title)...)
 		for _, day := range f.Dates {
 			dt, err := time.Parse("20060102", day.Key)
 			if err != nil {

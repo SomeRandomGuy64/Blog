@@ -1,6 +1,7 @@
 package venues
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"slices"
@@ -20,18 +21,27 @@ var (
 )
 
 // Taposapp scrapes a taposapp site's programme pages (Plaza Skipton, Picture House Keighley, Rex Elland);
-// base is the site root with a trailing slash.
-func Taposapp(base string) scrape.Fetcher {
+// base is the site root with a trailing slash. pages are the programme pages under it, "" (the main page,
+// which must load) first; none means "", "coming-soon" and "event-cinema". The other pages are optional:
+// a 404 there is skipped. Sites whose extra pages hold no showtimes list only the pages worth a request.
+func Taposapp(base string, pages ...string) scrape.Fetcher {
+	if len(pages) == 0 {
+		pages = []string{"", "coming-soon", "event-cinema"}
+	}
 	return func(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
-		return taposapp(s, base, from, to)
+		return taposapp(s, base, pages, from, to)
 	}
 }
 
-func taposapp(s *scrape.Session, base string, from, to time.Time) ([]scrape.Show, error) {
+func taposapp(s *scrape.Session, base string, pages []string, from, to time.Time) ([]scrape.Show, error) {
 	seen, rt := map[string]bool{}, map[string]int{}
 	var out []scrape.Show
-	for _, path := range []string{"", "coming-soon", "event-cinema"} {
+	for _, path := range pages {
 		r, err := s.GetOK(base + path)
+		var he *scrape.HTTPError
+		if err != nil && path != "" && errors.As(err, &he) && he.Status == 404 {
+			continue // optional page absent on this site
+		}
 		if err != nil {
 			return nil, err
 		}

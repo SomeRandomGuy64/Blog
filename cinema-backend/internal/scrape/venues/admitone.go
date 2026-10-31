@@ -106,7 +106,7 @@ func admitOneParse(doc *goquery.Document, base string, today, from, to time.Time
 			if b.Find("i.a1-event-subtitles").Length() > 0 {
 				fm = append(fm, "Subtitled")
 			}
-			fm = append(fm, fmtTags(title)...)
+			fm = append(fm, titleTags(title)...)
 			out = append(out, scrape.Show{
 				Film:     title,
 				Start:    fmt.Sprintf("%sT%02d:%s", day.Format(scrape.DateFmt), h, tm[2]),
