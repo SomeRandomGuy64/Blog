@@ -26,8 +26,8 @@ notes = "A time before 05:00 now always means the next morning, even when \"Leav
 
 [[task]]
 priority = "high"
-title = "Add 21 cinemas that use booking systems the site can already read"
-notes = "Savoy (Worksop, Boston, Corby, Doncaster, Grantham, Gainsborough, Catterick, Nottingham), Regent Marple, Mockingbird, Ritz Thirsk, The Dukes Lancaster, Broadway Nottingham, Tyneside, Derby Quad, MAC Birmingham, ICA, Warwick Arts Centre, Hyde Park Picture House, Northern Light Stretford and Ritz Belper."
+title = "Add 20 cinemas that use booking systems the site can already read"
+notes = "Savoy (Worksop, Boston, Corby, Doncaster, Grantham, Gainsborough, Catterick, Nottingham), Regent Marple, Mockingbird, Ritz Thirsk, Broadway Nottingham, Tyneside, Derby Quad, MAC Birmingham, ICA, Warwick Arts Centre, Hyde Park Picture House, Northern Light Stretford and Ritz Belper."
 
 [[task]]
 priority = "high"
@@ -73,7 +73,8 @@ notes = "The list now shows every match, not just the first 15, and it is taller
 [[task]]
 priority = "medium"
 title = "No advert time at The Dukes Lancaster"
-notes = "The Dukes says on its website that films start on time with no trailers or adverts. This will be set when the cinema is added."
+done = true
+notes = "The Dukes says on its website that films start on time with no trailers or adverts. The planner now allows no advert time there."
 
 [[task]]
 priority = "medium"
@@ -83,7 +84,8 @@ notes = "Cinemas publish more than the site collects, including the big chains: 
 [[task]]
 priority = "medium"
 title = "Add Arc, Parkway, Lockworks, Prince Charles, Cottage Road and Cinemac"
-notes = "These need new code to read their booking systems. Keighley and Elland only need a small change, and are included here."
+done = true
+notes = "Now on the site, along with Picture House Keighley, Rex Cinema Elland and The Dukes Lancaster."
 
 [[task]]
 priority = "medium"
