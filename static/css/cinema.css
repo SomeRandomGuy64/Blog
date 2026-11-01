@@ -415,3 +415,20 @@
 .cinema-app .rgnote { font-size: 12px; color: var(--warn); margin-top: 3px; }
 .cinema-app .cerr button.alt { background: var(--card); color: var(--ink); border-color: var(--line); font-weight: 400; }
 .cinema-app .cerr button.alt:hover { background: var(--tag); border-color: var(--acc); }
+
+/* same-film matching */
+.cinema-app .sameb { display: inline-block; width: 18px; height: 18px; padding: 0; margin-left: 6px; border-radius: 50%; font-size: 12px; font-weight: 700; line-height: 16px; text-align: center; vertical-align: 1px; background: var(--warnb); color: var(--warn); border: 1px solid var(--warn); cursor: pointer; }
+.cinema-app .sameb:hover { background: var(--warn); color: var(--card); }
+.cinema-app .pt:has(.sameb) b { display: inline-block; max-width: calc(100% - 26px); vertical-align: middle; }
+.cinema-app .samebt { padding: 6px 0; }
+.cinema-app .samed { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; padding: 16px; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; }
+.cinema-app .samed::backdrop { background: rgba(0, 0, 0, .55); }
+.cinema-app .samed h3 { margin: 0 0 6px; font-size: 17px; overflow-wrap: anywhere; }
+.cinema-app .samed h4 { margin: 14px 0 4px; font-size: 13.5px; }
+.cinema-app .samed input[type=search] { width: 100%; box-sizing: border-box; }
+.cinema-app .samer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.cinema-app .sameas { display: flex; gap: 6px; flex: none; }
+.cinema-app .sameown { display: block; margin-top: 8px; font-size: 13px; }
+.cinema-app .samem { min-height: 18px; margin-top: 8px; font-size: 12.5px; color: var(--warn); }
+.cinema-app .samef { display: flex; justify-content: flex-end; }
+.cinema-app .samec { margin-top: 18px; }

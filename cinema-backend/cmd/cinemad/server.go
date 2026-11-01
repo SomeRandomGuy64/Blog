@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"fazon.nexus/cinema/internal/feedback"
+	"fazon.nexus/cinema/internal/films"
 	"fazon.nexus/cinema/internal/listings"
 	"fazon.nexus/cinema/internal/region"
 	"fazon.nexus/cinema/internal/registry"
@@ -35,6 +37,7 @@ type server struct {
 	cfg      config
 	store    *store.Store
 	feedback *feedback.Store
+	films    *films.Store
 	demand   *demand
 
 	mu    sync.Mutex
@@ -44,6 +47,7 @@ type server struct {
 // doc is a rendered listings.json.
 type doc struct {
 	gen     uint64
+	fgen    uint64 // films.Store generation
 	day     string
 	built   time.Time
 	json    []byte
@@ -52,8 +56,8 @@ type doc struct {
 	lastMod time.Time
 }
 
-func newServer(cfg config, st *store.Store, fb *feedback.Store, dm *demand) *server {
-	return &server{cfg: cfg, store: st, feedback: fb, demand: dm, cache: map[string]*doc{}}
+func newServer(cfg config, st *store.Store, fb *feedback.Store, fl *films.Store, dm *demand) *server {
+	return &server{cfg: cfg, store: st, feedback: fb, films: fl, demand: dm, cache: map[string]*doc{}}
 }
 
 func (s *server) routes() http.Handler {
@@ -72,6 +76,8 @@ func (s *server) routes() http.Handler {
 	for _, p := range []string{"/v1/feedback/owner", "/v1/feedback/{id}", "/v1/feedback/{id}/replies", "/v1/feedback/{id}/replies/{rid}"} {
 		mux.HandleFunc("OPTIONS "+p, s.feedbackOwnerPreflight)
 	}
+	mux.HandleFunc("POST /v1/films/matches", s.filmMatch)
+	mux.HandleFunc("OPTIONS /v1/films/matches", s.feedbackOwnerPreflight)
 	mux.HandleFunc("GET /healthz", s.health)
 	return mux
 }
@@ -137,14 +143,18 @@ func (s *server) current(regions []string) (*doc, error) {
 	from := scrape.Day(now.In(scrape.London))
 	key := strings.Join(regions, ",")
 	entries, gen := s.store.Entries()
+	fgen := s.films.Gen()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c := s.cache[key]
-	if c != nil && c.gen == gen && c.day == from.Format(scrape.DateFmt) && now.Sub(c.built) < rebuildAfter {
+	if c != nil && c.gen == gen && c.fgen == fgen && c.day == from.Format(scrape.DateFmt) && now.Sub(c.built) < rebuildAfter {
 		return c, nil
 	}
 	cinemas := registry.InRegions(regions)
-	data := listings.Build(cinemas, entries, from, from.AddDate(0, 0, s.cfg.days-1), now)
+	data := listings.BuildMatched(cinemas, entries, from, from.AddDate(0, 0, s.cfg.days-1), now, s.films.Snapshot())
+	if s.cfg.tmdbKey != "" {
+		data.MatchDB = "tmdb"
+	}
 	for _, r := range region.All {
 		data.Regions = append(data.Regions, listings.RegionCount{Key: r.Key, Name: r.Name, Cinemas: len(registry.InRegions([]string{r.Key}))})
 	}
@@ -185,7 +195,7 @@ func (s *server) current(regions []string) (*doc, error) {
 		}
 		delete(s.cache, oldest)
 	}
-	d := &doc{gen: gen, day: from.Format(scrape.DateFmt), built: now, json: b, gz: gz.Bytes(), etag: etag, lastMod: lastMod}
+	d := &doc{gen: gen, fgen: fgen, day: from.Format(scrape.DateFmt), built: now, json: b, gz: gz.Bytes(), etag: etag, lastMod: lastMod}
 	s.cache[key] = d
 	return d, nil
 }
@@ -357,6 +367,48 @@ func (s *server) ingest(w http.ResponseWriter, r *http.Request) {
 	slog.Info("ingest", "cinemas", len(replies), "failed", failed, "remote", r.RemoteAddr)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"accepted": replies})
+}
+
+// filmMatch is the owner's change to the shared same-film list.
+func (s *server) filmMatch(w http.ResponseWriter, r *http.Request) {
+	s.cors(w, r)
+	if !s.authorized(w, r) {
+		return
+	}
+	var in struct {
+		Op   string `json:"op"` // merge (from, to), split (from), clear (from), apart (from, to), confirm (from)
+		From string `json:"from"`
+		To   string `json:"to"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&in); err != nil {
+		http.Error(w, "bad JSON", http.StatusBadRequest)
+		return
+	}
+	var err error
+	switch in.Op {
+	case "merge":
+		err = s.films.Merge(in.From, in.To)
+	case "split":
+		err = s.films.Split(in.From)
+	case "clear":
+		err = s.films.Clear(in.From)
+	case "apart":
+		err = s.films.Apart(in.From, in.To)
+	case "confirm":
+		err = s.films.Confirm(in.From)
+	default:
+		http.Error(w, "unknown op", http.StatusBadRequest)
+		return
+	}
+	switch {
+	case errors.Is(err, films.ErrKey), errors.Is(err, films.ErrCycle):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case err != nil:
+		slog.Error("film match", "err", err)
+		http.Error(w, "store error", http.StatusInternalServerError)
+	default:
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 
 // authorized checks the ingest bearer token (also used for feedback moderation), answering the

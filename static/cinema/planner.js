@@ -2,7 +2,7 @@
    CINEMA_PLANNER(D, L): D = the API's listings JSON, L = helpers returned by CINEMA_LISTINGS(D).
    Uses the globals SOLVER (solver.js, also stringified into a Blob Web Worker) and GROUTES (routes.js). */
 function CINEMA_PLANNER(D,L){
-const {screenType,isScreen,stCmp,pickAllows,esc,tagBadges,staleNote}=L,rgn=L.rgn||(()=>''),DT=CINEMA_DATES();
+const {screenType,isScreen,stCmp,pickAllows,esc,tagBadges,staleNote}=L,rgn=L.rgn||(()=>''),DT=CINEMA_DATES(),SM=D.same||{remap:p=>p,badge:()=>'',button:()=>''};
 const $=id=>document.getElementById(id), PERDAY=5, LSK='fazon-cinema-planner', MODEK='fazon-cinema-mode';
 const store={get(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}},
              set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
@@ -173,6 +173,7 @@ const ddOf=p=>{let r=null;if(Array.isArray(p.dd))r=p.dd.filter(d=>isDay(d)&&d>=T
 if(Array.isArray(saved.picks))for(const p of saved.picks.slice(0,MAXP))if(p&&typeof p.k==='string')
   PS.picks.push({k:p.k,t:p.t||title(p.k),cin:str(p.cin),st:Array.isArray(p.st)?p.st.filter(v=>typeof v==='string'):[],
     req:Array.isArray(p.req)?p.req:[],exc:Array.isArray(p.exc)?p.exc:[],dd:ddOf(p)});
+PS.picks=SM.remap(PS.picks,D);
 setWindow();
 if(!PS.set.pc&&D.home&&D.home.postcode&&hasLL(D.home)){PS.set.pc=fmtPC(D.home.postcode);
   PS.set.geo={pc:PS.set.pc,lat:D.home.lat,lng:D.home.lng,area:(D.home.label||'').replace(/\s*\([^)]*\)\s*$/,'')||'Home'}}
@@ -215,7 +216,7 @@ function sugg(){const q=$('pq').value.trim().toLowerCase(),have=new Set(PS.picks
   let l=FILMS.filter(k=>!have.has(k)&&(!q||title(k).toLowerCase().includes(q))&&(q||gc.get(k)[0]>0));
   if(g||PS.set.st.length)l.sort((a,b)=>gc.get(b)[0]-gc.get(a)[0]);
   hl=Math.min(hl,Math.max(0,l.length-1));
-  $('psugg').innerHTML=l.length?l.map((k,i)=>{const [n,c]=gc.get(k);return `<div data-k="${esc(k)}" class="${i===hl?'hl':''}${n?'':' dim'}"><span>${esc(title(k))}</span><span class="meta">${n?`${n} · ${c} cin.`:'none allowed by your Settings'}</span></div>`}).join(''):'<div class="meta">No matching films with showings.</div>';
+  $('psugg').innerHTML=l.length?l.map((k,i)=>{const [n,c]=gc.get(k);return `<div data-k="${esc(k)}" class="${i===hl?'hl':''}${n?'':' dim'}"><span>${esc(title(k))}${SM.badge(k)}</span><span class="meta">${n?`${n} · ${c} cin.`:'none allowed by your Settings'}</span></div>`}).join(''):'<div class="meta">No matching films with showings.</div>';
   $('psugg').hidden=false}
 function addFilm(k){if(!k||PS.picks.length>=limit()||PS.picks.some(p=>p.k===k))return;
   PS.picks.push({k,t:title(k),cin:[],st:[],req:[],exc:[],dd:null});$('pq').value='';hl=0;renderPicks();changed();sugg()}
@@ -224,7 +225,7 @@ $('pq').onkeydown=e=>{const it=[...$('psugg').querySelectorAll('[data-k]')];
   if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();hl=(hl+(e.key==='ArrowDown'?1:-1)+it.length)%Math.max(1,it.length);it.forEach((x,i)=>x.classList.toggle('hl',i===hl));it[hl]&&it[hl].scrollIntoView({block:'nearest'})}
   else if(e.key==='Enter'){e.preventDefault();it[hl]&&addFilm(it[hl].dataset.k)}
   else if(e.key==='Escape'){$('psugg').hidden=true;$('pq').blur()}};
-$('psugg').onmousedown=e=>{e.preventDefault();const d=e.target.closest('[data-k]');if(d)addFilm(d.dataset.k)};
+$('psugg').onmousedown=e=>{e.preventDefault();if(e.target.closest('[data-same]'))return;const d=e.target.closest('[data-k]');if(d)addFilm(d.dataset.k)};
 $('pq').onblur=()=>setTimeout(()=>{$('psugg').hidden=true},120);
 
 // ---------- pick list ----------
@@ -275,7 +276,8 @@ function optsHTML(p,pi){const F=FI[p.k];if(!F)return '<div class="meta">This fil
    ${kn(p.cin).length?'<button class="ib" data-act="cinclr" style="margin-top:4px">Clear (any cinema)</button>':''}</div>
    <div class="opt"><div class="ol">Screen type <span class="meta">(none ticked = any${gs.length?' allowed by Settings':''})</span></div><div class="chips stc">${stchips}</div></div>
    <div class="opt"><div class="ol">Other tags <span class="meta">(click: <span style="color:var(--ok)">require</span> → <span style="color:var(--err)">exclude</span> → either)</span></div><div class="chips">${fchips}</div></div>
-   <div class="opt" style="margin-bottom:0"><div class="ol">Days</div><div class="chips">${dchips}</div></div>`}
+   <div class="opt"><div class="ol">Days</div><div class="chips">${dchips}</div></div>
+   <div class="opt" style="margin-bottom:0">${SM.button(p.k)}</div>`}
 const limEl=document.createElement('div');limEl.id='plimit';limEl.className='pcst bad plimit';limEl.setAttribute('role','status');limEl.hidden=true;$('picks').before(limEl);
 function renderPicks(){
   const L=PS.picks,N=limit(),over=L.length>N;$('pcount').textContent=`${L.length}/${N}`;$('pcount').classList.toggle('over',over);
@@ -284,7 +286,7 @@ function renderPicks(){
   limEl.hidden=!over;limEl.textContent=over?`Only the top ${N} picks are planned for ${ndays(DAYS.length)}. Lengthen the plan or remove some.`:'';
   $('picks').innerHTML=L.map((p,i)=>{const gone=!FI[p.k],open=OPEN.has(p.k),ov=i>=N;
     return `<li class="pick${gone?' gone':''}${ov?' over':''}" data-i="${i}"${ov?` title="Over the ${N}-film limit: not planned"`:''}><div class="prow"><span class="grip" draggable="true" title="Drag to reorder">⋮⋮</span><input class="rk" type="text" inputmode="numeric" value="${i+1}" data-act="rk" aria-label="Priority of ${esc(p.t)}" title="Type a number to move this film">
-     <div class="pt"><b title="${esc(p.t)}">${esc(gone?p.t:title(p.k))}</b><span class="meta">${esc(pickMeta(p))}</span></div>
+     <div class="pt"><b title="${esc(p.t)}">${esc(gone?p.t:title(p.k))}</b>${gone?'':SM.badge(p.k)}<span class="meta">${esc(pickMeta(p))}</span></div>
      <div class="pbtn"><button data-act="up" title="Higher priority" aria-label="Move up"${i?'':' disabled'}>↑</button><button data-act="dn" title="Lower priority" aria-label="Move down"${i<L.length-1?'':' disabled'}>↓</button>
      <button data-act="opt" class="${open?'on':''}" title="Cinemas, screen types, tags, days">Options</button><button data-act="rm" title="Remove" aria-label="Remove">✕</button></div></div>
      ${open?`<div class="popts">${optsHTML(p,i)}</div>`:''}</li>`}).join('');

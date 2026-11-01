@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"fazon.nexus/cinema/internal/films"
 	"fazon.nexus/cinema/internal/scrape"
 )
 
@@ -54,6 +55,11 @@ type Listings struct {
 	// Set by the server: every region with its cinema count, and the ones this document covers.
 	Regions []RegionCount `json:"regions,omitempty"`
 	Region  []string      `json:"region,omitempty"`
+	// Same-film matching: older keys to current ones (for saved picks), notes per film, and the
+	// film database in use.
+	Aliases map[string]string   `json:"aliases,omitempty"`
+	Notes   map[string]FilmNote `json:"notes,omitempty"`
+	MatchDB string              `json:"matchdb,omitempty"`
 }
 
 // RegionCount is one entry of Listings.Regions.
@@ -79,9 +85,10 @@ type Cinema struct {
 }
 
 // Show is one showing: k film key, c cinema index, t start, s screen, x formats, u booking URL,
-// e film end, d runtime, es = e is an estimate.
+// e film end, d runtime, es = e is an estimate, r the listing's own key when it was merged into k.
 type Show struct {
 	K  string   `json:"k"`
+	R  string   `json:"r,omitempty"`
 	C  int      `json:"c"`
 	T  string   `json:"t"`
 	S  *string  `json:"s"`
@@ -176,9 +183,18 @@ type pending struct {
 
 type dedupeKey struct{ k, t, s, x string }
 
-// Build assembles listings for from..to (inclusive) from per-cinema entries; cinemas without
-// an entry are reported as not fetched yet.
+// Build assembles listings with every film under its ordinary key.
 func Build(cinemas []scrape.Cinema, entries map[string]Entry, from, to, now time.Time) *Listings {
+	return BuildMatched(cinemas, entries, from, to, now, nil)
+}
+
+// BuildMatched assembles listings for from..to (inclusive) from per-cinema entries; cinemas
+// without an entry are reported as not fetched yet. With m, listings of the same film are merged.
+func BuildMatched(cinemas []scrape.Cinema, entries map[string]Entry, from, to, now time.Time, m *films.Snapshot) *Listings {
+	var match *resolved
+	if m != nil {
+		match = resolve(scanFilms(cinemas, entries, from, to), m)
+	}
 	cin := make([]Cinema, len(cinemas))
 	var shows []*pending
 	names := map[string]map[string]int{} // key -> title -> votes
@@ -211,8 +227,15 @@ func Build(cinemas []scrape.Cinema, entries map[string]Entry, from, to, now time
 			}
 			// Some sources (The Light) leave HTML entities in titles: "We&#39;re Going on a Bear Hunt".
 			title, extra := CleanTitle(html.UnescapeString(x.Film))
+			k, raw := FilmKey(title), ""
+			if match != nil {
+				_, _, tags := matchKey(title)
+				extra = append(extra, tags...)
+				if f := match.final[k]; f != k {
+					k, raw = f, k
+				}
+			}
 			fmts := scrape.Tags(append(slices.Clone(x.Formats), extra...), false)
-			k := FilmKey(title)
 			dk := dedupeKey{k, x.Start, x.Screen, strings.Join(fmts, "\x00")}
 			if seen[dk] {
 				continue
@@ -234,7 +257,7 @@ func Build(cinemas []scrape.Cinema, entries map[string]Entry, from, to, now time
 					runtimes[k][c.Name] = x.Duration
 				}
 			}
-			shows = append(shows, &pending{Show: Show{K: k, C: i, T: x.Start, S: optStr(x.Screen), X: fmts, U: optStr(x.URL)},
+			shows = append(shows, &pending{Show: Show{K: k, R: raw, C: i, T: x.Start, S: optStr(x.Screen), X: fmts, U: optStr(x.URL)},
 				cinema: c.Name, end: x.End, dur: x.Duration})
 		}
 	}
@@ -306,7 +329,7 @@ func Build(cinemas []scrape.Cinema, entries map[string]Entry, from, to, now time
 		out = append(out, sh.Show)
 	}
 
-	films := make(map[string]string, len(names))
+	display := make(map[string]string, len(names))
 	for k, votes := range names {
 		best := ""
 		for _, t := range nameOrder[k] {
@@ -314,7 +337,15 @@ func Build(cinemas []scrape.Cinema, entries map[string]Entry, from, to, now time
 				best = t
 			}
 		}
-		films[k] = best
+		display[k] = best
+	}
+	var aliases map[string]string
+	var notes map[string]FilmNote
+	if match != nil {
+		for k, t := range match.titles {
+			display[k] = t
+		}
+		aliases, notes = match.aliases, match.notes
 	}
 
 	tr := travelMatrix(cinemas, now)
@@ -326,7 +357,7 @@ func Build(cinemas []scrape.Cinema, entries map[string]Entry, from, to, now time
 	return &Listings{
 		Generated: now.In(scrape.London).Format(time.RFC3339),
 		From:      from.Format(scrape.DateFmt), To: to.Format(scrape.DateFmt),
-		Cinemas: cin, Films: films, Shows: out, Premium: premium, Travel: tr,
+		Cinemas: cin, Films: display, Shows: out, Premium: premium, Travel: tr, Aliases: aliases, Notes: notes,
 	}
 }
 
