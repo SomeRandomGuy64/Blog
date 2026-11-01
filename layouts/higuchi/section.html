@@ -1,0 +1,8 @@
+{{ define "main" }}
+  {{/* /higuchi/ — private watch list. Rendered client-side by js/fazon-higuchi.js from
+       GET /v1/higuchi/videos, which only answers for the owner account. */}}
+  <link rel="stylesheet" href="{{ relURL "css/higuchi.css" }}">
+  <h1>{{ .Title }}</h1>
+  <div class="hg" id="hg"><p class="fz-muted hg-msg">Loading…</p></div>
+  <script src="{{ relURL "js/fazon-higuchi.js" }}"></script>
+{{ end }}
