@@ -42,6 +42,7 @@ async function load(){if(loading)return;loading=true;
   }catch(err){loading=false;showError('Couldn’t load the cinema listings.',String(err&&err.message||err)+'.',true);return}
   loading=false;
   try{st.hidden=true;st.innerHTML='';body.hidden=false;
+    D.same=CINEMA_SAME({api:API,url:()=>RG.url(API,keys)});D.same.start(D,root);
     const L=CINEMA_LISTINGS(D);CINEMA_PLANNER(D,L)}
   catch(err){console.error(err);body.hidden=true;
     showError('Something went wrong displaying the listings.',String(err&&err.message||err),false);return}

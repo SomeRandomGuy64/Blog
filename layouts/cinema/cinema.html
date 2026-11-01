@@ -133,7 +133,7 @@
     </section>
   </div>
 
-  {{ range slice "screentypes" "dates" "solver" "routes" "listings" "planner" "feedback" "regions" "app" -}}
+  {{ range slice "screentypes" "dates" "solver" "routes" "same" "listings" "planner" "feedback" "regions" "app" -}}
   <script src="{{ printf "cinema/%s.js" . | relURL }}?v={{ substr (readFile (printf "static/cinema/%s.js" .) | md5) 0 10 }}" defer></script>
   {{ end -}}
 {{ end }}

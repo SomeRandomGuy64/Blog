@@ -96,11 +96,11 @@ function render(){
   const cards=[...G.entries()].map(([a,m])=>{
     const n=[...m.values()].reduce((t,l)=>t+l.length,0), prem=new Set();
     m.forEach(l=>l.forEach(s=>{const st=screenType(s.x);if(st!=='Standard')prem.add(st)}));
-    const head=S.view==='film'?esc(D.films[a]):`<a href="${esc(D.cinemas[a].url)}" target="_blank" rel="noopener" class="cl">${esc(D.cinemas[a].name)}</a>`;
+    const head=S.view==='film'?esc(D.films[a])+D.same.badge(a):`<a href="${esc(D.cinemas[a].url)}" target="_blank" rel="noopener" class="cl">${esc(D.cinemas[a].name)}</a>`;
     const sub=S.view==='film'?`${m.size} cinema${m.size>1?'s':''} · ${n} showings`:`${rgn(a)?esc(rgn(a))+' · ':''}${m.size} films · ${n} showings`;
     return {sort:S.view==='film'?-m.size*1e4-n:a,
       head:`<span class="ttl">${head}</span><span class="meta">${sub}</span>${S.view==='film'?'':staleNote(a)}<span>${[...prem].sort(stCmp).map(stBadge).join('')}</span>`,
-      body:()=>[...m.entries()].sort((x,y)=>S.view==='film'?D.cinemas[x[0]].name.localeCompare(D.cinemas[y[0]].name):D.films[x[0]].localeCompare(D.films[y[0]])).map(([b,l])=>{
+      body:()=>(S.view==='film'?`<div class="samebt">${D.same.button(a)}</div>`:'')+[...m.entries()].sort((x,y)=>S.view==='film'?D.cinemas[x[0]].name.localeCompare(D.cinemas[y[0]].name):D.films[x[0]].localeCompare(D.films[y[0]])).map(([b,l])=>{
         const who=S.view==='film'?`<a href="${esc(D.cinemas[b].url)}" target="_blank" rel="noopener">${esc(D.cinemas[b].name)}</a><span class="meta">${esc(D.cinemas[b].chain)}${rgn(b)?' · '+esc(rgn(b)):''}</span>${staleNote(b)}`:`<b>${esc(D.films[b])}</b>`;
         return `<div class="row"><div class="who">${who}</div><div>${rowsFor(l)}</div></div>`}).join('')};
   }).sort((x,y)=>x.sort<y.sort?-1:x.sort>y.sort?1:0);

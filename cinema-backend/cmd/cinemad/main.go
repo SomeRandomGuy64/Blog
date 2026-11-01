@@ -21,6 +21,8 @@ import (
 	_ "time/tzdata"
 
 	"fazon.nexus/cinema/internal/feedback"
+	"fazon.nexus/cinema/internal/films"
+	"fazon.nexus/cinema/internal/listings"
 	"fazon.nexus/cinema/internal/region"
 	"fazon.nexus/cinema/internal/registry"
 	"fazon.nexus/cinema/internal/scrape"
@@ -44,6 +46,8 @@ type config struct {
 	coldBatch  int           // cold cinemas per scrape round / relay run
 	tick       time.Duration // how often the server looks for due cinemas
 	regions    []string      // served when a request names none; always hot
+
+	tmdbKey string // optional: film database lookups for same-film matching
 }
 
 func env(key, def string) string {
@@ -102,6 +106,7 @@ func parseConfig() config {
 		c.regions, _ = parseRegions(strings.Join(region.Default, ","))
 	}
 	c.token = os.Getenv("CINEMAD_INGEST_TOKEN")
+	c.tmdbKey = os.Getenv("CINEMAD_TMDB_KEY")
 	if tokenFile != "" {
 		b, err := os.ReadFile(tokenFile)
 		if err != nil {
@@ -140,6 +145,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	fl, err := films.Open(filepath.Join(cfg.dataDir, "films"))
+	if err != nil {
+		slog.Error("open films", "err", err)
+		os.Exit(1)
+	}
+
 	dm, err := openDemand(filepath.Join(cfg.dataDir, "state", "demand.json"), cfg.regions, cfg.hotFor)
 	if err != nil {
 		slog.Error("open demand", "err", err)
@@ -149,7 +160,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	srv := newServer(cfg, st, fb, dm)
+	srv := newServer(cfg, st, fb, fl, dm)
 	httpSrv := &http.Server{Addr: cfg.listen, Handler: srv.routes(), ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout: 2 * time.Minute, WriteTimeout: time.Minute, IdleTimeout: 2 * time.Minute}
 	scraperDone := make(chan struct{})
@@ -157,6 +168,9 @@ func main() {
 		defer close(scraperDone)
 		scrapeLoop(ctx, cfg, st, dm)
 	}()
+	if cfg.tmdbKey != "" {
+		go lookupLoop(ctx, cfg, st, fl)
+	}
 	go func() {
 		slog.Info("listening", "addr", cfg.listen, "data", cfg.dataDir, "origins", strings.Join(cfg.origins, " "))
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -175,6 +189,49 @@ func main() {
 	case <-scraperDone:
 	case <-sctx.Done():
 		slog.Warn("scraper did not stop in time")
+	}
+}
+
+// lookup pacing: the film database is free, so keep well inside its limits.
+const (
+	lookupEvery = time.Hour
+	lookupBatch = 300
+	lookupGap   = 300 * time.Millisecond
+)
+
+// lookupLoop asks the film database about titles it hasn't seen. Answers are kept for good, so
+// after the first rounds only new titles cost a request.
+func lookupLoop(ctx context.Context, cfg config, st *store.Store, fl *films.Store) {
+	db := &films.TMDB{Key: cfg.tmdbKey}
+	for {
+		from := scrape.Day(time.Now().In(scrape.London))
+		entries, _ := st.Entries()
+		bases := listings.Bases(entries, from, from.AddDate(0, 0, cfg.days-1))
+		todo := fl.Missing(bases, time.Now())
+		done := 0
+		for _, k := range todo[:min(len(todo), lookupBatch)] {
+			l, err := db.Lookup(ctx, bases[k], time.Now())
+			if err != nil {
+				slog.Warn("film lookup", "err", err)
+				break
+			}
+			if err := fl.PutLookup(k, l); err != nil {
+				slog.Error("save film lookup", "err", err)
+				break
+			}
+			done++
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(lookupGap):
+			}
+		}
+		slog.Info("film lookups", "done", done, "waiting", len(todo)-done)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(lookupEvery):
+		}
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"fazon.nexus/cinema/internal/feedback"
+	"fazon.nexus/cinema/internal/films"
 	"fazon.nexus/cinema/internal/registry"
 	"fazon.nexus/cinema/internal/scrape"
 	"fazon.nexus/cinema/internal/store"
@@ -28,13 +29,17 @@ func testServer(t *testing.T) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
+	fl, err := films.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg := config{token: "secret", origins: []string{"https://fazon.nexus"}, maxBody: 1 << 20, days: 7,
 		regions: []string{"north-west", "yorkshire", "east-midlands"}, coldBatch: 5, relayEvery: 3 * time.Hour, coldEvery: 24 * time.Hour}
 	dm, err := openDemand(filepath.Join(t.TempDir(), "demand.json"), cfg.regions, 48*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ts := httptest.NewServer(newServer(cfg, st, fb, dm).routes())
+	ts := httptest.NewServer(newServer(cfg, st, fb, fl, dm).routes())
 	t.Cleanup(ts.Close)
 	return ts
 }
@@ -416,5 +421,39 @@ func TestFeedback(t *testing.T) {
 	}
 	if c := del("secret", id); c != 404 {
 		t.Errorf("delete again: %d", c)
+	}
+}
+
+func TestFilmMatches(t *testing.T) {
+	ts := testServer(t)
+	post := func(token, body string) int {
+		req, _ := http.NewRequest("POST", ts.URL+"/v1/films/matches", strings.NewReader(body))
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res.StatusCode
+	}
+	if c := post("", `{"op":"merge","from":"a","to":"b"}`); c != http.StatusUnauthorized {
+		t.Errorf("no token: %d", c)
+	}
+	if c := post("wrong", `{"op":"merge","from":"a","to":"b"}`); c != http.StatusUnauthorized {
+		t.Errorf("bad token: %d", c)
+	}
+	if c := post("secret", `{"op":"merge","from":"a","to":"b"}`); c != http.StatusNoContent {
+		t.Errorf("merge: %d", c)
+	}
+	if c := post("secret", `{"op":"merge","from":"b","to":"a"}`); c != http.StatusBadRequest {
+		t.Errorf("loop: %d", c)
+	}
+	if c := post("secret", `{"op":"nope","from":"a"}`); c != http.StatusBadRequest {
+		t.Errorf("unknown op: %d", c)
+	}
+	if c := post("secret", `{"op":"split","from":"<b>"}`); c != http.StatusBadRequest {
+		t.Errorf("bad key: %d", c)
 	}
 }

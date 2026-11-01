@@ -10,7 +10,8 @@ notes = "These chains block the server, so their listings come from a relay that
 [[task]]
 priority = "high"
 title = "Treat the same film listed under different names as one film"
-notes = "Cinemas name films differently (Donnie Darko is currently listed seven ways), so duplicates take up picks and can be scheduled twice. The site will match more of these names itself, and you'll be able to mark two listings as the same film."
+done = true
+notes = "The site now matches more of these names itself, so a film takes up one pick. A ? marks a match it isn't sure about, and you can correct any match for yourself from the film."
 
 [[task]]
 priority = "high"

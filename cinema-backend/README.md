@@ -37,7 +37,8 @@ internal/registry  every cinema (name, chain, URL, Relay flag, fetcher, location
 internal/chainfile chains.json format
 internal/discover  `cinema discover`: each chain's cinema list + locations (postcodes.io for regions)
 internal/region    the 12 regions and the default selection
-internal/listings  build(): window, dedupe, Classic rule, runtime medians, end estimates, travel matrix; places
+internal/listings  build(): window, dedupe, Classic rule, runtime medians, end estimates, travel matrix; places; resolve.go = same-film matching
+internal/films     same-film title rules, the saved match list, TMDB lookups
 internal/store     per-cinema last-good results on disk
 deploy/            systemd units, env example, Caddy snippet
 ```
@@ -96,7 +97,28 @@ entries when that chain fails or suddenly returns under half as many cinemas.
   "Faizan"). Doesn't use the daily quota. `DELETE /v1/feedback/{id}/replies/{rid}` removes one.
   `GET /v1/feedback/owner` answers 204 for a good token. The page's owner mode (`/cinema/?owner`, token kept in
   localStorage) uses these to reply and delete from the browser.
+- `POST /v1/films/matches` — the owner's change to the shared same-film list, same token; JSON `{"op","from","to"}` with op `merge`
+  (from is the same film as to), `split` (keep from apart), `clear` (forget from), `apart` (from and to are different) or `confirm`
+  (from is grouped correctly). 204 on success. The page's panel uses it when the owner token is in localStorage.
 - `GET /healthz`
+
+## Same-film matching
+
+`BuildMatched` merges listings of one film. `Build` keeps the ordinary keys, and is what the Python parity tests and the `cinema` CLI use.
+
+1. **Title rules** (`films.Base`): strip `Throwback:`, `X Presents:`, anniversary, restoration, 4K, `(CTBA)`, `(Cert X)`, `(Preview)` and `+ Q&A`, and fold
+   accents. Classic, 4K, Preview and Q&A become show tags. Language labels, double bills and extras stay in the title, so those stay apart.
+2. **Runtime guard:** two distinct listings more than 20 minutes apart stay separate. A placeholder 120 and a Q&A prove nothing.
+3. **Film database** (optional): with `CINEMAD_TMDB_KEY`, `lookupLoop` asks TMDB about new titles, 300 an hour. Only an exact title match counts, and a
+   match is kept for good; a miss is retried after 30 days. A match confirms a merge, and can join two titles with one TMDB ID.
+4. **Owner decisions** (`<data>/films/matches.json`, grows forever) go on top of everything.
+
+The API adds `aliases` (older keys to current ones, so saved picks follow), `notes` (`{k:{n:{key:title},s:[similar keys],u:badge}}`), `r` on a merged show
+(the listing's own key) and `matchdb`. `u` marks a merge nobody has confirmed, or a possible duplicate. A difference of language alone is suggested without
+a badge. Without a key, every rule merge stays badged until confirmed. Visitors' corrections are in `static/cinema/same.js`, stay in their browser and win there.
+
+Letterboxd isn't used: its API is by request only and its terms forbid scraping. TMDB's free key is for non-commercial use and needs the credit the page
+shows when `matchdb` is set.
 
 ## Deploy (Hetzner)
 
