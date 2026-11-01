@@ -322,13 +322,16 @@ for (const mode of ['most', 'strict']) {
   const RAD = ['T', 'B', 'D'].map(v => { const e = new El('r' + v); e.value = v; return e; });
   const iso = (d, h) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + 'T' + h + ':00';
   const day = new Date(Date.now() + 864e5), today = iso(day, '00:00').slice(0, 10);
-  const D = () => ({ from: today, to: today, films: { a: 'Film A', b: 'Film B' }, cinemas: [{ name: 'One', chain: 'X', lat: 53.48, lng: -2.24 }, { name: 'Two', chain: 'X', lat: 53.49, lng: -2.24 }],
-    shows: [{ k: 'a', c: 0, t: iso(day, '12:00'), e: iso(day, '14:00'), d: 110, x: [] }, { k: 'b', c: 1, t: iso(day, '18:00'), e: iso(day, '20:00'), d: 110, x: [] }] });
+  let DX = null;
+  const D = () => DX || ({ from: today, to: today, films: { a: 'Film A', b: 'Film B' }, cinemas: [{ name: 'One', chain: 'X', lat: 53.48, lng: -2.24 }, { name: 'Two', chain: 'X', lat: 53.49, lng: -2.24 }],
+    shows: [{ k: 'a', c: 0, t: iso(day, '12:00'), e: iso(day, '14:00'), d: 110, x: [] }, { k: 'b', c: 1, t: iso(day, '17:00'), e: iso(day, '19:00'), d: 110, x: [] }] });
   const L = { screenType: () => 'Standard', isScreen: () => false, stCmp: () => 0, pickAllows: () => true, esc: String, tagBadges: () => '', staleNote: () => '' };
   const LS = new Map([['fazon-cinema-gkey', 'TESTKEY'], ['fazon-cinema-planner', JSON.stringify({ picks: [{ k: 'a' }, { k: 'b' }], set: { pc: 'M1 1AE', geo: { pc: 'M1 1AE', lat: 53.47, lng: -2.24 } } })]]);
   const localStorage = { getItem: k => LS.has(k) ? LS.get(k) : null, setItem: (k, v) => void LS.set(k, String(v)), removeItem: k => void LS.delete(k) };
-  const MINS = { TRANSIT: 20, WALK: 99, BICYCLE: 11, DRIVE: 7 }; let calls = [], noBike = false;
-  const fetch = async (u, o) => { if (!u.startsWith('https://routes.googleapis.com/')) throw new Error('unexpected fetch ' + u); const b = JSON.parse(o.body); calls.push(b);
+  const MINS = { TRANSIT: 20, WALK: 99, BICYCLE: 11, DRIVE: 7 }; let calls = [], noBike = false, lateCalls = [], lateFn = () => ({}), lateStatus = 200;
+  const fetch = async (u, o) => { if (!u.startsWith('https://routes.googleapis.com/')) throw new Error('unexpected fetch ' + u); const b = JSON.parse(o.body);
+    if (u.endsWith(':computeRoutes')) { lateCalls.push({ b, o, u }); return { ok: lateStatus === 200, status: lateStatus, text: async () => JSON.stringify(lateFn(b)) }; }
+    calls.push(b);
     const v = b.destinations.map((_, k) => noBike && b.travelMode === 'BICYCLE' ? { destinationIndex: k, condition: 'ROUTE_NOT_FOUND' } : { destinationIndex: k, condition: 'ROUTE_EXISTS', duration: MINS[b.travelMode] * 60 + 's' });
     return { ok: true, status: 200, text: async () => JSON.stringify(v) }; };
   const boot = () => { const els = new Map(), document = { getElementById: id => els.get(id) || els.set(id, new El(id)).get(id), createElement: () => new El('') };
@@ -374,5 +377,96 @@ for (const mode of ['most', 'strict']) {
   ok(JSON.parse(LS.get('fazon-cinema-planner')).set.travel === 'B', 'plan: saved choice survives for when a key returns');
   $ = boot();
   ok(!$('ptav').hidden && RAD.find(r => r.value === 'T').checked && /public transport and walking/.test($('pout').innerHTML), 'plan: a fresh keyless page opens on public transport');
+  // late journeys home: two nights, a Sunday then a Monday. One ends 23:00, the other 23:40, and each is the day's last film
+  const sun = new Date(Date.now() + 864e5); while (sun.getDay() !== 0) sun.setDate(sun.getDate() + 1);
+  const mon = new Date(sun); mon.setDate(mon.getDate() + 1); const d0 = iso(sun, '00:00').slice(0, 10), d1 = iso(mon, '00:00').slice(0, 10);
+  DX = { from: d0, to: d1, films: { a: 'Film A', b: 'Film B' }, cinemas: [{ name: 'One', chain: 'X', lat: 53.48, lng: -2.24 }, { name: 'Two', chain: 'X', lat: 53.60, lng: -2.24 }],
+    shows: [{ k: 'a', c: 0, t: iso(sun, '21:00'), e: iso(sun, '23:00'), d: 110, x: [] }, { k: 'b', c: 1, t: iso(mon, '21:40'), e: iso(mon, '23:40'), d: 110, x: [] }] };
+  const days = {}; for (let w = 0; w < 7; w++) days[w] = { on: true, e: '10:00', l: '03:00' };
+  const fresh = () => { LS.delete('fazon-cinema-gtimes'); LS.set('fazon-cinema-gkey', 'TESTKEY'); LS.set('fazon-cinema-planner', JSON.stringify({ picks: [{ k: 'a' }, { k: 'b' }], set: { pc: 'M1 1AE', geo: { pc: 'M1 1AE', lat: 53.47, lng: -2.24 }, days, start: d0, len: 2 } })); lateCalls = []; lateStatus = 200; };
+  const train = (mins, wait = 5) => b => { const t = Date.parse(b.departureTime) + wait * 6e4;
+    return { routes: [{ duration: mins * 60 + 's', legs: [{ steps: [{}, { transitDetails: { stopDetails: { departureTime: new Date(t).toISOString(), arrivalTime: new Date(t + (mins - 10) * 6e4).toISOString() } } }, {}] }] }] }; };
+  fresh(); $ = boot(); lateFn = train(45); await plan();
+  const lk = () => keys().filter(k => k.includes('@')).map(k => k.split('|')[0]).sort().join();
+  ok(lateCalls.length === 2 && lk() === 'T@2330u,T@2400w', 'late: only the plan\'s own two legs home are looked up, in half-hour bands by timetable ' + lk());
+  ok(keys().some(k => k.startsWith('T|')), 'late: daytime legs stay under T|');
+  ok(lateCalls.every(c => !c.u.includes('?') && !c.u.includes('53.') && c.o.headers['X-Goog-Api-Key'] === 'TESTKEY' && c.b.transitPreferences.allowedTravelModes.join() === 'BUS,LIGHT_RAIL,RAIL'), 'late: key and coordinates stay out of the URL');
+  const asked = lateCalls.map(c => new Date(c.b.departureTime)).sort((a, b) => a - b);
+  ok(asked[0].getDay() === 0 && asked[0].getHours() === 23 && asked[0].getMinutes() === 30 && asked[1].getDay() === 2 && asked[1].getHours() === 0, 'late: leaving Mon 23:50 asks about Tuesday 00:00, on the right date');
+  ok(/Leave 23:10 · 45 min home/.test($('pout').innerHTML) && /Leave 23:50 · 45 min home/.test($('pout').innerHTML) && !/No public transport/.test($('pout').innerHTML), 'late: the itinerary shows the time the solver used');
+  $ = boot(); lateCalls = []; await plan();
+  ok(lateCalls.length === 0, 'late: answers are cached, nothing re-billed');
+  fresh(); $ = boot(); lateFn = () => ({}); await plan();
+  ok(lateCalls.length === 2 && /One journey|2 journeys/.test($('pout').innerHTML) && /No public transport home at this time/.test($('pout').innerHTML) && /~20 min home/.test($('pout').innerHTML), 'late: no route keeps the showing, warned, with its time marked ~');
+  ok(/Seeing 2 of 2/.test($('pout').innerHTML) && JSON.parse(LS.get('fazon-cinema-gtimes'))[keys().find(k => k.includes('@'))][0] === null, 'late: no route is cached as null and never becomes an estimate');
+  fresh(); $ = boot(); lateFn = train(45, 360); await plan();
+  ok(/No public transport home/.test($('pout').innerHTML), 'late: waiting for the first morning train counts as no way home');
+  fresh(); $ = boot(); lateFn = train(400); await plan();
+  ok(/No public transport home/.test($('pout').innerHTML), 'late: a time far beyond the 17:00 one counts as no way home');
+  fresh(); $ = boot(); lateStatus = 403; lateFn = () => ({ error: { message: 'nope' } }); await plan();
+  ok(/~20 min home/.test($('pout').innerHTML) && !/No public transport/.test($('pout').innerHTML) && /couldn’t be checked/.test($('pbanner').innerHTML) && !keys().some(k => k.includes('@')), 'late: a failed lookup is not "no route": marked ~ and not cached');
+  // a choice of late showings: a checked leg isn't given up for an unchecked one that only looks shorter
+  DX.shows.push({ k: 'a', c: 1, t: iso(sun, '21:30'), e: iso(sun, '23:30'), d: 110, x: [] }, { k: 'a', c: 0, t: iso(sun, '21:20'), e: iso(sun, '23:20'), d: 110, x: [] }, { k: 'b', c: 0, t: iso(mon, '21:50'), e: iso(mon, '23:50'), d: 110, x: [] });
+  fresh(); $ = boot(); lateFn = train(45); await plan();
+  ok(lateCalls.length === 2 && !/~\d/.test($('pout').innerHTML.replace(/\d+:\d+/g, '')), 'late: a working leg home is kept, 2 lookups ' + lateCalls.length);
+  fresh(); $ = boot(); lateFn = () => ({}); await plan();
+  ok(lateCalls.length <= 16 && lateCalls.length > 2, 'late: no way home looks at other showings, within the limit ' + lateCalls.length);
+  DX.shows.length = 2;
+  fresh(); $ = boot(); mode('B'); await plan();
+  ok(lateCalls.length === 0, 'late: cycling needs no late lookups'); mode('T');
+  // walking counts: Two is 13 km out, so move it within 3 km, with no transit that night
+  DX.cinemas[1] = { name: 'Two', chain: 'X', lat: 53.485, lng: -2.24 }; MINS.WALK = 30;
+  fresh(); $ = boot(); lateFn = () => ({}); await plan(); MINS.WALK = 99;
+  ok(/Leave 23:50 · 20 min home/.test($('pout').innerHTML) || /Leave 23:50 · 30 min home/.test($('pout').innerHTML), 'late: a walk within 3 km is a way home');
+  DX = null;
+}
+// 13) late legs in the solver
+{ const lh = (a, n = 4) => ({ a, from: 1200, step: 30, n, p: 180 }), cell = (nc, n, f) => { const r = new Int32Array(nc * n).fill(-2); f(r); return r; };
+  const T = mkT(2, (a, b) => 20), one = (st, len, c = 0) => [{ i: 0, c, st: hh(st), en: hh(st) + len }];
+  const f1 = { days: [one('20:00', 60)] };   // leaves 21:10: third band (21:00 < m <= 21:30), k = 2
+  const base1 = { ...base, films: [f1], win: [W('10:00', '23:00')], T, nc: 2, mode: 'most' };
+  const c0 = solve(base1).days[0].cost;
+  ok(solve({ ...base1, lh: lh([cell(2, 4, r => { r[2] = 100; })]) }).days[0].cost === c0 + 80, 'solver late: band time replaces the last leg in the cost');
+  ok(solve({ ...base1, lh: lh([cell(2, 4, () => {})]) }).days[0].cost === c0, 'solver late: nothing looked up = the old last leg');
+  ok(solve({ ...base1, lh: lh([null]) }).days[0].cost === c0, 'solver late: a day without late times = the old last leg');
+  ok(solve({ ...base1, win: [W('10:00', '22:00')], lh: lh([cell(2, 4, r => { r[2] = 100; })]) }).chosen.length === 0, 'solver late: Home by uses the late time');
+  ok(solve({ ...base1, lh: lh([cell(2, 4, r => { r[2] = -1; })]) }).chosen.length === 1, 'solver late: no way home keeps the showing');
+  // same film at two times: the later one has no way home, so the earlier wins even though it waits no less
+  const f2 = { days: [[{ i: 0, c: 0, st: hh('18:00'), en: hh('20:15') }, { i: 1, c: 0, st: hh('19:30'), en: hh('21:00') }]] };
+  const r2 = solve({ ...base1, films: [f2], lh: lh([cell(2, 4, r => { r[1] = 15; r[2] = -1; })]) });
+  ok(r2.days[0].seq[0] === 0, 'solver late: prefers a showing with a way home ' + JSON.stringify(r2.days));
+  // brute force on small random nights: the search still finds the best plan, and costs add up
+  let seed = 7; const rnd = n => (seed = seed * 1103515245 + 12345 & 0x7fffffff, seed % n);
+  let bad = 0, bad2 = 0; for (let it = 0; it < 300; it++) { const nc = 3, fs = [];
+    const TT = mkT(nc, (a, b) => 10 + (a * 7 + b * 11 + it) % 5); let id = 0;   // close to metric: all legs 10-14
+    for (let f = 0; f < 3; f++) { const L = []; for (let k = 0; k < 3; k++) { const st = 17 * 60 + rnd(44) * 10; L.push({ i: id++, c: rnd(nc), st, en: st + 60 + rnd(7) * 10 }); } fs.push({ days: [L] }); }
+    const a = new Int32Array(nc * 12).fill(-2); for (let c = 0; c < nc; c++) { let v = 15 + rnd(10); for (let k = 0; k < 12; k++) { v += rnd(4); a[c * 12 + k] = rnd(9) ? v : -1; } }
+    const LHX = { a: [a], from: 1200, step: 30, n: 12, p: 180 }, win = [W('10:00', '23:59')], buf = 10;
+    const home = (c, en) => { const k = Math.ceil((en + buf - 1200) / 30) - 1, v = k >= 0 && k < 12 ? a[c * 12 + k] : -2; return v >= 0 ? [v, 0] : [TT[c * 4 + 3], v === -1 ? 180 : 0]; };
+    let bestN = 0, bestK = 0, bestC = Infinity; const shows = fs.flatMap(f => f.days[0].map(s => ({ ...s, f: fs.indexOf(f) })));
+    const go = (seq, used, cost) => { if (seq.length) { const l = seq[seq.length - 1], [t, p] = home(l.c, l.en); if (l.en + buf + t <= win[0].l) { const c = cost + t + p, key = seq.length * 8 + seq.reduce((m, x) => m + 2 ** (2 - x.f), 0); if (key > bestK || (key === bestK && c < bestC)) { bestK = key; bestN = seq.length; bestC = c; } } }
+      for (const s of shows) { if (used >> s.f & 1) continue; if (!seq.length) { const t = TT[3 * 4 + s.c]; if (win[0].e + t <= s.st) go([s], 1 << s.f, t); continue; }
+        const l = seq[seq.length - 1], t = l.c === s.c ? 0 : TT[l.c * 4 + s.c]; if (l.en + buf + t <= s.st) go([...seq, s], used | 1 << s.f, cost + s.st - l.en - buf); } };
+    go([], 0, 0);
+    const r = solve({ ...base, buf, films: fs, win, T: TT, nc, mode: 'most', lh: LHX }); const pen = r.days.length ? (() => { const l = shows[r.days[0].seq.at(-1)] || null; return l ? home(l.c, l.en)[1] : 0; })() : 0;
+    if (r.chosen.length !== bestN) bad++; else if (bestN && r.days[0].cost + pen !== bestC) bad2++; }
+  ok(bad === 0, 'solver late: brute force agrees on films over 300 nights (' + bad + ' differ)');
+  ok(bad2 === 0, 'solver late: brute force agrees on travel, waiting and the penalty (' + bad2 + ' differ)');
+}
+// 14) reading Compute Routes responses
+{ const G = new Function(FILES.ROUTES + '\nreturn GROUTES;')()(), dep = '2026-11-08T23:30:00Z', at = m => new Date(Date.parse(dep) + m * 6e4).toISOString();
+  const r = (dur, a, z) => ({ routes: [{ duration: dur, legs: [{ steps: [{ transitDetails: { stopDetails: { departureTime: at(a), arrivalTime: at(z) } } }] }] }] });
+  ok(G.lateMins({}, dep) === null && G.lateMins({ routes: [] }, dep) === null, 'lateMins: an empty reply is no route');
+  ok(G.lateMins(r('2400s', 5, 40), dep) === 40, 'lateMins: a normal trip');
+  ok(G.lateMins(r('1500s', 30, 55), dep) === 55, 'lateMins: a wait left out of duration still counts');
+  ok(G.lateMins(r('1500s', 91, 116), dep) === null && G.lateMins(r('1500s', 90, 115), dep) === 115, 'lateMins: over 90 min to the first service is no route');
+  ok(G.lateMins({ routes: [{ duration: '600s', legs: [{ steps: [{}] }] }] }, dep) === 10, 'lateMins: a walk-only route is its duration');
+  const b = G.lateBody({ a: { lat: 53.1, lng: -2 }, b: { lat: 53.2, lng: -2 }, depart: dep, prof: 'Ttr' });
+  ok(b.origin.location.latLng.latitude === 53.1 && b.departureTime === dep && b.transitPreferences.allowedTravelModes.join() === 'BUS,SUBWAY' && b.travelMode === 'TRANSIT', 'lateBody: request shape, avoidance kept');
+  let n = 0; const got = []; const r1 = await G.late({ key: 'K', asks: [{ a: { lat: 1, lng: 1 }, b: { lat: 2, lng: 2 }, depart: dep, prof: 'T' }], onResult: (q, v) => got.push(v), sleep: async () => {},
+    fetch: async () => (++n < 2 ? { ok: false, status: 429, text: async () => '' } : { ok: true, status: 200, text: async () => JSON.stringify(r('2400s', 5, 40)) }) });
+  ok(r1.error === null && n === 2 && got[0] === 40, 'late: 429 retried');
+  const r2 = await G.late({ key: 'K', asks: [{ a: { lat: 1, lng: 1 }, b: { lat: 2, lng: 2 }, depart: dep, prof: 'T' }], onResult: () => { throw new Error('no result expected'); }, sleep: async () => {}, fetch: async () => { throw new TypeError('blocked'); } });
+  ok(/Couldn’t reach/.test(r2.error), 'late: network failure reported, nothing recorded');
 }
 console.log(fails ? fails + ' FAILED' : 'ALL PASSED');

@@ -34,7 +34,8 @@ notes = "Savoy (Worksop, Boston, Corby, Doncaster, Grantham, Gainsborough, Catte
 [[task]]
 priority = "high"
 title = "Check late journeys home properly"
-notes = "Google journey times are currently all looked up for a 17:00 departure, so a plan can send you home after the last train or bus. Late journeys will be looked up for late at night instead."
+done = true
+notes = "With a Google key, a public transport journey home after 20:00 is now looked up for roughly when you leave, on the right night, and the plan is built around it. If nothing runs by then, the showing stays in the plan with a warning that you may need a taxi or a lift. Journeys between cinemas still use 17:00 times."
 
 [[task]]
 priority = "medium"
