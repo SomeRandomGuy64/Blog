@@ -503,7 +503,7 @@
       who, prof,
       el("a", { class: "fz-acct-item", href: "/account/notifications/", text: "Notifications" }),
       isStaff(user) ? el("a", { class: "fz-acct-item", href: "/admin/", text: "Admin" }) : null,
-      user.admin ? el("a", { class: "fz-acct-item", href: "/higuchi/", text: "Higuchi list" }) : null,
+      user.owner ? el("a", { class: "fz-acct-item", href: "/higuchi/", text: "Higuchi list" }) : null,
       el("button", { type: "button", class: "fz-acct-item", text: "Log out", onclick: function () { logout(); } }));
     acct = { btn: btn, who: who, profile: prof };
     paintAccount(user);
@@ -529,6 +529,7 @@
         initBell(); paintBadge(m.unread);
         // nav links for logged-in users only (menu params.authOnly in hugo.toml); logout reloads
         document.querySelectorAll(".site-nav [data-fz-auth]").forEach(function (a) { a.hidden = false; });
+        if (m.user.owner) document.querySelectorAll(".site-nav [data-fz-owner]").forEach(function (a) { a.hidden = false; });
       }
       initAccount(m.user);
       var row = document.getElementById("fzClusterRow");

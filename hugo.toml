@@ -61,3 +61,10 @@ enableRobotsTXT = true
     name = "About"
     pageRef = "/about"
     weight = 20
+  [[menu.main]]
+    name = "Higuchi"
+    pageRef = "/higuchi"
+    weight = 22
+    # hidden until js/fazon-api.js confirms the owner account
+    [menu.main.params]
+      ownerOnly = true
