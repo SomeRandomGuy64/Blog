@@ -18,8 +18,11 @@ import (
 	"unicode/utf8"
 )
 
+// Limit is the posts per UTC day, across everyone. cinemad sets it from $CINEMAD_FEEDBACK_LIMIT;
+// 0 closes posting.
+var Limit = 5
+
 const (
-	Limit    = 5    // posts per UTC day, across everyone
 	MaxChars = 1000 // per post, in Unicode code points
 	MaxName  = 40   // optional display name, in code points
 	MaxReply = 2000 // per owner reply, in code points
