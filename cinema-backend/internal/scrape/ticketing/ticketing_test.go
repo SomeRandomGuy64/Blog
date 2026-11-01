@@ -29,7 +29,61 @@ func TestCleanTitle(t *testing.T) {
 		{"National Theatre Live : The Seagull", "NT Live: The Seagull"},
 		{"EOS: Turner (PG)", "Turner"},
 		{"Paris, Texas [35mm]", "Paris, Texas"},
+		{"Fatherland (Cert 12A)", "Fatherland"},
+		{"A Talent For Murder (Cert. TBC)", "A Talent For Murder"},
+		{"National Theatre - Golden Boy (15 tbc)", "National Theatre - Golden Boy"},
 	})
+}
+
+func TestVenueStrip(t *testing.T) {
+	for _, c := range []struct {
+		v        spektrixVenue
+		in, want string
+	}{
+		{broadwayVenue, "Family Film Club - Animal Farm", "Animal Farm"},
+		{broadwayVenue, "Wicker - Parent & Baby", "Wicker"},
+		{tynesideVenue, "Coward (French Film Festival)", "Coward"},
+		{derbyQuadVenue, "Cult Film Club: Heat (15)", "Heat"},
+		{icaVenue, "Imamura: The Pornographers", "The Pornographers"},
+		{icaVenue, "LKFF 26: The Mutation", "The Mutation"},
+		{macVenue, "4K Film: Ken Russell's The Devils", "Ken Russell's The Devils"},
+		{warwickVenue, "French Film Festival: Coward - Preview (Cert 15)", "Coward"},
+		{warwickVenue, "Comics Come Alive: Danger! Diabolik + Quiz (Cert 12A)", "Danger! Diabolik"},
+	} {
+		if got := cleanTitle(c.v.strip.ReplaceAllString(c.in, "")); got != c.want {
+			t.Errorf("%s: %q -> %q, want %q", c.v.client, c.in, got, c.want)
+		}
+	}
+}
+
+func TestVenueFilters(t *testing.T) {
+	ev := func(kv ...string) map[string]any {
+		m := map[string]any{}
+		for i := 0; i < len(kv); i += 2 {
+			m[kv[i]] = kv[i+1]
+		}
+		return m
+	}
+	for _, c := range []struct {
+		v    spektrixVenue
+		ev   map[string]any
+		want bool
+	}{
+		{broadwayVenue, ev("name", "Fjord"), true},
+		{broadwayVenue, ev("name", "Rocky: The Roots", "attribute_FestivalOrSeason", "One-Day Courses & Workshops"), false},
+		{broadwayVenue, ev("name", "Wicker Workshops", "attribute_Genre2", "Workshop"), false},
+		{broadwayVenue, ev("name", "Ali Plumb's Untitled Film Quiz Project"), false},
+		{tynesideVenue, ev("name", "Festive Wreath Making", "attribute_Medium", "Non-Film"), false},
+		{macVenue, ev("name", "Fatherland", "attribute_DepartmentCode", "CIN - Cinema"), true},
+		{macVenue, ev("name", "Widow’s Bay Quiz", "attribute_DepartmentCode", "CIN - Cinema"), false},
+		{hydeParkVenue, ev("name", "Fjord", "attribute_Venue", "Hyde Park Picture House", "attribute_LiveOrFilm", "Film"), true},
+		{hydeParkVenue, ev("name", "Anam's Wake", "attribute_Venue", "City Varieties Music Hall", "attribute_LiveOrFilm", "Film"), false},
+		{hydeParkVenue, ev("name", "KIDS BUNDLE DEALS", "attribute_Venue", "Hyde Park Picture House", "attribute_LiveOrFilm", "Film"), false},
+	} {
+		if got := c.v.isFilm(c.ev); got != c.want {
+			t.Errorf("%s: %v -> %v", c.v.client, c.ev["name"], got)
+		}
+	}
 }
 
 func TestTitlecase(t *testing.T) {

@@ -50,7 +50,8 @@ func build() []scrape.Cinema {
 			Lat: p.Lat, Lng: p.Lng, Region: p.Region})
 	}
 	for _, i := range [][2]string{{"Savoy Cinema Heaton Moor", "https://www.savoycinemaheatonmoor.com"},
-		{"Rex Cinema Wilmslow", "https://www.rexcinemawilmslow.com"}, {"Northern Light Cinema Sale", "https://www.tnlcinemasale.co.uk"}} {
+		{"Rex Cinema Wilmslow", "https://www.rexcinemawilmslow.com"}, {"Northern Light Cinema Sale", "https://www.tnlcinemasale.co.uk"},
+		{"Northern Light Cinema Stretford", "https://www.tnlcinemastretford.co.uk"}, {"Ritz Cinema Belper", "https://www.ritz-belper.co.uk"}} {
 		add(i[0], "Independent", i[1], false, ticketing.Indy(i[1]))
 	}
 	ind := func(name, url string, f scrape.Fetcher) { add(name, "Independent", url, relayCinemas[name], f) }
@@ -71,6 +72,12 @@ func build() []scrape.Cinema {
 		}
 		add(i[0], "Independent", i[1], relayCinemas[i[0]], venues.Taposapp(i[1]+"/", pages...))
 	}
+	for _, i := range [][3]string{{"Regent Cinema Marple", "https://regentmarple.co.uk", "RegentCinemaMarple"},
+		{"Ritz Cinema Thirsk", "https://ritzcinema.co.uk", "RitzCinemaThirsk"}} {
+		ind(i[0], i[1], venues.Savoy(i[1]+"/"+i[2]+".dll/WhatsOn"))
+	}
+	ind("Mockingbird Cinema Birmingham", "https://mockingbirdcinema.com",
+		venues.Savoy("https://mockingbirdcinema.com/MockingbirdCinema.dll/WhatsOn", "The Wine Events Company", "Talk", "Theatre and Arts", "The Mac Birmingham"))
 	ind("Penistone Paramount", "https://penistoneparamount.co.uk", venues.Penistone)
 	ind("Pictureville Bradford", "https://www.scienceandmediamuseum.org.uk/cinema/listings", venues.Pictureville)
 	ind("Stockport Plaza", "https://stockportplaza.co.uk/whats-on/type/film/", venues.StockportPlaza)
@@ -81,11 +88,18 @@ func build() []scrape.Cinema {
 	ind("Altrincham Garrick Playhouse", "https://www.altrinchamgarrick.co.uk", ticketing.AltrinchamGarrick)
 	ind("Buxton Opera House", "https://buxtonoperahouse.org.uk", ticketing.BuxtonOperaHouse)
 	ind("The Dukes Lancaster", "https://dukeslancaster.org", ticketing.DukesLancaster)
+	ind("Broadway Nottingham", "https://www.broadway.org.uk", ticketing.BroadwayNottingham)
+	ind("Tyneside Cinema", "https://tynesidecinema.co.uk", ticketing.TynesideCinema)
+	ind("Derby QUAD", "https://www.derbyquad.co.uk", ticketing.DerbyQuad)
+	ind("ICA London", "https://www.ica.art", ticketing.ICA)
+	ind("MAC Birmingham", "https://macbirmingham.co.uk", ticketing.MACBirmingham)
+	ind("Warwick Arts Centre", "https://www.warwickartscentre.co.uk", ticketing.WarwickArtsCentre)
+	ind("Hyde Park Picture House", "https://hpph.co.uk", ticketing.HydeParkPictureHouse)
 	ind("Lockworks Cinema Wolverhampton", "https://lockworkscinema.co.uk", venues.AdmitOne("https://lockworkscinema.co.uk"))
 	ind("Prince Charles Cinema", "https://princecharlescinema.com/whats-on/", venues.Jacro("https://princecharlescinema.com/whats-on/"))
 	ind("Cottage Road Cinema", "https://cottageroad.co.uk", venues.Jacro("https://cottageroad.co.uk/"))
 	ind("Cinemac Macclesfield", "https://cinemac.org.uk", venues.Jacro("https://cinemac.org.uk/"))
-	// Arc and Parkway are small chains of their own (no chains.json: no discovery for them).
+	// Arc, Parkway and Savoy are small chains of their own (no chains.json: no discovery for them).
 	for _, site := range []string{"Beeston", "Blackpool", "Daventry", "Great Yarmouth", "Hucknall", "Preston", "Rotherham", "Peterhead"} {
 		u := "https://" + strings.ToLower(strings.ReplaceAll(site, " ", "")) + ".arccinema.co.uk"
 		add("Arc "+site, "Arc", u, false, venues.AdmitOne(u))
@@ -94,6 +108,12 @@ func build() []scrape.Cinema {
 	for _, site := range []string{"Beverley", "Cleethorpes", "Louth", "Workington"} {
 		u := "https://" + strings.ToLower(site) + ".parkwaycinemas.co.uk"
 		add("Parkway "+site, "Parkway", u, false, venues.Glitterfish(u))
+	}
+	for _, i := range [][3]string{{"Worksop", "https://savoyworksop.co.uk", "SavoyWorksop"}, {"Boston", "https://savoyboston.co.uk", "SavoyBoston"},
+		{"Corby", "https://savoycorby.co.uk", "SavoyCorby"}, {"Doncaster", "https://savoydoncaster.uk", "SavoyDoncaster"},
+		{"Grantham", "https://savoygrantham.co.uk", "SavoyGrantham"}, {"Gainsborough", "https://savoygainsborough.co.uk", "SavoyGainsborough"},
+		{"Catterick", "https://savoycatterick.co.uk", "SavoyCatterick"}, {"Nottingham", "https://savoyonline.co.uk", "SavoyNottingham"}} {
+		add("Savoy "+i[0], "Savoy", i[1], false, venues.Savoy(i[1]+"/"+i[2]+".dll/WhatsOn"))
 	}
 	// Not scraped: King Street Townhouse (private-hire only), Square Chapel Halifax (closed 2025).
 	return cs

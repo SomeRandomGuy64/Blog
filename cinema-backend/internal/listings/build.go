@@ -16,8 +16,8 @@ import (
 // AdMinutes is the ads/trailers allowance before the film, for end-time estimates.
 var AdMinutes = map[string]int{"Odeon": 25, "Vue": 25, "Cineworld": 25, "Everyman": 25, "Showcase": 25,
 	"The Light": 25, "Reel": 25, "Picturehouse": 25, "Curzon": 25, "Independent": 10,
-	// Arc and Parkway: assumed like the other commercial chains, not checked against their screenings.
-	"Arc": 25, "Parkway": 25}
+	// Arc, Parkway and Savoy: assumed like the other commercial chains, not checked against their screenings.
+	"Arc": 25, "Parkway": 25, "Savoy": 25}
 
 // CinemaAdMinutes overrides AdMinutes for single cinemas. Their end time is always start + ads +
 // runtime, even when the source gives one (HOME's Spektrix slot runs ~25 minutes past the film).

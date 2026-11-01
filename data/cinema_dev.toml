@@ -28,6 +28,7 @@ notes = "A time before 05:00 now always means the next morning, even when \"Leav
 [[task]]
 priority = "high"
 title = "Add 20 cinemas that use booking systems the site can already read"
+done = true
 notes = "Savoy (Worksop, Boston, Corby, Doncaster, Grantham, Gainsborough, Catterick, Nottingham), Regent Marple, Mockingbird, Ritz Thirsk, Broadway Nottingham, Tyneside, Derby Quad, MAC Birmingham, ICA, Warwick Arts Centre, Hyde Park Picture House, Northern Light Stretford and Ritz Belper."
 
 [[task]]

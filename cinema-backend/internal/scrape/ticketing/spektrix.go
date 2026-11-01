@@ -31,7 +31,7 @@ var strandTags = [][2]string{{"baby kino", "Parent & Baby"}, {"relaxed", "Relaxe
 var nameTags = []rule{
 	{ci(`q\s*&\s*a|q and a`), "Q&A"}, {ci(`\b35\s?mm\b`), "35mm"}, {ci(`\b70\s?mm\b`), "70mm"},
 	{ci(`\bimax\b`), "IMAX"}, {ci(`\b3d\b`), "3D"}, {ci(`\b4k\b`), "4K"}, {ci(`\bpreview\b`), "Preview"},
-	{ci(`\brelaxed\b`), "Relaxed"}, {ci(`baby kino|parent\s*(?:&|and)\s*baby`), "Parent & Baby"},
+	{ci(`\brelaxed\b`), "Relaxed"}, {ci(`baby kino|babycino|cinema bambino|parent\s*(?:&|and)\s*baby`), "Parent & Baby"},
 	{ci(`sing-?a-?long`), "Sing-along"}, {ci(`dog friendly`), "Dog Friendly"},
 	{ci(`dementia friendly`), "Dementia Friendly"}, {ci(`\bdubbed\b`), "Dubbed"},
 	{ci(`^ntl\b|^eos\b|nt live|national theatre live|royal (?:opera|ballet)|met opera|rsc live|` +
@@ -47,7 +47,7 @@ var (
 		`Parent (?:&|and) Baby|Dementia Friendly|EOS|Opening Night(?: Film| Gala)?|Closing Night(?: Film| Gala)?)\s*[:/]\s*` +
 		`|^MLF presents\s+`)
 	notScreeningRe = ci(`\bpass\b|private event|do not sell|secure my booking|gift voucher|snack pack|membership`)
-	certRe         = ci(`\s*\((?:U|PG|12A?|15|18|R18|TBC)\)`)
+	certRe         = ci(`\s*\((?:Cert\.?\s*)?(?:U|PG|12A?|15|18|R18|TBC)(?:\s+tbc)?\)`)
 	suffixRe       = ci(`\s*\+\s*(?:recorded\s+)?(?:q\s*&\s*a|q and a|discussion|intro\w*|panel\w*|talk)\b.*$` +
 		`|\s*\[[^\]]*\]\s*$`)
 	ntPrefixRe = ci(`^(?:NTL|NT Live|National Theatre Live)\s*:\s*`)
@@ -142,6 +142,8 @@ type spektrixVenue struct {
 	// slot: the event `duration` is the venue's whole slot incl. ads rather than the runtime
 	// (HOME/Showroom list Sense and Sensibility, 132 min, as 157/152), i.e. start + duration = end.
 	slot bool
+	// strip removes the venue's own strands and season labels from event names; nil = none.
+	strip *regexp.Regexp
 }
 
 func (v spektrixVenue) fetch(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
@@ -199,6 +201,9 @@ func (v spektrixVenue) fetch(s *scrape.Session, from, to time.Time) ([]scrape.Sh
 				}
 			}
 			pname := plans[pid]
+			if strings.Contains(pname, "Dummy") { // HPPH's "Coming Soon Dummy" holds a film's page with a fake midnight showing
+				continue
+			}
 			screen := pname
 			if v.screen != nil {
 				screen = v.screen(ev, inst, pname)
@@ -208,8 +213,12 @@ func (v spektrixVenue) fetch(s *scrape.Session, from, to time.Time) ([]scrape.Sh
 			if m := leadNumRe.FindString(id); m != "" {
 				num = m
 			}
+			name := str(ev, "name")
+			if v.strip != nil {
+				name = v.strip.ReplaceAllString(name, "")
+			}
 			sh := scrape.Show{
-				Film: cleanTitle(str(ev, "name")), Start: st, Screen: screen, Formats: spxFormats(ev, inst),
+				Film: cleanTitle(name), Start: st, Screen: screen, Formats: spxFormats(ev, inst),
 				URL: strings.NewReplacer("{id}", id, "{num}", num).Replace(urlTpl),
 			}
 			dur := scrape.ToInt(ev["duration"])
@@ -296,6 +305,80 @@ var dukesVenue = spektrixVenue{
 	urlTpl: "https://dukeslancaster.org/book-now?id={num}",
 }
 
+var broadwayCourseRe = ci(`course|workshop`)
+
+var broadwayVenue = spektrixVenue{
+	client: "broadwaynottingham",
+	isFilm: func(e map[string]any) bool {
+		return !broadwayCourseRe.MatchString(str(e, "attribute_FestivalOrSeason")+" "+str(e, "attribute_Genre2")) &&
+			!quizRe.MatchString(str(e, "name"))
+	},
+	urlTpl: "https://www.broadway.org.uk/book/{num}",
+	slot:   true,
+	strip: ci(`^(?:Family Film Club\s*-|My Movie:|UK Jewish Film Festival:|Queer Up Duck! Festival:)\s*` +
+		`|\s*-\s*Parent & Baby\s*$|\s*-\s*Presented by .*$`),
+}
+
+var tynesideVenue = spektrixVenue{
+	client: "tynesidecinema",
+	isFilm: func(e map[string]any) bool { return str(e, "attribute_Medium") != "Non-Film" },
+	urlTpl: "https://tynesidecinema.co.uk/book-online/{num}/",
+	strip:  ci(`\s*\((?:French Film Festival|NEIFF)\)\s*$`),
+}
+
+var derbyQuadVenue = spektrixVenue{
+	client: "derbyquad",
+	isFilm: func(e map[string]any) bool { return str(e, "attribute_Category") == "Film" },
+	urlTpl: "https://www.derbyquad.co.uk/booking?instanceID={num}",
+	strip:  ci(`^(?:Cult Film Club|DBF|Satori Screen|Fright Club)\s*[:-]\s*`),
+}
+
+var icaVenue = spektrixVenue{
+	client: "ica",
+	isFilm: func(e map[string]any) bool { return str(e, "attribute_Category") == "Films" },
+	urlTpl: "https://buy.ica.art/ica/website/ChooseSeats.aspx?EventInstanceId={num}",
+	screen: func(e map[string]any, i obj, p string) string { return strOr(str(i.m, "attribute_Venue"), p) },
+	strip: ci(`^\s*(?:Doc'n'Roll FF|LKFF(?: \d+)?|LPFF(?: \d+)?|FiFF|Imamura|Pereda|Off-Circuit|Pushkin House|Peer Gallery|` +
+		`NFTS Sublime Encounter|NFTS Collective Visions of Pleasure|Lost, Banned, Reclaimed|LOST FUTURES|` +
+		`Artist.s Film Picks)\s*:\s*|\s*\+\s*ScreenTalk\s*$`),
+}
+
+var quizRe = ci(`\bquiz\b`)
+
+var macWorkshopRe = ci(`workshops`)
+
+var macVenue = spektrixVenue{
+	client: "macbirmingham",
+	isFilm: func(e map[string]any) bool {
+		n := str(e, "name")
+		return str(e, "attribute_DepartmentCode") == "CIN - Cinema" && !quizRe.MatchString(n) && !macWorkshopRe.MatchString(n)
+	},
+	urlTpl: "https://macbirmingham.co.uk/book/instance/{num}",
+	slot:   true,
+	strip:  ci(`^(?:4K Film|Cinema Bambino|UK Jewish Film Festival \d+)\s*:\s*`),
+}
+
+var warwickVenue = spektrixVenue{
+	client: "warwickartscentre",
+	isFilm: func(e map[string]any) bool { return str(e, "attribute_LiveOrFilm") == "Film" },
+	urlTpl: "https://www.warwickartscentre.co.uk/seats/{num}/",
+	strip: ci(`^(?:BabyCino|Comics Come Alive|French Film Festival|MINT Chinese Film Festival)\s*:\s*` +
+		`|\s*\+\s*(?:pre-recorded\s+)?(?:Film Talk|Workshop|Quiz)\b.*$|\s*-\s*Preview\b`),
+}
+
+var hpphSkipRe = ci(`bundle deal|exclusive magazine|schools event`)
+
+// The Leeds Heritage Theatres client also sells the Grand and City Varieties, including films
+// that HPPH runs at City Varieties.
+var hydeParkVenue = spektrixVenue{
+	client: "leedsheritagetheatres",
+	isFilm: func(e map[string]any) bool {
+		return str(e, "attribute_Venue") == "Hyde Park Picture House" && str(e, "attribute_LiveOrFilm") == "Film" &&
+			!hpphSkipRe.MatchString(str(e, "name"))
+	},
+	urlTpl: "https://tickets.hpph.co.uk/leedsheritagetheatres/website/ChooseSeats.aspx?EventInstanceId={num}",
+}
+
 func HomeManchester(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
 	return homeVenue.fetch(s, from, to)
 }
@@ -318,4 +401,32 @@ func BuxtonOperaHouse(s *scrape.Session, from, to time.Time) ([]scrape.Show, err
 
 func DukesLancaster(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
 	return dukesVenue.fetch(s, from, to)
+}
+
+func BroadwayNottingham(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
+	return broadwayVenue.fetch(s, from, to)
+}
+
+func TynesideCinema(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
+	return tynesideVenue.fetch(s, from, to)
+}
+
+func DerbyQuad(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
+	return derbyQuadVenue.fetch(s, from, to)
+}
+
+func ICA(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
+	return icaVenue.fetch(s, from, to)
+}
+
+func MACBirmingham(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
+	return macVenue.fetch(s, from, to)
+}
+
+func WarwickArtsCentre(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
+	return warwickVenue.fetch(s, from, to)
+}
+
+func HydeParkPictureHouse(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
+	return hydeParkVenue.fetch(s, from, to)
 }

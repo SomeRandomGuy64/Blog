@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -26,6 +27,14 @@ func PlazaCrosby(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
 	return savoy(s, "https://plazacinema.org.uk/PlazaCinemaLiverpool.dll/WhatsOn", from, to)
 }
 
+// Savoy is a Savoy Systems site's fetcher, from its /WhatsOn URL. skip lists event types and
+// auditoriums to leave out (Mockingbird sells wine tastings, talks and off-site events in the same feed).
+func Savoy(whatsOn string, skip ...string) scrape.Fetcher {
+	return func(s *scrape.Session, from, to time.Time) ([]scrape.Show, error) {
+		return savoy(s, whatsOn, from, to, skip...)
+	}
+}
+
 var (
 	savoyEventsRe = regexp.MustCompile(`var Events\s*=\s*`)
 	// Per-site legend of Y/N performance flags: <span class="tag">AD</span> Audio Description
@@ -37,7 +46,7 @@ type savoyEvent struct {
 	Performances                                    []map[string]any
 }
 
-func savoy(s *scrape.Session, whatsOn string, from, to time.Time) ([]scrape.Show, error) {
+func savoy(s *scrape.Session, whatsOn string, from, to time.Time, skip ...string) ([]scrape.Show, error) {
 	r, err := s.GetOK(whatsOn)
 	if err != nil {
 		return nil, err
@@ -61,7 +70,7 @@ func savoy(s *scrape.Session, whatsOn string, from, to time.Time) ([]scrape.Show
 	var out []scrape.Show
 	for _, ev := range data.Events {
 		title := strings.TrimSpace(html.UnescapeString(pystr(ev.Title)))
-		if title == "" {
+		if title == "" || slices.Contains(skip, strings.TrimSpace(pystr(ev.TypeDescription))) {
 			continue
 		}
 		for _, p := range ev.Performances {
@@ -71,6 +80,9 @@ func savoy(s *scrape.Session, whatsOn string, from, to time.Time) ([]scrape.Show
 			}
 			t, err := time.Parse("2006-1-2 1504", pystr(p["StartDate"])+" "+st)
 			if err != nil || !inRange(scrape.Day(t), from, to) {
+				continue
+			}
+			if slices.Contains(skip, strings.TrimSpace(pystr(p["AuditoriumName"]))) {
 				continue
 			}
 			texts := []string{title, pystr(ev.TypeDescription), pystr(ev.Genre), pystr(p["Notes"])}
