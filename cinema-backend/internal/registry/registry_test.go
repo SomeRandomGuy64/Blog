@@ -29,8 +29,8 @@ func TestRegistry(t *testing.T) {
 		}
 		chains[c.Chain]++
 	}
-	// Arc and Parkway are hand-written small chains, located in Places like the independents.
-	if n := chains["Independent"] + chains["Arc"] + chains["Parkway"]; n != len(Places) {
+	// Arc, Parkway and Savoy are hand-written small chains, located in Places like the independents.
+	if n := chains["Independent"] + chains["Arc"] + chains["Parkway"] + chains["Savoy"]; n != len(Places) {
 		t.Errorf("%d hand-written cinemas, %d places", n, len(Places))
 	}
 	for _, ch := range []string{"Odeon", "Curzon", "Cineworld", "Everyman", "Showcase", "Vue", "Picturehouse", "The Light", "Reel"} {
