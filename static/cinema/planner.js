@@ -103,6 +103,20 @@ function gSave(){const ks=Object.keys(GCACHE);
   for(let i=0;i<4;i++){if(lsSet(GC,JSON.stringify(GCACHE)))return;   // quota: drop the oldest half and retry
     const ks2=Object.keys(GCACHE).sort((a,b)=>GCACHE[a][1]-GCACHE[b][1]);ks2.slice(0,Math.ceil(ks2.length/2)).forEach(k=>delete GCACHE[k])}}
 const HLL=ht=>ht&&!ht.none&&typeof ht.lat==='number'?{lat:ht.lat,lng:ht.lng}:null;
+// Late journeys home (public transport only): every time above is for 17:00, so a leg home leaving after 20:00 gets its own
+// lookup, once a plan actually uses it. Times come in half-hour bands, rounded up from the time you leave, each with its own
+// key, e.g. "T@2330f|…" (2430 = 00:30 the next morning; the letter is the plan day's timetable: w Mon–Thu, f Fri, a Sat, u Sun).
+// A cached null, or a time far longer than the 17:00 one, means nothing runs then, which isn't the same as not having looked (-2).
+const LATE={from:1200,step:30,n:18,p:180},LATE_UNSEEN=60,LATE_MORE=120,LATE_AHEAD=28,LATE_ROUNDS=4,LATE_MAX=16;
+const lateOn=()=>!!gkey&&tp[0]==='T';
+const lateK=(day,k)=>tp+'@'+pad(Math.floor((LATE.from+(k+1)*LATE.step)/60))+pad((LATE.from+(k+1)*LATE.step)%60)+'uwwwwfa'[wdOf(day)];
+const lateBand=m=>{const k=Math.ceil((m-LATE.from)/LATE.step)-1;return k>=0&&k<LATE.n?k:-1};
+// the moment band k of a plan day means: the real date when timetables should exist for it, else the same weekday sooner
+function lateTime(day,k){let x=day;while(dnum(x)>dnum(TD)+LATE_AHEAD)x=dadd(x,-7);
+  return new Date(+x.slice(0,4),+x.slice(5,7)-1,+x.slice(8,10),0,LATE.from+(k+1)*LATE.step).toISOString().replace(/\.\d{3}Z$/,'Z')}
+// -> minutes, -1 (nothing runs, and it's too far to walk) or -2 (not looked up). base: the 17:00 time, which the wait is judged by
+function lateGet(day,k,A,B,base){const t=gHit(gk(lateK(day,k),A,B));if(!t)return -2;const w=gHit(gk('W',A,B)),u=t[0]!=null&&!(base>=0&&t[0]>base+LATE_MORE);
+  const vs=[u?t[0]:null,w&&w[0]].filter(v=>typeof v==='number');return vs.length?Math.min(...vs):-1}
 function homeLeg(ht,c,back){if(ht.none)return [0,0];const h=HLL(ht),C=CLL[c];
   const v=h&&C?(back?gGet(C,h):gGet(h,C)):undefined;
   return typeof v==='number'?[v,0]:[back?ht.fr[c]:ht.to[c],1]}
@@ -549,7 +563,7 @@ function candidates(){const s=PS.set,buf=+s.buf||0,late=+s.late||0;
   return {win,used,info,per,buf,late}}
 // solver time limit: 2.5 s up to 28 films, then +0.625 s per film (14.4 s at 47) since bigger searches need longer to finish
 const budgetFor=n=>n>28?2500+(n-28)*625:2500;
-function buildProblem(){const s=PS.set,maxLeg=+s.maxLeg||0,ht=homeTravel();
+function buildProblem(unseen=LATE_UNSEEN){const s=PS.set,maxLeg=+s.maxLeg||0,ht=homeTravel();
   const {win,used,info,per,buf,late}=candidates(),{T,E}=rawTravel(ht),ends=dayEnds(),pen=prefs();
   // shortest-path closure via candidate cinemas (a journey may route past another cinema): keeps feasibility monotone,
   // which the solver relies on. Home is never an intermediate (in no-home mode its legs are 0 and would act as a
@@ -569,14 +583,19 @@ function buildProblem(){const s=PS.set,maxLeg=+s.maxLeg||0,ht=homeTravel();
   const dl=ends.map(({s:p,e:q},d)=>{const r={s:p,e:q,a:null,ae:null,b:null,be:null};
     if(p)[r.a,r.ae]=legs(ptTravel(p),dayC[d],false);if(q)[r.b,r.be]=legs(ptTravel(q),dayC[d],true);return r});
   const dayTo=(d,c)=>dl[d].a?dl[d].a[c]:T[H*NC1+c],dayFr=(d,c)=>dl[d].b?dl[d].b[c]:T[c*NC1+H];
+  // lh: what's known of each day's late legs home for the solver. Taken before the closure can touch them, and never closed,
+  // so a 17:00 time can't get back in through a route via another cinema. A failed lookup stays -2: only a real answer is -1.
+  const dayEnd=d=>dl[d].e||HLL(ht),lh=lateOn()?{...LATE,u:unseen,a:DAYS.map((day,d)=>{const q=dayEnd(d);if(!q)return null;const a=new Int32Array(NC*LATE.n).fill(-2);
+    for(const c of dayC[d]){const C=CLL[c];if(C)for(let k=0;k<LATE.n;k++)a[c*LATE.n+k]=lateGet(day,k,C,q,dayFr(d,c))}return a})}:null;
+  const lateAt=(d,c,m)=>{const k=lateBand(m);return lh&&lh.a[d]&&k>=0?lh.a[d][c*LATE.n+k]:-2};   // late time for leaving at minute m
   if(maxLeg>0)for(let a=0;a<NC1;a++)for(let b=0;b<NC1;b++)if(a!==b&&T[a*NC1+b]>maxLeg)T[a*NC1+b]=-1;
   const films=[];
   info.forEach((r,pi)=>{if(r.reason)return;const days=DAYS.map(()=>[]);
-    for(const h of per[pi]){const w=win[h.di],a=dayTo(h.di,h.c),b=dayFr(h.di,h.c);if(a<0||b<0)continue;
+    for(const h of per[pi]){const w=win[h.di],a=dayTo(h.di,h.c),b0=dayFr(h.di,h.c),v=lateAt(h.di,h.c,h.en+buf),b=v>=0?v:b0;if(a<0||b0<0||maxLeg>0&&b>maxLeg)continue;
       if(w.e+a>h.st+late)continue;if(h.en+buf+b>w.l){r.homeBy++;r.hb.push(h);continue}r.win++;const o={i:h.i,c:h.c,st:h.st,en:h.en},q=pen&&pen(h.i);if(q)o.p=q;days[h.di].push(o)}
     if(!r.match)r.reason='constraints';else if(!r.win)r.reason='window';else{r.si=films.length;films.push({days})}});
   const own=ends.some(x=>x.s||x.e)?{ds:dl.map(x=>x.a),de:dl.map(x=>x.b)}:{};
-  return {P:{films,win,T,nc:NC,buf,late,maxDay:+s.maxDay||0,mode:s.obj,budget:budgetFor(films.length),...own},info,ht,win,T,E,dl,buf,late,mode:s.obj,days:DAYS,lim:limit(),tp,pen}}
+  return {P:{films,win,T,nc:NC,buf,late,maxDay:+s.maxDay||0,mode:s.obj,budget:budgetFor(films.length),...own,...(lh?{lh}:{})},info,ht,win,T,E,dl,lateAt,lateOn:!!lh,dayEnd,buf,late,mode:s.obj,days:DAYS,lim:limit(),tp,pen}}
 // fetch Google times (plus walking, for transit) for every leg the plan can use that isn't cached yet: between cinemas with
 // candidate showings, each day's own start / end with that day's cinemas, and home with all of them if some day still uses
 // it (the closure in buildProblem routes home's legs via every candidate cinema). Never between home and a point, or two points.
@@ -602,6 +621,26 @@ async function fetchTimes(ht){const {used,per,buf,late}=candidates(),cs=[...used
     onResult:(m,i,j,v)=>{GCACHE[gk(m,nodes[i],nodes[j])]=[v,TODAY];if(++k%200===0)gSave()}});
   gSave();gBusy=false;keyStatus();
   gErr=res.error?`${res.error} Using ${estW(p)} for the journeys that are missing.`:null}
+// the late legs home this plan relies on that nobody has looked up yet
+function lateMiss(ctx,r){const seen=new Map();
+  for(const dd of r.days||[]){const L=SH[dd.seq[dd.seq.length-1]],q=ctx.dayEnd(dd.d),C=CLL[L.c],dep=L.en+ctx.buf,k=lateBand(dep);
+    if(!q||!C||k<0||ctx.lateAt(dd.d,L.c,dep)!==-2)continue;
+    const day=ctx.days[dd.d],key=gk(lateK(day,k),C,q);if(!seen.has(key))seen.set(key,{key,a:C,b:q,depart:lateTime(day,k),prof:tp})}
+  return [...seen.values()]}
+// Solve, look up what the plan's late legs home turn out to need, and solve again with those answers until the plan needs
+// nothing new. Asking only about the plan's own legs keeps this to a few lookups, where asking about every showing wouldn't.
+// An unasked leg still has its short 17:00 time, so it costs LATE_UNSEEN more, or the plan would hop from each checked leg to
+// the next unchecked one; it only moves on to look for a way home when a checked leg has none. In the last round an unasked
+// leg costs more than having no way home, so the plan settles on what's been checked. A leg it can't avoid stays marked ~. -> [ctx, result]
+async function solveLate(){let ctx=buildProblem(),r=await solvePlan(ctx),spent=0;
+  for(let i=0;i<LATE_ROUNDS&&lateOn()&&!r.error;i++){const asks=lateMiss(ctx,r).slice(0,LATE_MAX-spent);if(!asks.length)break;
+    gBusy=true;$('pgo').textContent='Checking late journeys home…';
+    const res=await GROUTES().late({key:gkey,asks,fetch:(u,o)=>fetch(u,o),onResult:(q,v)=>{GCACHE[q.key]=[v,TODAY]}});
+    gSave();gBusy=false;keyStatus();spent+=asks.length;
+    if(res.error){gErr=`${res.error} Late journeys home that couldn’t be checked are marked ~.`;break}
+    ctx=buildProblem(i<LATE_ROUNDS-2?LATE_UNSEEN:LATE.p+LATE_UNSEEN);r=await solvePlan(ctx)}
+  return [ctx,r]}
+const solvePlan=ctx=>ctx.P.films.length?solveAsync(ctx.P):Promise.resolve({status:'optimal',days:[],chosen:[],unfit:{},ms:0,nodes:0});
 function solveAsync(P){return new Promise(res=>{
   const local=()=>setTimeout(()=>{let r;try{r=SOLVER().solve(P)}catch(err){r={error:String(err)}}res(r)},20);
   if(noWorker||typeof Worker==='undefined')return local();
@@ -613,8 +652,7 @@ function solveAsync(P){return new Promise(res=>{
 $('pgo').onclick=async()=>{if(running||DAYS.some(ptBad))return;const ht0=homeTravel();if(!ht0)return;
   running=true;updGo();const t=performance.now();
   if(gkey)try{await fetchTimes(ht0)}catch(err){gBusy=false;gErr=`Couldn’t fetch Google travel times (${String(err&&err.message||err)}). Using ${estW(tp)}.`}
-  if(gkey&&OPEN.size)renderPicks();updGo();const ctx=buildProblem();
-  const r=ctx.P.films.length?await solveAsync(ctx.P):{status:'optimal',days:[],chosen:[],unfit:{},ms:0,nodes:0};
+  if(gkey&&OPEN.size)renderPicks();updGo();const [ctx,r]=await solveLate();
   r.wall=performance.now()-t;running=false;lastRes={r,ctx};dirty=false;$('pout').classList.remove('stale');renderResult();updGo();
   if(window.matchMedia('(max-width:820px)').matches)$('pout').scrollIntoView({behavior:'smooth',block:'start'})};
 
@@ -623,7 +661,7 @@ const gmap=(o,d,p)=>'https://www.google.com/maps/dir/?api=1'+(o?'&origin='+o.lat
 function renderResult(){const {r,ctx}=lastRes,out=$('pout');
   if(r.error){out.innerHTML=`<div class="banner err">Planner error: ${esc(r.error)}</div>`;lastRes.legs=null;banner();return}
   const {ht,win,T,E,dl,buf}=ctx,noHome=ht.none,anyPt=dl.some(x=>x.s||x.e),anyEnd=dl.some(x=>x.e);
-  const nPick=ctx.info.length,nGot=r.chosen.length;let totTr=0,html='',nLeg=0,nEst=0;
+  const nPick=ctx.info.length,nGot=r.chosen.length;let totTr=0,html='',nLeg=0,nEst=0,nNoWay=0;
   const tilde=e=>{nLeg++;if(e){nEst++;return '~'}return ''};
   // what a leg's time is: transit needs no word; a cycling/driving plan's fallback estimate is not a cycling/driving time
   const how=e=>ctx.tp[0]==='T'?'':e?' (public transport estimate)':ctx.tp==='B'?' cycle':' drive';
@@ -642,8 +680,8 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
         ${bd?`<div>${bd}</div>`:''}${lateBy>0?`<div class="note">Arrives ~${lateBy} min after the listed start (during the ads/trailers)</div>`:''}</div>`;
       tEnd=h.en});
     const L=seq[seq.length-1],LC=CLL[L.c];
-    if(!free1){const t=o.b?o.b[L.c]:T[L.c*NC1+H],fe=o.b?o.be[L.c]:E[L.c*NC1+H],dep=L.en+buf,ti=tilde(fe),eL=o.e&&esc(fmtPC(o.e.pc));trv+=t;tEnd=dep+t;dayEst=dayEst||!!ti;
-      tl+=`<div class="ev leg">Leave ${hm(dep)} · ${ti}${dur(t)}${how(fe)} ${eL?'to '+eL:'home'}${LC?` · <a href="${gmap(LC,o.e,ctx.tp)}" target="_blank" rel="noopener">route</a>`:''}</div><div class="ev home">${eL?'Finish at '+eL:'Home by'} <b>${seq.some(h=>h.est)||dayEst?'~':''}${hm(tEnd)}</b></div>`}
+    if(!free1){const dep=L.en+buf,t0h=o.b?o.b[L.c]:T[L.c*NC1+H],v=ctx.lateAt(dd.d,L.c,dep),t=v>=0?v:t0h,fe=v>=0?0:v===-1||lateBand(dep)>=0&&ctx.lateOn?1:o.b?o.be[L.c]:E[L.c*NC1+H],ti=tilde(fe),eL=o.e&&esc(fmtPC(o.e.pc));trv+=t;tEnd=dep+t;dayEst=dayEst||!!ti;if(v===-1){nNoWay++;if(!(o.b?o.be[L.c]:E[L.c*NC1+H]))nEst--}
+      tl+=`<div class="ev leg">Leave ${hm(dep)} · ${ti}${dur(t)}${how(fe)} ${eL?'to '+eL:'home'}${LC?` · <a href="${gmap(LC,o.e,ctx.tp)}" target="_blank" rel="noopener">route</a>`:''}${v===-1?`<div class="note">No public transport ${eL?'':'home '}at this time, so you may need a taxi or a lift. ${ti}${dur(t)} is the early-evening journey.</div>`:''}</div><div class="ev home">${eL?'Finish at '+eL:'Home by'} <b>${seq.some(h=>h.est)||dayEst?'~':''}${hm(tEnd)}</b></div>`}
     totTr+=trv;
     html+=`<div class="iday"><div class="ih"><b>${esc(dayLbl(ctx.days[dd.d]))}</b><span class="meta">${seq.length} film${seq.length>1?'s':''} · ${free0&&free1?'':'out '}${hm(t0)}–${hm(tEnd)}${free0&&free1?'':' · '+(dayEst?'~':'')+dur(trv)+' travel'}</span></div><div class="tl">${tl}</div></div>`}
   lastRes.legs={n:nLeg,est:nEst};
@@ -671,7 +709,8 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
     ${allMid?'“Home by” is midnight unless you change it':'You can change it'} under <b>When you’re free</b> in Settings.
     <details class="hbl"><summary>Show ${nHB>1?'which showings':'which showing'}</summary><div class="hbw">${ctx.info.filter(x=>x.hb.length).map(x=>`<b>${esc(FI[x.p.k]?title(x.p.k):x.p.t)}</b>${miss.includes(x)?'':' <span class="meta">(in your plan at another time)</span>'}`+
       x.hb.slice().sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:a.st-b.st).map(h=>`<div>${esc(dayLbl(h.day))} ${hm(h.st)}–${hm(h.en)} · ${esc(D.cinemas[h.c].name)}</div>`).join('')).join('')}</div></details></div>`:'';
-  html=head+hb+(days.length?html:'<div class="pempty">Nothing could be scheduled. See below.</div>');
+  const nw=nNoWay?`<div class="banner">${nNoWay===1?'One journey':nNoWay+' journeys'} in this plan ${nNoWay===1?'has':'have'} no public transport at the time you’d leave. You may need a taxi or a lift. Each is marked below.</div>`:'';
+  html=head+nw+hb+(days.length?html:'<div class="pempty">Nothing could be scheduled. See below.</div>');
   if(miss.length)html+=`<div class="unf"><h3>Not scheduled (${miss.length})</h3>${miss.map(x=>`<div><b>${x.pi+1}. ${esc(FI[x.p.k]?title(x.p.k):x.p.t)}</b><span class="meta">${esc(why(x))}</span></div>`).join('')}</div>`;
   out.innerHTML=`<div class="res">${html}</div>`;banner()}
 

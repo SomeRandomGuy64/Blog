@@ -88,11 +88,12 @@ const wrapper = 'const SOLVER0=SOLVER;SOLVER=function(){const s=SOLVER0();return
 function page({ set = {}, key = null, shows = SHOWS, picks = PICKS, ls = null, respond = null } = {}) {
   const LS = ls || new Map(); if (!ls) { LS.set('fazon-cinema-planner', JSON.stringify({ picks, set: { pc: HOME.pc, geo: HOME, ...set } })); if (key) LS.set('fazon-cinema-gkey', key); }
   const localStorage = { getItem: k => LS.has(k) ? LS.get(k) : null, setItem: (k, v) => void LS.set(k, String(v)), removeItem: k => void LS.delete(k) };
-  const t = { LS, urls: [], calls: [], P: null, MINS: { TRANSIT: 20, WALK: 99, BICYCLE: 11, DRIVE: 7 } };
+  const t = { LS, urls: [], calls: [], late: [], P: null, MINS: { TRANSIT: 20, WALK: 99, BICYCLE: 11, DRIVE: 7 } };
   const fetch = async (u, o) => { t.urls.push(u);
     if (u.startsWith('https://api.postcodes.io/')) return respond(u, o);
     if (!u.startsWith('https://routes.googleapis.com/')) throw new Error('unexpected fetch ' + u);
-    const b = JSON.parse(o.body); t.calls.push(b);
+    const b = JSON.parse(o.body); if (u.endsWith(':computeRoutes')) { t.late.push(b); return { ok: true, status: 200, text: async () => JSON.stringify({ routes: [{ duration: t.MINS.TRANSIT * 60 + 's' }] }) }; }
+    t.calls.push(b);
     return { ok: true, status: 200, text: async () => JSON.stringify(b.destinations.map((_, k) => ({ destinationIndex: k, condition: 'ROUTE_EXISTS', duration: t.MINS[b.travelMode] * 60 + 's' }))) }; };
   const els = new Map(), document = { getElementById: id => els.get(id) || els.set(id, new El(id)).get(id), createElement: () => new El('') };
   document.getElementById('mode').children = [];
@@ -168,7 +169,8 @@ const nh = s => s.replace(/solved in [\d.]+ s/, '');
   for (let it = 0; it < 40; it++) { const legs = {}, pts = [WORK, GYM], ns = [...c, ...pts.map(ll)];   // not metric on purpose: Google's times aren't
     for (const a of ns) for (const b of ns) if (a !== b) legs[`T|${a}>${b}`] = 5 + ri(70);
     const tt = page({ key: 'K', set: { late: it % 3 ? 0 : 15, buf: 10, pts: { [D1s]: { s: WORK, e: GYM }, [D2s]: it % 2 ? { e: WORK } : { s: GYM } } } }); put(tt.LS, legs); tt.LS.set('fazon-cinema-gkey', 'K'); const p2 = page({ ls: tt.LS }); await p2.plan();
-    const P = p2.P, r = solve(P), [bk, bc] = brute(P); tot++; if (keyOf(P, r) === bk && (bk <= 0 || Math.abs(costOf(r) - bc) < 1e-6) && r.status === 'optimal') good++; else console.log('e2e mismatch', it, bk, keyOf(P, r), bc, costOf(r), r.status); }
+    const P = { ...p2.P }; delete P.lh; const r = solve(P), [bk, bc] = brute(P);   // late legs have their own brute force in test_solver.js
+    tot++; if (keyOf(P, r) === bk && (bk <= 0 || Math.abs(costOf(r) - bc) < 1e-6) && r.status === 'optimal') good++; else console.log('e2e mismatch', it, bk, keyOf(P, r), bc, costOf(r), r.status); }
   ok(good === tot, `plan: real solver input with Google-style non-metric legs matches brute force ${good}/${tot}`); }
 // "Home by" uses the real end point; the note says so
 { const late = [{ k: 'a', c: 0, t: D1s + 'T21:00:00', e: D1s + 'T23:00:00', d: 110, x: [] }], LATE = { ...GYM, lat: 52.0, lng: -1.0 };

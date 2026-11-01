@@ -3,9 +3,15 @@
 // coordinates ever go in a URL). Self-contained so test_solver.js can drive it with a fake fetch.
 // run({key, pts:[{lat,lng}], need:[{i,j,t,w}] (t: main mode wanted, w: WALK wanted), prof? (see prof(), default 'T'), fetch,
 //      onProgress(done,total,note), onResult(prof|'W', i, j, minutes|null), depart?, sleep?, concurrency?}) -> {requests, error|null}
+// late({key, asks:[{a,b,depart,prof}], fetch, onResult(ask, minutes|null), sleep?}) -> {error|null}: one "Compute Routes" request
+// per journey, for a late journey home. A matrix response has no departure times, so it can't tell a 40-minute trip from
+// a 40-minute trip after the first morning train; Google doesn't document whether its duration includes that wait.
 function GROUTES(){
 const URL_='https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix';
 const MASK='originIndex,destinationIndex,duration,condition,status';
+const ROUTE_URL='https://routes.googleapis.com/directions/v2:computeRoutes';
+const LATE_MASK='routes.duration,routes.legs.steps.transitDetails.stopDetails.departureTime,routes.legs.steps.transitDetails.stopDetails.arrivalTime';
+const MAX_WAIT=90;                          // a first bus or train further off than this is no way home that night
 const MODES=['BUS','LIGHT_RAIL','RAIL'];   // TransitTravelMode: RAIL = TRAIN + SUBWAY + LIGHT_RAIL; LIGHT_RAIL = tram
 // Travel profile: names a set of times, so it is also the cache prefix. 'T' is the original key, which keeps old cached
 // times valid. Google documents allowedTravelModes as preferred modes: a route may still use others, and a matrix
@@ -77,4 +83,28 @@ async function run(o){const f=o.fetch,sleep=o.sleep||(ms=>new Promise(r=>setTime
     while(!fatal&&next<N){const q=reqs[next++];await one(q);done++;prog(done,N)}});
   await Promise.all(workers);
   return {requests:N,error:fatal||soft||null}}
-return {run,requests,elements,parse,departure,near,prof,walks,URL:URL_,MASK,MODES}}
+const lateBody=q=>({origin:wp(q.a).waypoint,destination:wp(q.b).waypoint,travelMode:'TRANSIT',departureTime:q.depart,transitPreferences:{allowedTravelModes:ALLOW[q.prof]}});
+// a Compute Routes response -> minutes from `depart`, or null: no route, or the first service is too far off. The wait for
+// the first service counts, whether or not Google's duration has it. Without stop times (a walk-only route) it's the duration.
+function lateMins(j,depart){const r=j&&Array.isArray(j.routes)&&j.routes[0],t0=Date.parse(depart);if(!r)return null;
+  const sec=parseFloat(String(r.duration||''));if(!isFinite(sec))return null;
+  const stops=[];for(const l of r.legs||[])for(const s of l.steps||[])if(s.transitDetails&&s.transitDetails.stopDetails)stops.push(s.transitDetails.stopDetails);
+  if(!stops.length)return Math.ceil(sec/60);
+  const a=Date.parse(stops[0].departureTime),z=Date.parse(stops[stops.length-1].arrivalTime);
+  if((a-t0)/6e4>MAX_WAIT)return null;
+  return Math.ceil(Math.max(sec/60,z>t0?(z-t0)/6e4:0))}
+async function late(o){const sleep=o.sleep||(ms=>new Promise(r=>setTimeout(r,ms)));
+  for(const q of o.asks)for(let attempt=0;;attempt++){let r,body='';
+    const ac=typeof AbortController!=='undefined'?new AbortController():null,tm=ac&&setTimeout(()=>ac.abort(),30000);
+    try{r=await o.fetch(ROUTE_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Goog-Api-Key':o.key,'X-Goog-FieldMask':LATE_MASK},
+        body:JSON.stringify(lateBody(q)),signal:ac?ac.signal:undefined});body=await r.text()}
+    catch(err){tm&&clearTimeout(tm);
+      if(attempt<1){await sleep(1500);continue}
+      return {error:'Couldn’t reach Google’s Routes API (offline, or the request was blocked).'}}
+    tm&&clearTimeout(tm);
+    if(r.ok){let j;try{j=JSON.parse(body||'{}')}catch(e){return {error:'Google sent a reply that couldn’t be read.'}}
+      o.onResult(q,lateMins(j,q.depart));break}
+    if((r.status===429||r.status>=500)&&attempt<2){await sleep(4000*2**attempt);continue}
+    const msg=errText(r.status,body);return {error:`Google rejected the request (HTTP ${r.status}${msg?': '+msg:''}).`}}
+  return {error:null}}
+return {run,requests,elements,parse,departure,near,prof,walks,late,lateBody,lateMins,URL:URL_,ROUTE_URL,MASK,LATE_MASK,MODES}}
