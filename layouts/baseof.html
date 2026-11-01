@@ -1,12 +1,19 @@
 <!DOCTYPE html>
-<html lang="{{ or site.Language.Locale "en" }}">
+<html lang="{{ or site.Language.Locale "en" }}"{{ if partial "reading-page.html" . }} class="layout-reading"{{ end }}>
   <head>
     {{ partial "head.html" . }}
+    {{/* Standard | Wide (header.html), main site only: cinema has its own baseof and stays out of it */}}
+    <link rel="stylesheet" href="{{ relURL "css/wide.css" }}">
+    <link rel="stylesheet" href="{{ relURL "css/wide-track.css" }}">
+    <link rel="stylesheet" href="{{ relURL "css/wide-kyotsu.css" }}">
+    <link rel="stylesheet" href="{{ relURL "css/wide-tools.css" }}">
+    <script src="{{ relURL "js/layout.js" }}"></script>
     <meta name="fazon-api" content="{{ site.Params.api }}">
     <script src="{{ relURL "js/fazon-api.js" }}"></script>
   </head>
   <body>
     {{ partial "header.html" . }}
+    {{ partial "wide-bar.html" . }}
     <main>
       {{ block "main" . }}{{ end }}
     </main>

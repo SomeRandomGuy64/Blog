@@ -21,6 +21,11 @@
     <div class="fz-menu-wrap fz-acct-wrap" id="fzAcctWrap" hidden></div>
   </div>
 </div>
+{{/* Standard | Wide (js/layout.js, css/wide.css): the top-left corner in standard, the sidebar's foot in wide */}}
+<span class="fz-layout-seg site-layout" role="group" aria-label="Layout">
+  <button type="button" data-layout="standard" aria-pressed="true" title="Centred column">Standard</button>
+  <button type="button" data-layout="wide" aria-pressed="false" title="Use the window's width (up to 21:9)">Wide</button>
+</span>
 <h1 class="site-title"><a href="{{ relURL "" }}">Fazon Nexus</a></h1>
 <input type="checkbox" id="navToggle" class="nav-toggle">
 <label for="navToggle" class="nav-burger" aria-label="Menu" tabindex="0">☰</label>

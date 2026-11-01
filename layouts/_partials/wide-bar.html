@@ -1,0 +1,20 @@
+{{/* Wide only (css/wide.css hides it in standard): the page bar above an app page, which stands in
+     for the page's own h1. Page scripts put their page-level controls in #wBarTools. Reading pages
+     have no bar; their h1 stays in the column. */}}
+{{ if not (partial "reading-page.html" .) }}
+<div class="w-bar" id="wBar">
+  <div class="w-bar-title">
+    {{ if eq .Section "track" }}
+    <span class="w-bar-name" id="wBarTitle">Track</span>
+    <nav class="w-tabs" aria-label="Track">
+      <a href="{{ relURL "track/" }}"{{ if not .IsPage }} aria-current="page"{{ end }}>Log week</a>
+      <a href="{{ relURL "track/leaderboard/" }}"{{ if .IsPage }} aria-current="page"{{ end }}>Leaderboard</a>
+    </nav>
+    {{ else }}
+    {{ if and .IsPage (in (slice "kyotsu" "tools") .Section) }}<a class="w-bar-crumb" href="{{ .Parent.RelPermalink }}">{{ .Parent.Title }}</a><span class="w-bar-sep" aria-hidden="true">/</span>{{ end }}
+    <span class="w-bar-name" id="wBarTitle">{{ .Title }}</span>
+    {{ end }}
+  </div>
+  <div class="w-bar-tools" id="wBarTools"></div>
+</div>
+{{ end }}

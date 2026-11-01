@@ -3,7 +3,10 @@
 // redrawn to the container's width. Colours are CSS colour strings — normally
 // "var(--tk-…)" from css/track.css — applied through style, so theme switches need no redraw.
 //
-//   FazonCharts.columns(box, {x, xLabel, xTitle, series:[{label, color, values}], fmt, ariaLabel, height})
+//   FazonCharts.columns(box, {x, xLabel, xTitle, series:[{label, color, values}], fmt, ariaLabel, height,
+//                             padL?, padR?, noLegend?})
+//     padL / padR: px beside the plot, so the columns can line up with the columns of a table above.
+//     noLegend: the page already names the colours.
 //   FazonCharts.hbars(box, {rows:[{label, value, href, me, note}], color, fmt, ariaLabel})
 //   FazonCharts.lines(box, {x, xLabel, xTitle, series:[{label, color, values, notes?}], yMax, fmt, ariaLabel, height,
 //                           estimateGaps?, estimateColor?, estimateLabel?})
@@ -146,10 +149,10 @@
   function drawColumns(st) {
     var o = st.opts, xs = o.x || [], n = xs.length, ser = (o.series || []).filter(Boolean);
     var fmt = o.fmt || fmtDefault, xLabel = o.xLabel || String, xTitle = o.xTitle || xLabel;
-    legend(st, ser, "bar");
+    if (!o.noLegend) legend(st, ser, "bar");
     if (!n) { st.scroll.appendChild(h("div", "fc-empty", "No data")); return; }
     var W0 = Math.max(240, st.scroll.clientWidth || 600), narrow = W0 < 480;
-    var H = o.height || (narrow ? 200 : 240), pad = { l: 42, r: 8, t: 10, b: 26 };
+    var H = o.height || (narrow ? 200 : 240), pad = { l: num(o.padL) ? o.padL : 42, r: num(o.padR) ? o.padR : 8, t: 10, b: 26 };
     var W = Math.max(W0, pad.l + pad.r + n * (narrow ? 4 : 5)), pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
     var totals = xs.map(function (_, i) { return ser.reduce(function (a, se) { var v = se.values[i]; return a + (num(v) && v > 0 ? v : 0); }, 0); });
     var ticks = niceTicks(Math.max.apply(null, totals), narrow ? 4 : 5), top = ticks[ticks.length - 1];

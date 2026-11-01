@@ -6,7 +6,7 @@
   <div class="kyotsu-quiz ks-page" id="ks">
     <p class="ks-msg" id="ksMsg">Loading…</p>
   </div>
-  <p class="kyotsu-note"><a href="{{ relURL "kyotsu/" }}">← Back to the trainer</a></p>
+  <p class="kyotsu-note w-hide"><a href="{{ relURL "kyotsu/" }}">← Back to the trainer</a></p>
 
   <script>
   (function(){
@@ -56,7 +56,8 @@
       const m=Math.round(ms/60000); if(m<1) return "under a minute";
       return m<60?`${m} min`:`${Math.floor(m/60)} h ${String(m%60).padStart(2,"0")} min`;
     }
-    const panel=(title,...kids)=>el("section",{class:"panel"},el("div",{class:"panel-h",text:title}),...kids);
+    const panel=(title,...kids)=>el("section",{class:"panel w-sec"},el("div",{class:"panel-h w-sec-h",text:title}),...kids);
+    const wide=()=>!!(window.FazonWide&&FazonWide.active());
     function html(tag,cls,markup){ const n=el(tag,{class:cls}); n.innerHTML=markup; return n; }  // markup built with esc()
     function msg(...parts){ root.textContent=""; root.appendChild(el("p",{class:"ks-msg"},...parts)); }
 
@@ -98,6 +99,10 @@
 
     function patternStats(answers,cats){
       const by={}; answers.forEach(a=>{ const r=by[a.cat]||(by[a.cat]={c:0,t:0}); r.t++; if(a.ok) r.c++; });
+      if(wide()) return panel("Pattern Stats",html("div","",cats.some(c=>by[c.id])?`<table class="w-table kq-pat"><thead><tr><th>Pattern</th><th>Shape</th><th class="num">Right</th><th class="num">%</th></tr></thead><tbody>`+
+        cats.filter(c=>by[c.id]).map(c=>{ const r=by[c.id];
+          return `<tr data-tip="${esc(c.jp)}"><td>${esc(c.en)}</td><td>${overline("◯".repeat(c.eg.replace(/[↘↓]/g,"").length),c.eg)}</td><td class="num">${r.c}/${r.t}</td><td class="num">${pct(r.c,r.t)}</td></tr>`; }).join("")+
+        `</tbody></table>`:`<p class="ks-empty">No answers.</p>`));
       const rows=cats.filter(c=>by[c.id]).map(c=>{ const r=by[c.id];
         return `<div class="pat-row"><div><div class="pat-k">${esc(c.en)} <span class="jp">${esc(c.jp)}</span></div>${overline("◯".repeat(c.eg.replace(/[↘↓]/g,"").length),c.eg)}</div>`+
           `<span class="pat-n">${r.c} of ${r.t} (${pct(r.c,r.t)}%)</span></div>`; }).join("");
@@ -131,6 +136,62 @@
       });
       const total=answers.filter(a=>!a.ok).length;
       return panel(`Missed words (${total})`,list);
+    }
+
+    // ---- wide: missed words as a table with replay, a stat strip, panes ----
+    // Saved answers don't name their clip, so replay finds it from the reading: quiz_data.js for
+    // Keihan (loaded only here, standard doesn't need it), the API's sets for Tokyo.
+    const AUDIO_BASE="{{ relURL "kyotsu/audio/" }}", QUIZ_SRC="{{ relURL "kyotsu/quiz_data.js" }}";
+    const VOICE_DIR={yura:"",nagi:"nagi/",otowa:"otowa/",atsuzaki:"atsuzaki/"};
+    const clipIndex={keihan:null,tokyo:null};
+    function loadClips(mode){
+      if(clipIndex[mode]) return clipIndex[mode];
+      if(mode==="tokyo") return clipIndex.tokyo=F.api("/v1/hyojungo/pairs").then(d=>{ const m=new Map();
+        ((d&&d.pairs)||[]).forEach(p=>(p.m||[]).forEach(x=>m.set(x.pron+"\u0000"+x.pat,x.a))); return m; });
+      return clipIndex.keihan=new Promise((ok,no)=>{ const t=document.createElement("script"); t.src=QUIZ_SRC; t.onload=ok; t.onerror=no; document.head.append(t); })
+        .then(()=>{ const m=new Map(); QUIZ.forEach(p=>p.members.forEach(x=>m.set(p.reading+"\u0000"+x.surface,x.audio))); return m; });
+    }
+    let audioEl=null;
+    function replay(url){ audioEl=audioEl||new Audio(); audioEl.src=url; audioEl.currentTime=0; audioEl.play().catch(()=>{}); }
+    function missedTable(answers,cats,mode){
+      const groups=new Map();
+      answers.filter(a=>!a.ok).forEach(a=>{ const k=[a.reading,a.surface,a.pattern].join("\u0000");
+        const g=groups.get(k); if(g){ g.n++; g.v.add(a.speaker); } else groups.set(k,{a,n:1,v:new Set([a.speaker])}); });
+      const total=answers.filter(a=>!a.ok).length;
+      if(!groups.size) return panel("Missed words",el("p",{class:"ks-empty",text:"None — every answer was right."}));
+      const voice=id=>String(SPEAKERS[id]||id||"?").replace(/ \(.*/,"");
+      const body=el("tbody");
+      [...groups.values()].sort((x,y)=>y.n-x.n).forEach(({a,n,v})=>{
+        const tr=el("tr"), cat=cats.find(c=>c.id===a.cat), btn=el("button",{type:"button",class:"w-btn sm ks-replay",hidden:true,"aria-label":"Replay "+a.surface,text:"▶"});
+        tr.innerHTML=`<td></td><td class="ks-t-w">${overline(a.reading,a.pattern)}</td><td class="jp ks-t-s">${esc(a.surface)}</td><td class="mono">${esc(a.pattern)}</td>`+
+          `<td>${esc(cat?cat.en:a.cat||"")}</td><td class="jp">${esc([...v].map(voice).join(", "))}</td><td class="num">${n}</td>`;
+        tr.firstChild.append(btn); body.append(tr);
+        loadClips(mode).then(m=>{
+          const id=m.get(mode==="tokyo"?a.reading+"\u0000"+a.pattern:a.reading+"\u0000"+a.surface); if(!id) return;
+          const url=mode==="tokyo"?F.base+"/v1/hyojungo/audio/"+encodeURIComponent(id)+".aac":AUDIO_BASE+(VOICE_DIR[a.speaker]||"")+encodeURIComponent(id)+".mp3";
+          btn.hidden=false; btn.onclick=()=>replay(url);
+        },()=>{});
+      });
+      const table=el("table",{class:"w-table ks-t"});
+      table.innerHTML=`<thead><tr><th aria-label="Replay"></th><th>Word</th><th>Kanji</th><th>Pitch</th><th>Pattern</th><th>Voice</th><th class="num">Missed</th></tr></thead>`;
+      table.append(body);
+      return panel(`Missed words (${total})`,table);
+    }
+    function strip(s){
+      const active=s.active_seconds>0;
+      const stat=(v,k)=>el("div",{class:"w-stat"},el("b",{text:v}),el("span",{text:k}));
+      return el("div",{class:"ks-strip"},
+        el("div",{class:"w-stats"},stat(s.total?pct(s.correct,s.total)+"%":"—","accuracy"),stat(`${s.correct} / ${s.total}`,"correct"),
+          stat(duration(s.started,s.ended),"duration"),...(active?[stat(fmtClock(s.active_seconds),"practice time")]:[]),stat(MODES[modeOf(s)],"mode")),
+        el("div",{class:"ks-strip-m"},el("p",{class:"ks-meta",text:`${fmtDate(s.started)} · ${LAYOUTS[s.layout]||s.layout||"—"} · Advanced Mode ${s.advanced?"on":"off"}`}),active?trackNote(s):null));
+    }
+    function barNav(same,curId){
+      const tools=FazonWide.tools(); tools.textContent="";
+      const at=same.findIndex(x=>x.id===curId), older=same[at-1], newer=same[at+1];
+      const link=(to,label,key,tip)=>to?el("a",{class:"w-btn",href:`?id=${to.id}`,"data-tip":tip,text:label},el("kbd",{text:key})):el("span",{class:"w-btn ks-off","aria-disabled":"true",text:label});
+      if(at>=0) tools.append(el("span",{class:"ks-pos",text:`Session ${at+1} of ${same.length}`}),link(older,"Older","[","Previous session"),link(newer,"Newer","]","Next session"));
+      FazonWide.key("[","Previous session",()=>{ if(older) location.href=`?id=${older.id}`; });
+      FazonWide.key("]","Next session",()=>{ if(newer) location.href=`?id=${newer.id}`; });
     }
 
     // ---- over time: accuracy per session, inline SVG sized to the panel ----
@@ -196,8 +257,8 @@
       }
       const moreBtn=el("button",{type:"button",class:"ks-more",text:"Show older sessions",onclick:more});
       more();
-      const p=panel("Over time · "+MODES[mode].replace(/ .*/,""),totals,chart,el("div",{class:"panel-sep"}),list,moreBtn,
-        other?el("p",{class:"ks-other"},el("a",{href:`?id=${other.id}`,text:`Your ${MODES[modeOf(other)].replace(/ .*/,"")} sessions →`})):null);
+      const p=panel("Over time · "+MODES[mode].replace(/ .*/,""),wide()?el("div",{class:"ks-t-head"},totals,other?el("a",{href:`?id=${other.id}`,text:`Your ${MODES[modeOf(other)].replace(/ .*/,"")} sessions →`}):null):totals,chart,el("div",{class:"panel-sep"}),list,moreBtn,
+        other&&!wide()?el("p",{class:"ks-other"},el("a",{href:`?id=${other.id}`,text:`Your ${MODES[modeOf(other)].replace(/ .*/,"")} sessions →`})):null);
       // draw once it's in the DOM (needs the width), and again on resize / theme switch
       requestAnimationFrame(()=>drawChart(chart,sessions,curId));
       let w=0; new ResizeObserver(()=>{ if(chart.clientWidth!==w){ w=chart.clientWidth; drawChart(chart,sessions,curId); } }).observe(chart);
@@ -216,11 +277,23 @@
         return F.api("/v1/kyotsu/sessions/"+want).then(s=>{
           const answers=Array.isArray(s.answers)?s.answers:[];
           const mode=modeOf(s), same=sessions.filter(x=>modeOf(x)===mode), other=sessions.filter(x=>modeOf(x)!==mode).pop();
-          root.textContent="";
-          const grid=el("div",{class:"ks-grid"},
-            el("div",{class:"ks-col"},summary(s),missed(answers)),
-            el("div",{class:"ks-col"},patternStats(answers,mode==="tokyo"?CATS_T:CATS),speakerStats(answers)));
-          root.append(grid,overTime(same,s.id,mode,other));
+          const cats=mode==="tokyo"?CATS_T:CATS;
+          function render(){
+            root.textContent="";
+            if(wide()){
+              barNav(same,s.id);
+              root.append(el("div",{class:"w-panes w-insp ks-wide"},
+                el("div",{class:"w-pane ks-work"},strip(s),missedTable(answers,cats,mode),overTime(same,s.id,mode,other)),
+                el("div",{class:"w-pane ks-side"},patternStats(answers,cats),speakerStats(answers))));
+              return;
+            }
+            const grid=el("div",{class:"ks-grid"},
+              el("div",{class:"ks-col"},summary(s),missed(answers)),
+              el("div",{class:"ks-col"},patternStats(answers,cats),speakerStats(answers)));
+            root.append(grid,overTime(same,s.id,mode,other));
+          }
+          render();
+          document.addEventListener("fz-layout",e=>{ if(!e.detail.wide) FazonWide.tools().textContent=""; render(); });
         },e=>{
           if(e.status===404) msg("That session wasn't found. ",el("a",{href:"?",text:"Show your latest session"}),".");
           else msg(e.message);

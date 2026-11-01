@@ -50,6 +50,16 @@
     el.className = "tc-status" + (kind ? " tc-" + kind : "");
     el.textContent = msg;
   }
+  // Wide folds a finished step down to one line with an Edit button (css/wide-tools.css); these
+  // classes do nothing in standard.
+  function stepDone(id, summary) {
+    var step = $(id);
+    step.classList.add("tc-done"); step.classList.remove("tc-editing");
+    step.querySelector(".tc-sum").textContent = summary;
+    step.querySelector(".tc-edit").textContent = "Edit";
+  }
+  function stepOpen(id) { $(id).classList.remove("tc-done", "tc-editing"); }
+
   function el(tag, cls, text) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
@@ -151,8 +161,10 @@
       if (!S.filters || !S.filters.length || !S.filters.some(function (f) { return modelByName(f.model); })) S.filters = guessFilters();
       renderFilters();
       $("tcStepKnown").hidden = false;
+      stepDone("tcStepConnect", fmtN(models.length) + " note types");
     }).catch(function (e) {
       status(st, "✗ " + e.message, "err");
+      stepOpen("tcStepConnect");
     }).then(function () { $("tcConnect").disabled = false; });
   }
 
@@ -291,7 +303,8 @@
       $("tcStepMedia").hidden = false;
       updateAnalyzeBtn();
       if (media) reclassify();
-    }).catch(function (e) { status(st, "✗ " + e.message, "err"); })
+      stepDone("tcStepKnown", fmtN(learned.size) + " learned");
+    }).catch(function (e) { status(st, "✗ " + e.message, "err"); stepOpen("tcStepKnown"); })
       .then(function () { btn.disabled = false; });
   }
 
@@ -436,9 +449,10 @@
         offs.ja = 0; applyTrack();   // after reclassify: (re)setting the offset refreshes the live readout
         setupVideo();
         $("tcResults").hidden = false;
+        stepDone("tcStepMedia", file.name);
         $("tcResults").scrollIntoView({ behavior: "smooth", block: "start" });
       });
-    }).catch(function (e) { status(st, "✗ " + e.message, "err"); })
+    }).catch(function (e) { status(st, "✗ " + e.message, "err"); stepOpen("tcStepMedia"); })
       .then(updateAnalyzeBtn);
   }
 
@@ -1064,6 +1078,12 @@
   $("tcYt").addEventListener("change", function () { if (media) setupVideo(); });
   $("tcExNames").addEventListener("change", function (e) { S.exNames = e.target.checked; save(); reclassify(); });
   $("tcExLoan").addEventListener("change", function (e) { S.exLoan = e.target.checked; save(); reclassify(); });
+  document.querySelectorAll(".tc-edit").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var on = b.closest(".tc-step").classList.toggle("tc-editing");
+      b.textContent = on ? "Close" : "Edit";
+    });
+  });
   $("tcWin").addEventListener("change", function (e) { S.win = +e.target.value; save(); if (calc) { drawChart(); updateLive(true); } });
   $("tcShowL").addEventListener("change", function () { if (calc) drawChart(); });
   $("tcShowM").addEventListener("change", function () { if (calc) drawChart(); });

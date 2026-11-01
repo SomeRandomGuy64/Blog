@@ -1,0 +1,323 @@
+/* =====================================================================================
+   Wide: the desktop layout (js/layout.js sets html.layout-wide only on a landscape window of
+   1200px+, so nothing here has to work on a phone or touch). This file holds the tokens, the
+   shell and the shared components. Page rules live in wide-track.css, wide-kyotsu.css and
+   wide-tools.css. Reading pages (html.layout-reading) get the shell in one column, at the end.
+   Standard's rules live in the pages' own stylesheets, untouched. The design is written up in
+   the wide design spec; the short version: mouse-sized controls, hairlines instead of cards,
+   panes instead of stretched tiles.
+
+   Page stylesheets are linked inside <main>, so they load after these files. To beat a page rule
+   of the same weight, add .layout-wide on top of it: .layout-wide .kyotsu-quiz .card.
+   ===================================================================================== */
+
+/* ---- outside wide ---- */
+.w-bar, .w-only { display: none; }
+
+/* the switch, in standard: the window's top-left corner, level with the theme toggle */
+.fz-layout-seg { display: inline-flex; gap: 4px; }
+.fz-layout-seg button {
+    font: inherit; font-size: 0.75rem; padding: 2px 9px; border-radius: 999px; cursor: pointer; line-height: 1.5;
+    color: var(--text-color); background: transparent; border: 1px solid var(--fz-line);
+}
+.fz-layout-seg button:hover { border-color: var(--fz-accent); }
+.fz-layout-seg button[aria-pressed="true"] { background: var(--fz-accent); border-color: var(--fz-accent); color: #fff; }
+.fz-layout-seg button:focus-visible { outline: 2px solid var(--fz-accent); outline-offset: 2px; }
+.site-layout { position: absolute; top: -8px; left: calc((100% - 100vw) / 2 + 30px); }
+@media (max-width: 1199.98px), (max-aspect-ratio: 1/1) { .site-layout { display: none; } }
+
+/* ---- tokens ----
+   On body, not html: the theme's colours are set on body.light-mode, and a token that uses one
+   has to be defined at or below that. */
+.layout-wide body {
+    /* type (JetBrains Mono runs wide, so 13px reads like a 15px proportional face) */
+    --w-fs-xs: 11px;      /* chart ticks, kbd hints */
+    --w-fs-sm: 12px;      /* secondary text, table heads */
+    --w-fs: 13px;         /* controls, tables */
+    --w-fs-body: 14px;    /* running text */
+    --w-fs-h: 16px;       /* the page's name, reading subheads */
+    --w-fs-fig: 20px;     /* figures in a stat strip */
+    --w-fs-title: 24px;   /* a reading page's h1 */
+    /* sizes */
+    --w-ctl: 28px;        /* buttons, inputs, tabs */
+    --w-ctl-sm: 24px;     /* controls inside a table row; the WCAG 2.2 floor, never smaller */
+    --w-row: 28px;        /* table rows, the floor */
+    --w-row-lg: 32px;     /* rows of text that get read rather than scanned */
+    --w-r: 4px;
+    /* spacing: 4 8 12 16 24 */
+    --w-gutter: 20px;
+    --w-side: 148px;      /* the sidebar */
+    --w-bar: 40px;        /* the page bar */
+    --w-foot: 29px;       /* the footer line, border included */
+    --w-insp: 380px;      /* an inspector pane */
+    --w-measure: 760px;   /* running text and reading pages */
+    --w-form: 560px;      /* a form */
+    --w-fill: calc(100vh - var(--w-bar) - var(--w-foot));   /* what a full-height pane gets */
+    /* colour, built from the site's */
+    --w-hover: rgba(127, 127, 127, 0.1);
+    --w-sel: var(--fz-accent-soft);
+
+    margin: 0 0 0 var(--w-side); max-width: none; padding: 0; min-height: 100vh;
+    display: flex; flex-direction: column;
+    font-size: var(--w-fs-body); line-height: 1.5;
+}
+.layout-wide :focus-visible { outline: 2px solid var(--fz-accent); outline-offset: 1px; }
+.layout-wide .w-only { display: revert; }
+/* the button rules give these a display, which would otherwise beat the hidden attribute */
+.layout-wide .fz-btn[hidden], .layout-wide .w-btn[hidden] { display: none; }
+.layout-wide .w-hide { display: none !important; }
+
+/* ---- shell: main beside a slim sidebar ---- */
+.layout-wide main {
+    box-sizing: border-box; flex: 1 0 auto; width: 100%; max-width: calc(100vh * 21 / 9 - var(--w-side));
+    margin: 0 auto; padding: 12px var(--w-gutter) 16px;
+}
+.layout-wide main:has(.w-panes) { padding: 0; }
+
+.layout-wide .site-header {
+    position: fixed; inset: 0 auto 0 0; z-index: 1000; box-sizing: border-box; width: var(--w-side);
+    display: flex; flex-direction: column; padding: 8px 12px 12px; overflow-y: auto;
+    background: var(--fz-surface); border-right: 1px solid var(--fz-line);
+}
+.layout-wide .site-title {
+    order: 1; margin: 0 0 12px; padding: 0 8px; font-size: var(--w-fs-body); line-height: 24px;
+    letter-spacing: 0; text-align: left; white-space: nowrap;
+}
+.layout-wide .site-nav { order: 2; flex-direction: column; gap: 0; margin: 0; font-size: var(--w-fs); }
+.layout-wide .site-nav a, .layout-wide .site-nav a:visited, .layout-wide .site-nav a:active {
+    display: block; height: var(--w-ctl); padding: 0 8px; line-height: var(--w-ctl); border-radius: var(--w-r); color: var(--text-color);
+}
+.layout-wide .site-nav a[hidden] { display: none; }
+.layout-wide .site-nav a:hover { background: var(--w-hover); }
+.layout-wide .site-nav a[aria-current="page"] { background: var(--w-sel); box-shadow: inset 2px 0 0 var(--fz-accent); font-weight: 700; }
+
+/* the foot: [theme] [bell] [account], then the switch */
+.layout-wide .theme-toggle-wrapper {
+    order: 3; position: static; margin-top: auto; padding: 0;
+    flex-flow: row wrap; align-items: center; justify-content: space-between; gap: 8px;
+}
+.layout-wide .fz-cluster-row { justify-content: flex-end; gap: 4px; }
+.layout-wide .theme-toggle-wrapper > .toggle-button { flex: none; width: 44px; height: 24px; }
+.layout-wide .theme-toggle-wrapper > .toggle-button img { left: 3px; width: 18px; height: 18px; }
+.layout-wide .light-mode .theme-toggle-wrapper > .toggle-button img { left: 32px; }
+.layout-wide .fz-bell { width: var(--w-ctl); height: var(--w-ctl); }
+.layout-wide .fz-bell svg { width: 18px; height: 18px; }
+.layout-wide .fz-login-pill, .layout-wide .fz-login-pill:visited,
+.layout-wide .light-mode .fz-login-pill, .layout-wide .light-mode .fz-login-pill:visited {
+    box-sizing: border-box; height: var(--w-ctl-sm); padding: 0 6px; border-width: 1px; border-radius: var(--w-r);
+    font-size: var(--w-fs-sm); font-weight: 400; line-height: 22px;
+}
+.layout-wide .fz-signup-pill, .layout-wide .light-mode .fz-signup-pill { margin-right: 4px; }
+.layout-wide .fz-panel { border-radius: 6px; font-size: var(--w-fs); }
+
+.layout-wide .fz-layout-seg.site-layout {
+    order: 4; position: static; margin-top: 8px; display: grid; grid-template-columns: 1.4fr 1fr; gap: 0;
+    border: 1px solid var(--fz-line); border-radius: var(--w-r); overflow: hidden;
+}
+.layout-wide .fz-layout-seg button { height: 22px; padding: 0; border: 0; border-radius: 0; font-size: var(--w-fs-xs); line-height: 1; }
+.layout-wide .fz-layout-seg button + button { border-left: 1px solid var(--fz-line); }
+.layout-wide .fz-layout-seg button:hover { background: var(--w-hover); }
+.layout-wide .fz-layout-seg button[aria-pressed="true"] { background: var(--w-sel); color: var(--text-color); font-weight: 700; }
+.layout-wide .fz-layout-seg button:focus-visible { outline-offset: -2px; }
+
+/* ---- the page bar (_partials/wide-bar.html): name on the left, the page's controls on the right.
+   It stands in for the page's h1, which stays in the markup for screen readers. ---- */
+.layout-wide .w-bar {
+    position: sticky; top: 0; z-index: 20; box-sizing: border-box; flex: none; height: var(--w-bar);
+    display: flex; align-items: center; gap: 16px; padding: 0 var(--w-gutter);
+    background: var(--bg-color); border-bottom: 1px solid var(--fz-line);
+}
+.layout-wide .w-bar-title { display: flex; align-items: center; gap: 8px; min-width: 0; align-self: stretch; }
+.layout-wide .w-bar-name { font-size: var(--w-fs-h); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; align-self: center; }
+.layout-wide .w-bar-crumb, .layout-wide .w-bar-crumb:visited, .layout-wide .light-mode .w-bar-crumb:visited { color: var(--fz-muted); font-size: var(--w-fs); align-self: center; white-space: nowrap; }
+.layout-wide .w-bar-crumb:hover { color: var(--fz-accent); }
+.layout-wide .w-bar-sep { color: var(--fz-muted); align-self: center; }
+.layout-wide .w-bar-tools { display: flex; align-items: center; gap: 12px; margin-left: auto; min-width: 0; }
+.layout-wide .w-bar-tools:empty { display: none; }
+.layout-wide:not(.layout-reading) main > h1, .layout-wide:not(.layout-reading) .dev-docs > h1, .layout-wide main > h1.w-sr {
+    position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+.layout-wide:not(.layout-reading) main > p { max-width: var(--w-measure); margin: 0 0 8px; font-size: var(--w-fs); }
+
+/* ---- the footer: one quiet line, always the same height, so a full-height pane can count on it ---- */
+.layout-wide .site-footer {
+    box-sizing: border-box; flex: none; height: var(--w-foot); margin: 0; padding: 0 var(--w-gutter); gap: 16px;
+    border-top: 1px solid var(--fz-line); font-size: var(--w-fs-xs); opacity: 1; color: var(--fz-muted);
+}
+.layout-wide .site-footer .footer-text { display: flex; gap: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.layout-wide .site-footer p { margin: 0; }
+.layout-wide .site-footer .kofi img { height: 18px; }
+
+/* ---- headings ---- */
+.layout-wide main :where(h1, h2, h3) { text-align: left; }
+.layout-wide main :where(h2) { margin: 16px 0 8px; font-size: var(--w-fs-body); line-height: 1.4; }
+.layout-wide main :where(h3) { margin: 12px 0 4px; font-size: var(--w-fs); line-height: 1.4; }
+
+/* ---- panes: columns of different content, separated by a hairline, each scrolling on its own.
+   Set the columns per page; .w-insp is the usual pair, the work and an inspector. ---- */
+.layout-wide .w-panes { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); height: var(--w-fill); }
+.layout-wide .w-panes.w-insp { grid-template-columns: minmax(0, 1fr) var(--w-insp); grid-auto-flow: row; }
+.layout-wide .w-pane {
+    box-sizing: border-box; min-width: 0; min-height: 0; overflow: auto; padding: 12px var(--w-gutter);
+    border-left: 1px solid var(--fz-line); scrollbar-width: thin; scrollbar-color: var(--fz-line) transparent;
+}
+.layout-wide .w-pane:first-child { border-left: 0; }
+
+/* a section: a heading on a hairline, not a box */
+.layout-wide .w-sec { margin: 0 0 16px; }
+.layout-wide .w-sec-h {
+    display: flex; align-items: center; gap: 8px; min-height: var(--w-ctl); margin: 0 0 8px;
+    border-bottom: 1px solid var(--fz-line); font-size: var(--w-fs); font-weight: 700;
+}
+.layout-wide .w-sec-h > :last-child:not(:first-child) { margin-left: auto; font-weight: 400; }
+
+/* a row of figures, no tiles */
+.layout-wide .w-stats { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; }
+.layout-wide .w-stat { display: flex; flex-direction: column; min-width: 0; }
+.layout-wide .w-stat b { order: 1; font-size: var(--w-fs-fig); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.layout-wide .w-stat span { order: 2; font-size: var(--w-fs-sm); color: var(--fz-muted); }
+
+/* ---- controls ---- */
+.layout-wide .fz-btn, .layout-wide .w-btn {
+    box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    height: var(--w-ctl); padding: 0 10px; border-radius: var(--w-r); font: inherit; font-size: var(--w-fs); line-height: 1; cursor: pointer; white-space: nowrap;
+}
+.layout-wide .w-btn { color: var(--text-color); background: transparent; border: 1px solid var(--fz-line); }
+.layout-wide .w-btn:hover:not(:disabled) { border-color: var(--fz-accent); }
+.layout-wide .w-btn:disabled { opacity: 0.45; cursor: default; }
+.layout-wide .w-btn.primary { background: var(--fz-accent); border-color: var(--fz-accent); color: #fff; }
+.layout-wide .w-btn.sm, .layout-wide .fz-btn.sm { height: var(--w-ctl-sm); padding: 0 8px; font-size: var(--w-fs-sm); }
+.layout-wide .fz-input, .layout-wide .w-input {
+    box-sizing: border-box; height: var(--w-ctl); padding: 0 8px; border-radius: var(--w-r); font: inherit; font-size: var(--w-fs);
+    color: var(--text-color); background: var(--fz-surface); border: 1px solid var(--fz-line);
+}
+.layout-wide .fz-input:focus, .layout-wide .w-input:focus { border-color: var(--fz-accent); }
+.layout-wide .fz-textarea { padding: 6px 8px; border-radius: var(--w-r); font-size: var(--w-fs); }
+.layout-wide main select { font: inherit; font-size: var(--w-fs); height: var(--w-ctl); border-radius: var(--w-r); }
+.layout-wide .fz-form { max-width: var(--w-form); }
+.layout-wide .fz-form label { font-size: var(--w-fs); }
+.layout-wide .fz-note { padding: 8px 12px; border-radius: var(--w-r); font-size: var(--w-fs); }
+.layout-wide .cmt-tag, .layout-wide .dk-scope { border-radius: 3px; }
+
+/* segmented control: replaces the rows of pills */
+.layout-wide .w-seg {
+    box-sizing: border-box; display: inline-flex; height: var(--w-ctl); overflow: hidden;
+    border: 1px solid var(--fz-line); border-radius: var(--w-r);
+}
+.layout-wide .w-seg button {
+    padding: 0 10px; border: 0; border-left: 1px solid var(--fz-line); font: inherit; font-size: var(--w-fs); line-height: 1; white-space: nowrap;
+    color: var(--fz-muted); background: transparent; cursor: pointer;
+}
+.layout-wide .w-seg button:first-child { border-left: 0; }
+.layout-wide .w-seg button:hover { color: var(--text-color); background: var(--w-hover); }
+.layout-wide .w-seg button[aria-pressed="true"], .layout-wide .w-seg button[aria-selected="true"] { color: var(--text-color); background: var(--w-sel); font-weight: 700; }
+.layout-wide .w-seg button:focus-visible { outline-offset: -2px; }
+
+/* tabs: an underline, for what changes the page; sits in the bar or on a pane's top edge */
+.layout-wide .w-tabs { display: flex; align-self: stretch; gap: 4px; margin-left: 8px; }
+.layout-wide .w-tabs a, .layout-wide .w-tabs a:visited, .layout-wide .w-tabs button {
+    display: flex; align-items: center; padding: 0 8px; border: 0; box-shadow: inset 0 -2px 0 transparent; font: inherit; font-size: var(--w-fs);
+    color: var(--fz-muted); background: none; cursor: pointer; white-space: nowrap;
+}
+.layout-wide .w-tabs a:hover, .layout-wide .w-tabs button:hover { color: var(--text-color); }
+.layout-wide .w-tabs [aria-current="page"], .layout-wide .w-tabs a[aria-current="page"]:visited, .layout-wide .w-tabs [aria-selected="true"] {
+    color: var(--text-color); box-shadow: inset 0 -2px 0 var(--fz-accent); font-weight: 700;
+}
+.layout-wide .w-tabs :focus-visible { outline-offset: -2px; }
+
+/* ---- tables: rows hairlined, numbers right-aligned in tabular figures, header stays put ---- */
+.layout-wide .w-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--w-fs); }
+.layout-wide .w-table th {
+    position: sticky; top: var(--w-sticky, 0); z-index: 2; height: var(--w-row); padding: 0 8px; text-align: left; white-space: nowrap;
+    font-size: var(--w-fs-sm); font-weight: 400; color: var(--fz-muted); background: var(--bg-color); border-bottom: 1px solid var(--fz-line);
+}
+.layout-wide .w-table td { height: var(--w-row); padding: 0 8px; border-bottom: 1px solid var(--fz-line); }
+.layout-wide .w-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.layout-wide .w-table th[aria-sort] { cursor: pointer; }
+.layout-wide .w-table th[aria-sort]:not([aria-sort="none"]) { color: var(--text-color); font-weight: 700; }
+.layout-wide .w-table tbody tr:hover { background: var(--w-hover); }
+.layout-wide .w-table tbody tr[aria-selected="true"] { background: var(--w-sel); }
+.layout-wide .w-table tbody tr[aria-selected="true"] td:first-child { box-shadow: inset 2px 0 0 var(--fz-accent); }
+/* row actions: quiet until the row is in play. Reachable by keyboard, and never the only way. */
+.layout-wide .w-acts { opacity: 0; }
+.layout-wide tr:hover .w-acts, .layout-wide tr:focus-within .w-acts, .layout-wide tr[aria-selected="true"] .w-acts { opacity: 1; }
+
+/* ---- small things ---- */
+.layout-wide kbd, .w-keys kbd {
+    display: inline-block; box-sizing: border-box; min-width: 18px; height: 18px; padding: 0 4px; border: 1px solid var(--fz-line); border-radius: 3px;
+    font: inherit; font-size: var(--w-fs-xs); line-height: 16px; text-align: center; color: var(--fz-muted); background: transparent;
+}
+.layout-wide .w-empty { padding: 24px 0; text-align: center; font-size: var(--w-fs); color: var(--fz-muted); }
+.w-tip {
+    position: fixed; z-index: 1200; box-sizing: border-box; max-width: 320px; padding: 4px 8px; pointer-events: none;
+    font-size: 12px; line-height: 1.4; color: var(--text-color); background: var(--fz-surface);
+    border: 1px solid var(--fz-line); border-radius: 4px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+.w-tip[hidden] { display: none; }
+.w-keys {
+    min-width: 280px; padding: 12px 16px; font-size: 13px; color: var(--text-color); background: var(--fz-surface);
+    border: 1px solid var(--fz-line); border-radius: 6px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+.w-keys::backdrop { background: rgba(0, 0, 0, 0.35); }
+.w-keys-row { display: flex; align-items: center; gap: 12px; height: 26px; }
+.w-keys-row kbd { min-width: 34px; }
+
+/* =====================================================================================
+   Reading pages: home, articles, article and tag lists, About, Privacy. One column at the reading
+   measure in the middle of what's left, no panes, with the same type, lists and controls as the
+   app pages, so moving between them and Track feels like one site.
+   ===================================================================================== */
+.layout-wide.layout-reading main {
+    max-width: calc(var(--w-measure) + 2 * var(--w-gutter)); padding-top: 32px; padding-bottom: 32px; line-height: 1.7;
+}
+.layout-wide.layout-reading main h1 { margin: 0 0 4px; font-size: var(--w-fs-title); line-height: 1.3; }
+.layout-wide.layout-reading main h2 { margin: 32px 0 8px; font-size: var(--w-fs-h); }
+.layout-wide.layout-reading main h3 { margin: 24px 0 4px; font-size: var(--w-fs-body); }
+.layout-wide.layout-reading main p { margin: 0 0 12px; }
+.layout-wide.layout-reading .meta { margin: 0 0 24px; font-size: var(--w-fs-sm); opacity: 1; color: var(--fz-muted); }
+.layout-wide.layout-reading main li { margin-bottom: 4px; }
+.layout-wide.layout-reading main hr { margin: 24px 0; border: 0; border-top: 1px solid var(--fz-line); }
+.layout-wide.layout-reading main blockquote { margin: 12px 0; padding: 4px 12px; border-left: 2px solid var(--fz-accent); color: var(--fz-muted); }
+.layout-wide.layout-reading main :not(pre) > code { padding: 0 4px; border-radius: 3px; font-size: 0.9em; background: var(--fz-surface); border: 1px solid var(--fz-line); }
+.layout-wide.layout-reading main pre { padding: 8px 12px; overflow-x: auto; border-radius: var(--w-r); font-size: var(--w-fs); line-height: 1.5; background: var(--fz-surface); border: 1px solid var(--fz-line); }
+.layout-wide.layout-reading main table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: var(--w-fs); }
+.layout-wide.layout-reading main th, .layout-wide.layout-reading main td { height: var(--w-row); padding: 0 8px; text-align: left; border-bottom: 1px solid var(--fz-line); }
+.layout-wide.layout-reading main th { font-size: var(--w-fs-sm); font-weight: 400; color: var(--fz-muted); }
+
+/* the home page's triangle: an illustration, not the whole first screen */
+.layout-wide.layout-reading main canvas { width: 400px; max-width: 100%; margin: 16px 0 0; border-radius: var(--w-r); }
+
+/* figures sit on the text's left edge, like everything else */
+.layout-wide.layout-reading figure { margin: 16px 0; text-align: left; }
+.layout-wide.layout-reading figure img { margin: 0; border-radius: var(--w-r); }
+.layout-wide.layout-reading figcaption { margin-top: 4px; font-size: var(--w-fs-sm); opacity: 1; color: var(--fz-muted); }
+
+/* lists of articles: rows, the date in its own right-hand column */
+.layout-wide .article-list { margin: 8px 0 12px; border-top: 1px solid var(--fz-line); }
+.layout-wide.layout-reading main .article-list li {
+    display: flex; align-items: baseline; gap: 12px; margin: 0; padding: 4px 8px; line-height: 1.5;
+    border-bottom: 1px solid var(--fz-line);
+}
+.layout-wide .article-list li:hover { background: var(--w-hover); }
+.layout-wide .article-list li > a { min-width: 0; flex: 1; font-size: var(--w-fs-body); }
+.layout-wide .article-list time { order: 3; flex: none; margin: 0; font-size: var(--w-fs-sm); opacity: 1; color: var(--fz-muted); font-variant-numeric: tabular-nums; }
+
+/* tags: small links, no pills */
+.layout-wide .tags { font-size: var(--w-fs-sm); }
+.layout-wide .tags a { margin-right: 8px; font-size: inherit; }
+.layout-wide.layout-reading article > .tags { margin-top: 24px; padding-top: 8px; border-top: 1px solid var(--fz-line); }
+.layout-wide .article-list .tags { order: 2; flex: none; }
+
+/* the like bar: a button at the end of the text, then the comments */
+.layout-wide .art-like-bar { justify-content: flex-start; margin: 24px 0 0; }
+.layout-wide .art-like-bar .art-like-msg { text-align: left; font-size: var(--w-fs-sm); }
+.layout-wide .art-like { box-sizing: border-box; height: var(--w-ctl); padding: 0 10px; border-radius: var(--w-r); font-size: var(--w-fs); }
+.layout-wide .comments { margin-top: 16px; padding-top: 0; border-top: 1px solid var(--fz-line); }
+.layout-wide.layout-reading main .comments-h { margin: 12px 0 8px; font-size: var(--w-fs-body); }
+.layout-wide .cmt-composer { margin-bottom: 12px; }
+.layout-wide .cmt-composer-foot { font-size: var(--w-fs-sm); }
+.layout-wide .cmt { padding: 8px 0 0; }
+.layout-wide .cmt-head { font-size: var(--w-fs-sm); }
+.layout-wide.layout-reading main .cmt-body { margin: 0 0 4px; font-size: var(--w-fs); line-height: 1.5; }
+.layout-wide .cmt-actions { font-size: var(--w-fs-sm); }
+.layout-wide .cmt-empty { text-align: left; font-size: var(--w-fs); }

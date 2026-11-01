@@ -1,0 +1,4 @@
+{{/* Reading pages: home, articles (and their lists), tag lists and plain text pages like About.
+     They have no wide content layout. With wide active they keep one column at the reading
+     measure but use wide's shell, type and controls (html.layout-reading, css/wide.css). */}}
+{{ return or .IsHome (in (slice "articles" "tags" "categories") .Section) (and .IsPage (eq .Section "")) }}

@@ -428,6 +428,15 @@ body.light-mode {
 .kyotsu-quiz .lr-send:hover:not(:disabled) { background: var(--k-accent); color: #fff; }
 .kyotsu-quiz .lr-send:disabled { opacity: 0.4; cursor: default; }
 
+/* Sequential Clip Review: speaker + go-to-pair card, and the gap above the lower cards */
+.kyotsu-quiz .kt-ctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.kyotsu-quiz .kt-ctl > label[for], .kyotsu-quiz .kt-jump label { font-weight: 600; }
+.kyotsu-quiz .kt-ctl select { cursor: pointer; padding: 6px 10px; }
+.kyotsu-quiz #speakerMeta { font-size: .8rem; opacity: .65; }
+.kyotsu-quiz .kt-jump { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.kyotsu-quiz .kt-jump input { width: 5em; padding: 6px 8px; }
+.kyotsu-quiz .card.kt-gap { margin-top: 14px; }
+
 /* label reports list at the foot of the Sequential Clip Review (staff only) */
 .kyotsu-quiz .rp-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .kyotsu-quiz .rp-head .q { margin: 0 auto 0 0; }

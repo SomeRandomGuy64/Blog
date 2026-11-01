@@ -6,8 +6,73 @@
     <h1>{{ .Title }}</h1>
     {{ with .Description }}<p class="dev-lead">{{ . }}</p>{{ end }}
     <nav class="dev-toc" aria-label="On this page">
+      <input class="w-input w-only dev-filter" type="search" placeholder="Filter" aria-label="Filter the contents">
       <details open><summary>On this page</summary>{{ .TableOfContents }}</details>
     </nav>
     {{ .Content }}
   </article>
+  <script>
+  // Wide only: a filter over the contents, the section you're in marked there, and on a very wide
+  // window each heading's text beside its code samples, Stripe-style (css/wide-tools.css). Nothing
+  // here changes how standard looks: its filter box and the hidden prefix are wide's CSS only.
+  (function () {
+    if (!window.FazonWide) return;
+    var art = document.querySelector(".dev-docs"), toc = art.querySelector(".dev-toc"), box = art.querySelector(".dev-filter");
+    var items = [].slice.call(toc.querySelectorAll("li"));
+    // every endpoint shares this prefix; the narrow contents column needs the part that differs
+    toc.querySelectorAll("a code").forEach(function (c) {
+      c.innerHTML = c.innerHTML.replace("/v1/api/track", '<span class="w-hide">/v1/api/track</span>');
+    });
+    box.addEventListener("input", function () {
+      var q = box.value.trim().toLowerCase();
+      items.forEach(function (li) { li.hidden = !!q && li.textContent.toLowerCase().indexOf(q) < 0; });
+    });
+    box.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { box.value = ""; box.dispatchEvent(new Event("input")); box.blur(); }
+      if (e.key === "Enter") { var a = toc.querySelector("li:not([hidden]) a"); if (a) a.click(); }
+    });
+    FazonWide.key("/", "Filter the contents", function () { box.focus(); box.select(); });
+
+    var links = {};
+    toc.querySelectorAll("a").forEach(function (a) { links[decodeURIComponent(a.hash.slice(1))] = a; });
+    var mark = new IntersectionObserver(function (es) {
+      es.forEach(function (e) {
+        if (!e.isIntersecting || !links[e.target.id]) return;
+        toc.querySelectorAll("[aria-current]").forEach(function (x) { x.removeAttribute("aria-current"); });
+        links[e.target.id].setAttribute("aria-current", "true");
+      });
+    }, { rootMargin: "-48px 0px -75% 0px" });
+    art.querySelectorAll("h2[id], h3[id]").forEach(function (h) { mark.observe(h); });
+
+    var orig = [].slice.call(art.children), paired = false, big = window.matchMedia("(min-width: 2300px)");
+    function isCode(n) { return n.matches("pre, .highlight"); }
+    function pair() {
+      var on = FazonWide.active() && big.matches;
+      if (on === paired) return;
+      paired = on;
+      if (!on) { art.replaceChildren.apply(art, orig); return; }
+      var out = [], block = null;
+      orig.forEach(function (n) {
+        if (n.matches("h1, .dev-lead, .dev-toc")) { out.push(n); return; }
+        if (n.matches("h2, h3") || !block) {
+          block = { root: document.createElement("div"), prose: document.createElement("div"), code: document.createElement("div") };
+          block.root.className = "dev-block"; block.prose.className = "dev-prose"; block.code.className = "dev-code";
+          block.root.append(block.prose);
+          out.push(block.root);
+        }
+        if (isCode(n)) {
+          // a sample's lead-in ("Example:") goes with it
+          var last = block.prose.lastElementChild;
+          if (last && last.matches("p") && /:\s*$/.test(last.textContent)) block.code.append(last);
+          block.code.append(n);
+          if (!block.code.parentNode) block.root.append(block.code);
+        } else block.prose.append(n);
+      });
+      art.replaceChildren.apply(art, out);
+    }
+    document.addEventListener("fz-layout", pair);
+    big.addEventListener("change", pair);
+    pair();
+  })();
+  </script>
 {{ end }}
