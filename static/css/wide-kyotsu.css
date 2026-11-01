@@ -1,0 +1,321 @@
+/* Wide: the Kyōtsu pages. Tokens and components are in wide.css. kyotsu.css loads after this file
+   (it's linked in <main>), so its rules need more weight here, not the same. The trainer's .opt
+   states (.correct, .wrong, .pressed.ok) stay kyotsu.css's: nothing here outranks them on purpose. */
+
+.layout-wide .kyotsu-wordmark { display: none; }   /* the bar names the page */
+.layout-wide .kyotsu-quiz { width: auto; max-width: none; margin: 0; clear: both; }
+.layout-wide .kyotsu-note { margin: 0; text-align: left; }
+.layout-wide .w-bar .jp { font-family: var(--jp); }
+.layout-wide .w-seg[hidden] { display: none; }
+
+/* ---- the trainer: a stage ---- */
+.layout-wide .kyotsu-quiz .kq-grid { gap: 0; align-items: stretch; }
+
+/* bar tools: the page's own toggles, moved here by arrange() */
+.layout-wide .w-bar .lt-k { display: none; }
+.layout-wide .w-seg .lt-k + button { border-left: 0; }
+.layout-wide .listen-bar { display: inline-flex; align-items: center; gap: 6px; height: var(--w-ctl); font-size: var(--w-fs); cursor: pointer; white-space: nowrap; }
+.layout-wide .listen-bar small, .layout-wide .listen-bar .sw { display: none; }
+.layout-wide .listen-bar input, .layout-wide .kq-pop .sw-in { accent-color: var(--fz-accent); margin: 0; }
+.layout-wide .listen-bar.on { font-weight: 700; }
+
+/* the settings menu: floats under the bar's right edge */
+.layout-wide .kyotsu-quiz .kq-pop {
+    position: fixed; inset: calc(var(--w-bar) + 4px) var(--w-gutter) auto auto; margin: 0; padding: 4px 12px; min-width: 280px;
+    color: var(--text-color); background: var(--fz-surface); border: 1px solid var(--fz-line); border-radius: 6px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+.layout-wide .kyotsu-quiz .kq-pop:not(:popover-open) { display: none; }
+.layout-wide .kyotsu-quiz .kq-pop .panel { padding: 0; background: none; border: 0; border-radius: 0; }
+.layout-wide .kyotsu-quiz .kq-pop .setting { flex-direction: row-reverse; justify-content: flex-end; gap: 8px; height: var(--w-ctl); padding: 0; }
+.layout-wide .kyotsu-quiz .kq-pop .setting + .setting { border-top: 0; }
+.layout-wide .kyotsu-quiz .kq-pop .set-k { margin: 0; font-size: var(--w-fs); font-weight: 400; }
+.layout-wide .kyotsu-quiz .kq-pop .sw-in { position: static; width: 13px; height: 13px; opacity: 1; pointer-events: auto; }
+.layout-wide .kyotsu-quiz .kq-pop .sw { display: none; }
+
+/* the stage: everything has its place reserved, so answering moves nothing */
+.layout-wide .kyotsu-quiz .kq-main { display: flex; flex-direction: column; padding: 0; }
+.layout-wide .kyotsu-quiz.kotu .kq-main .card, .layout-wide .kyotsu-quiz .kq-main .card {
+    flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 0; padding: 16px var(--w-gutter); background: none; border: 0; border-radius: 0;
+}
+.layout-wide .kyotsu-quiz .kq-main .card > * { width: 100%; max-width: var(--w-measure); }
+.layout-wide .kyotsu-quiz.kotu .kq-main .kotu-label, .layout-wide .kyotsu-quiz.kotu .kq-main .kotu-sep, .layout-wide .kyotsu-quiz.kotu .kq-main .kotu-foot,
+.layout-wide .kyotsu-quiz .kq-main .q { display: none; }
+.layout-wide .kyotsu-quiz.kotu .prompt .reading, .layout-wide .kyotsu-quiz .kq-main .prompt .reading { margin: 0; font-size: 72px; font-weight: 700; line-height: 1.1; letter-spacing: 0; }
+.layout-wide .kyotsu-quiz.kotu .prompt .hint, .layout-wide .kyotsu-quiz .prompt .hint { margin-top: 8px; font-size: var(--w-fs); }
+.layout-wide .kyotsu-quiz .voicechip { margin-top: 4px; padding: 0; background: none; color: var(--fz-muted); font-size: var(--w-fs-sm); font-weight: 400; }
+.layout-wide .kyotsu-quiz .voicechip .dot { display: none; }
+.layout-wide .kyotsu-quiz.kotu .play, .layout-wide .kyotsu-quiz .play { margin: 12px 0 16px; }
+.layout-wide .kyotsu-quiz.kotu .playbtn, .layout-wide .kyotsu-quiz .playbtn {
+    gap: 6px; height: var(--w-ctl); padding: 0 10px; border: 1px solid var(--fz-line); border-radius: var(--w-r);
+    font-size: var(--w-fs); font-weight: 400; color: var(--text-color); background: transparent; transform: none; filter: none;
+}
+.layout-wide .kyotsu-quiz .playbtn:hover:not(:disabled) { border-color: var(--fz-accent); }
+.layout-wide .kyotsu-quiz .playbtn svg { width: 12px; height: 12px; }
+.layout-wide .kyotsu-quiz .mode-msg { min-height: 20px; margin: 0 0 4px; font-size: var(--w-fs); }
+.layout-wide .kyotsu-quiz .mode-msg[hidden] { display: block; visibility: hidden; }
+
+/* the two options: the one place big targets stay */
+.layout-wide .kyotsu-quiz.kotu .options, .layout-wide .kyotsu-quiz .options { grid-template-columns: 1fr 1fr; gap: 12px; }
+.layout-wide .kyotsu-quiz.kotu .options.n3, .layout-wide .kyotsu-quiz .options.n3 { grid-template-columns: repeat(3, 1fr); }
+.layout-wide .kyotsu-quiz.kotu .options .opt, .layout-wide .kyotsu-quiz .kq-main .options .opt {
+    justify-content: center; align-items: center; flex-direction: column; gap: 4px; height: 120px; min-height: 0; padding: 8px;
+    border: 1px solid var(--fz-line); border-radius: var(--w-r); background: transparent; transform: none;
+}
+.layout-wide .kyotsu-quiz.kotu .opt, .layout-wide .kyotsu-quiz .kq-main .opt { --k-accent-ink: var(--text-color); }
+.layout-wide .kyotsu-quiz.kotu .options .opt:not(.answered):not(.pressed):hover, .layout-wide .kyotsu-quiz .kq-main .options .opt:not(.answered):not(.pressed):hover {
+    transform: none; border-color: var(--fz-accent); background: var(--w-hover);
+}
+.layout-wide .kyotsu-quiz .opt.pressed, .layout-wide .kyotsu-quiz .opt.answered:active { transform: none; }
+/* outrank the plain .opt rule above, without moving these states up in kyotsu.css */
+.layout-wide .kyotsu-quiz .options .opt.pressed.ok, .layout-wide .kyotsu-quiz.kotu .options .opt.pressed.ok, .layout-wide .kyotsu-quiz .kq-main .options .opt.correct, .layout-wide .kyotsu-quiz.kotu .options .opt.correct { border-color: var(--k-good); background: var(--k-good-soft); }
+.layout-wide .kyotsu-quiz .options .opt.pressed.bad, .layout-wide .kyotsu-quiz.kotu .options .opt.pressed.bad, .layout-wide .kyotsu-quiz .kq-main .options .opt.wrong, .layout-wide .kyotsu-quiz.kotu .options .opt.wrong { border-color: var(--k-bad); background: var(--k-bad-soft); }
+.layout-wide .kyotsu-quiz.kotu .opt .badge, .layout-wide .kyotsu-quiz .opt .slot {
+    position: absolute; top: 8px; left: 8px; width: auto; min-width: 18px; height: 18px; padding: 0 4px; transform: none;
+    border: 1px solid var(--fz-line); border-radius: 3px; background: transparent; font-size: var(--w-fs-xs); font-weight: 400; line-height: 16px; color: var(--fz-muted);
+}
+.layout-wide .kyotsu-quiz.kotu .opt .kword { font-size: 28px; font-weight: 400; }
+.layout-wide .kyotsu-quiz .opt .surface { position: absolute; top: 6px; left: 10px; font-size: 20px; line-height: 1.2; }
+.layout-wide .kyotsu-quiz.tokyo .opt .surface { font-size: var(--w-fs); }
+.layout-wide .kyotsu-quiz.kotu .opt .ksurface { position: absolute; inset: auto 0 10px; transform: none; text-align: center; font-size: 16px; color: var(--text-color); }
+.layout-wide .kyotsu-quiz.tokyo.kotu .opt .ksurface { font-size: var(--w-fs); }
+.layout-wide .kyotsu-quiz.kotu .opt .playicon, .layout-wide .kyotsu-quiz .opt .playicon { top: 8px; right: 8px; width: 18px; height: 18px; transform: none; background: none; color: var(--fz-muted); }
+.layout-wide .kyotsu-quiz .opt.pressed .badge { color: inherit; }
+
+.layout-wide .kyotsu-quiz .verdict { min-height: 24px; margin: 12px 0 0; font-size: var(--w-fs-body); line-height: 24px; }
+.layout-wide .kyotsu-quiz .reveal { height: 20px; overflow: hidden; font-size: var(--w-fs); line-height: 20px; white-space: nowrap; text-overflow: ellipsis; }
+.layout-wide .kyotsu-quiz .reveal .jp { font-size: 15px; line-height: 1; }
+.layout-wide .kyotsu-quiz .kq-main .next, .layout-wide .kyotsu-quiz.kotu .kq-main .next { min-height: var(--w-ctl); margin-top: 8px; }
+.layout-wide .kyotsu-quiz .kq-main .nextbtn {
+    display: inline-flex; align-items: center; gap: 8px; height: var(--w-ctl); padding: 0 12px; border-radius: var(--w-r);
+    font-size: var(--w-fs); color: #fff; background: var(--fz-accent); transform: none;
+}
+.layout-wide .kyotsu-quiz .kq-main .nextbtn[hidden] { display: none; }
+.layout-wide .kyotsu-quiz .nextbtn kbd { color: inherit; border-color: currentColor; opacity: 0.8; }
+.layout-wide .kyotsu-quiz .kq-main > .kyotsu-note { flex: none; max-width: calc(var(--w-measure) + 2 * var(--w-gutter)); width: 100%; margin: 0 auto; padding: 8px var(--w-gutter); font-size: var(--w-fs-sm); line-height: 1.5; }
+
+/* the inspector: figures, then Pattern Stats, then history taking what's left, End session at the foot.
+   The panels are flattened into one grid, so nothing here is a box. */
+.layout-wide .kyotsu-quiz .kq-side {
+    display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 24px;
+    grid-template-rows: auto auto auto auto minmax(96px, 1fr) auto auto;
+}
+.layout-wide .kyotsu-quiz .kq-side .panel { display: contents; }
+.layout-wide .kyotsu-quiz .kq-side .panel:first-child > .panel-h, .layout-wide .kyotsu-quiz .kq-side .panel-sep { display: none; }
+.layout-wide .kyotsu-quiz .kq-side .panel-h, .layout-wide .kyotsu-quiz .pat-head {
+    grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; min-height: var(--w-ctl); margin: 12px 0 0;
+    border-bottom: 1px solid var(--fz-line); font-size: var(--w-fs); font-weight: 700; letter-spacing: 0; text-transform: none;
+}
+.layout-wide .kyotsu-quiz .pat-head { grid-row: 2; }
+.layout-wide .kyotsu-quiz .pat-head span { font-size: var(--w-fs-sm); font-weight: 400; }
+.layout-wide .kyotsu-quiz #patRows { grid-row: 3; grid-column: 1 / -1; }
+.layout-wide .kyotsu-quiz .kq-side .panel:nth-child(2) > .panel-h { grid-row: 4; }
+.layout-wide .kyotsu-quiz .hist, .layout-wide .kyotsu-quiz .hist-empty { grid-row: 5; grid-column: 1 / -1; }
+.layout-wide .kyotsu-quiz .label-report { grid-row: 6; grid-column: 1 / -1; }
+.layout-wide .kyotsu-quiz .end-session { grid-row: 7; grid-column: 1 / -1; margin-top: 12px; }
+
+.layout-wide .kyotsu-quiz .acc-row, .layout-wide .kyotsu-quiz .kt-row { grid-row: 1; display: grid; grid-auto-flow: column; grid-template-rows: auto auto; justify-content: start; gap: 0 24px; margin: 0; }
+.layout-wide .kyotsu-quiz .ring { display: none; }
+.layout-wide .kyotsu-quiz .acc-pct, .layout-wide .kyotsu-quiz .kt-row .kt-time, .layout-wide .kyotsu-quiz .acc-frac {
+    grid-row: 1; min-width: 0; text-align: left; font-size: var(--w-fs-fig); font-weight: 700; line-height: 1.2; color: var(--text-color); font-family: inherit; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.layout-wide .kyotsu-quiz .acc-k { grid-row: 2; margin: 0; font-size: var(--w-fs-sm); color: var(--fz-muted);white-space: nowrap; }
+.layout-wide .kyotsu-quiz .acc-row .acc-pct { grid-column: 1; }
+.layout-wide .kyotsu-quiz .acc-row .acc-k { grid-column: 1; }
+.layout-wide .kyotsu-quiz .acc-row .acc-frac { grid-column: 2; }
+.layout-wide .kyotsu-quiz .acc-row::after { content: "correct"; grid-column: 2; grid-row: 2; font-size: var(--w-fs-sm); color: var(--fz-muted); }
+.layout-wide .kyotsu-quiz .kt-row { grid-column: 2; }
+.layout-wide .kyotsu-quiz .kt-row .kt-time { grid-column: 1; }
+.layout-wide .kyotsu-quiz .kt-row .acc-k { grid-column: 1; }
+.layout-wide .kyotsu-quiz .kt-row .kt-state { grid-column: 2; grid-row: 1; align-self: center; font-size: var(--w-fs-sm); }
+
+/* Pattern Stats, here and on the session page */
+.layout-wide .kyotsu-quiz .kq-pat th, .layout-wide .kyotsu-quiz .kq-pat td { padding: 0 4px; }
+.layout-wide .kyotsu-quiz .kq-pat th:first-child, .layout-wide .kyotsu-quiz .kq-pat td:first-child { padding-left: 0; }
+.layout-wide .kyotsu-quiz .kq-pat th:last-child, .layout-wide .kyotsu-quiz .kq-pat td:last-child { padding-right: 0; }
+.layout-wide .kyotsu-quiz .kq-pat th { position: static; }
+.layout-wide .kyotsu-quiz .kq-pat .kword { display: inline-block; padding-top: 5px; font-size: 13px; font-weight: 400; line-height: 1; color: var(--text-color); }
+.layout-wide .kyotsu-quiz .kq-pat td { white-space: nowrap; }
+
+/* history: rows, newest first, click or Tab + Enter to replay */
+.layout-wide .kyotsu-quiz .hist { display: block; flex-wrap: nowrap; max-height: none; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--fz-line) transparent; }
+.layout-wide .kyotsu-quiz .hist-empty { padding-top: 8px; font-size: var(--w-fs); }
+.layout-wide .kyotsu-quiz .hchip.hrow, .layout-wide .kyotsu-quiz .hchip.hrow.good, .layout-wide .kyotsu-quiz .hchip.hrow.bad {
+    display: grid; grid-template-columns: 16px minmax(72px, auto) minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; height: var(--w-row-lg); padding: 0 4px;
+    border: 0; border-bottom: 1px solid var(--fz-line); border-radius: 0; background: transparent; text-align: left; font-size: var(--w-fs); transform: none;
+}
+.layout-wide .kyotsu-quiz .hchip.hrow:hover { background: var(--w-hover); }
+.layout-wide .kyotsu-quiz .hchip.hrow:focus-visible { outline-offset: -2px; }
+.layout-wide .kyotsu-quiz .hchip.hrow .kword { display: inline-block; padding-top: 5px; font-size: 15px; font-weight: 400; line-height: 1; }
+.layout-wide .kyotsu-quiz .hmark { font-size: var(--w-fs-sm); color: var(--k-good); }
+.layout-wide .kyotsu-quiz .hrow.bad .hmark { color: var(--fz-bad); }
+.layout-wide .kyotsu-quiz .hsurf { overflow: hidden; font-size: 15px; white-space: nowrap; text-overflow: ellipsis; }
+.layout-wide .kyotsu-quiz .hpat { font-size: var(--w-fs-xs); color: var(--fz-muted); }
+
+/* End session and the report form */
+.layout-wide .kyotsu-quiz .endbtn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: var(--w-ctl); padding: 0 10px;
+    border: 1px solid var(--fz-line); border-radius: var(--w-r); background: transparent; font-size: var(--w-fs); font-weight: 400; color: var(--text-color); transform: none;
+}
+.layout-wide .kyotsu-quiz .endbtn:hover:not(:disabled) { border-color: var(--fz-accent); background: transparent; color: var(--text-color); }
+.layout-wide #endBtn::after { content: "e"; min-width: 18px; height: 18px; border: 1px solid var(--fz-line); border-radius: 3px; box-sizing: border-box; font-size: var(--w-fs-xs); line-height: 16px; text-align: center; color: var(--fz-muted); }
+.layout-wide .kyotsu-quiz .end-note { margin-top: 4px; font-size: var(--w-fs-sm); line-height: 1.4; }
+.layout-wide .kyotsu-quiz .label-report { margin: 12px 0 0; padding-top: 8px; border-top: 1px solid var(--fz-line); }
+.layout-wide .kyotsu-quiz .lr-k { margin-bottom: 4px; font-size: var(--w-fs-sm); line-height: 1.4; }
+.layout-wide .kyotsu-quiz .label-report textarea { min-height: 48px; padding: 4px 8px; border-radius: var(--w-r); font-size: var(--w-fs); background: var(--fz-surface); }
+.layout-wide .kyotsu-quiz .lr-row { margin-top: 4px; }
+.layout-wide .kyotsu-quiz .lr-send { height: var(--w-ctl-sm); padding: 0 8px; border: 1px solid var(--fz-line); border-radius: var(--w-r); background: transparent; font-size: var(--w-fs-sm); font-weight: 400; color: var(--text-color); }
+.layout-wide .kyotsu-quiz .lr-send:hover:not(:disabled) { border-color: var(--fz-accent); background: transparent; color: var(--text-color); }
+
+/* a window with room: Pattern Stats | stage | History */
+@media (min-width: 2200px) {
+    .layout-wide .kyotsu-quiz .kq-grid.w-insp { grid-template-columns: 320px minmax(0, 1fr) 360px; grid-template-rows: minmax(0, 1fr); }
+    .layout-wide .kyotsu-quiz .kq-main { grid-column: 2; grid-row: 1; border-left: 1px solid var(--fz-line); }
+    .layout-wide .kyotsu-quiz .kq-side { display: contents; }
+    .layout-wide .kyotsu-quiz .kq-side .panel { box-sizing: border-box; display: grid; min-width: 0; min-height: 0; overflow: auto; padding: 12px var(--w-gutter); background: none; border: 0; border-radius: 0; }
+    .layout-wide .kyotsu-quiz .kq-side .panel:first-child { grid-column: 1; grid-row: 1; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr) auto; gap: 0 24px; }
+    .layout-wide .kyotsu-quiz .kq-side .panel:nth-child(2) { grid-column: 3; grid-row: 1; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; border-left: 1px solid var(--fz-line); }
+    .layout-wide .kyotsu-quiz .kq-side .panel:nth-child(2) > .panel-h { grid-row: 1; margin-top: 0; }
+    .layout-wide .kyotsu-quiz .hist, .layout-wide .kyotsu-quiz .hist-empty { grid-row: 2; }
+    .layout-wide .kyotsu-quiz .label-report { grid-row: 3; }
+    .layout-wide .kyotsu-quiz .end-session { grid-row: 5; }
+}
+
+/* ---- session stats ---- */
+.layout-wide .kyotsu-quiz.ks-page { display: block; max-width: none; }
+.layout-wide .kyotsu-quiz .ks-msg { text-align: left; font-size: var(--w-fs); }
+.layout-wide .kyotsu-quiz.ks-page .panel { padding: 0; background: none; border: 0; border-radius: 0; }
+.layout-wide .kyotsu-quiz.ks-page .panel-h { margin-bottom: 8px; font-size: var(--w-fs); letter-spacing: 0; text-transform: none; }
+.layout-wide .kyotsu-quiz.ks-page .panel-sep { margin: 8px 0; }
+.layout-wide .ks-pos { font-size: var(--w-fs); color: var(--fz-muted); white-space: nowrap; }
+.layout-wide .w-bar .ks-off { opacity: 0.45; cursor: default; }
+.layout-wide .kyotsu-quiz .ks-strip { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 32px; margin: 0 0 16px; }
+.layout-wide .kyotsu-quiz .ks-strip-m { min-width: 0; flex: 1 1 320px; font-size: var(--w-fs-sm); color: var(--fz-muted); }
+.layout-wide .kyotsu-quiz .ks-meta { margin: 0; }
+.layout-wide .kyotsu-quiz .ks-track { padding: 0; border: 0; font-size: var(--w-fs-sm); line-height: 1.5; }
+.layout-wide .kyotsu-quiz .ks-track b { font-weight: 400; color: var(--text-color); }
+.layout-wide .kyotsu-quiz .ks-t td { height: var(--w-row-lg); white-space: nowrap; }
+.layout-wide .kyotsu-quiz .ks-t td:first-child, .layout-wide .kyotsu-quiz .ks-t th:first-child { width: 28px; padding: 0 4px 0 0; }
+.layout-wide .kyotsu-quiz .ks-t .kword { display: inline-block; padding-top: 6px; font-size: 16px; font-weight: 400; line-height: 1; color: var(--text-color); }
+.layout-wide .kyotsu-quiz .ks-t .jp { font-size: 15px; }
+.layout-wide .kyotsu-quiz .ks-replay { width: 24px; padding: 0; }
+.layout-wide .kyotsu-quiz .ks-replay[hidden] { display: none; }
+.layout-wide .kyotsu-quiz .ks-t-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 8px; font-size: var(--w-fs-sm); }
+.layout-wide .kyotsu-quiz .ks-t-head a { color: var(--k-accent-ink); }
+.layout-wide .kyotsu-quiz .ks-totals { justify-content: flex-start; gap: 24px; margin: 0; text-align: left; }
+.layout-wide .kyotsu-quiz .ks-totals b { font-size: var(--w-fs-fig); font-family: inherit; font-variant-numeric: tabular-nums; }
+.layout-wide .kyotsu-quiz .ks-list a { flex-wrap: nowrap; align-items: center; gap: 12px; height: var(--w-row); padding: 0 8px; border-bottom: 1px solid var(--fz-line); border-radius: 0; font-size: var(--w-fs); }
+.layout-wide .kyotsu-quiz .ks-list a:hover { background: var(--w-hover); }
+.layout-wide .kyotsu-quiz .ks-list li.cur a { background: var(--w-sel); box-shadow: inset 2px 0 0 var(--fz-accent); }
+.layout-wide .kyotsu-quiz .ks-l-m { font-size: var(--w-fs-sm); }
+.layout-wide .kyotsu-quiz .ks-more { display: inline-flex; align-items: center; height: var(--w-ctl-sm); margin: 8px 0 0; padding: 0 8px; border-radius: var(--w-r); background: transparent; font-size: var(--w-fs-sm); }
+.layout-wide .kyotsu-quiz .ks-more[hidden] { display: none; }
+.layout-wide .kyotsu-quiz .ks-spk { padding: 4px 0; }
+.layout-wide .kyotsu-quiz .ks-spk + .ks-spk { margin-top: 0; }
+.layout-wide .kyotsu-quiz .ks-spk .jp { font-size: 15px; }
+.layout-wide .kyotsu-quiz .ks-bar { height: 3px; margin-top: 4px; border-radius: 0; }
+.layout-wide .kyotsu-quiz .ks-bar span { border-radius: 0; }
+
+/* a window with room: patterns + speakers | missed words | Over time + session list */
+@media (min-width: 2200px) {
+    .layout-wide .kyotsu-quiz .ks-wide.w-insp { grid-template-columns: 380px minmax(0, 1fr) 560px; grid-template-rows: auto minmax(0, 1fr); }
+    .layout-wide .kyotsu-quiz .ks-work { display: contents; }
+    .layout-wide .kyotsu-quiz .ks-strip { grid-column: 1 / -1; grid-row: 1; margin: 0; padding: 12px var(--w-gutter); border-bottom: 1px solid var(--fz-line); }
+    .layout-wide .kyotsu-quiz .ks-side { grid-column: 1; grid-row: 2; border-left: 0; }
+    .layout-wide .kyotsu-quiz.ks-page .ks-work > .panel { box-sizing: border-box; min-width: 0; min-height: 0; overflow: auto; margin: 0; padding: 12px var(--w-gutter); border-left: 1px solid var(--fz-line); border-radius: 0; }
+    .layout-wide .kyotsu-quiz.ks-page .ks-work > .panel:nth-child(2) { grid-column: 2; grid-row: 2; }
+    .layout-wide .kyotsu-quiz.ks-page .ks-work > .panel:nth-child(3) { grid-column: 3; grid-row: 2; }
+}
+
+/* ---- Sequential Clip Review: pair table | current pair | flags and reports ---- */
+.layout-wide .kt-ctl { display: flex; align-items: center; gap: 8px; font-size: var(--w-fs); }
+.layout-wide .kt-ctl > label, .layout-wide .kt-jump label { white-space: nowrap; color: var(--fz-muted); }
+.layout-wide .kt-jump { display: flex; align-items: center; gap: 8px; margin-left: 8px; }
+.layout-wide .kt-jump input { width: 64px; }
+.layout-wide .kt-ctl select { max-width: 220px; cursor: pointer; }
+.layout-wide .kt-ctl #speakerMeta { font-size: var(--w-fs-sm); color: var(--fz-muted); white-space: nowrap; }
+@media (max-width: 1499.98px) { .layout-wide .kt-ctl #speakerMeta { display: none; } }
+
+.layout-wide .kyotsu-quiz .tw.w-panes { grid-auto-flow: row; grid-template-columns: 420px minmax(0, 1fr); }
+.layout-wide .kyotsu-quiz .tw-left { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.layout-wide .kyotsu-quiz .tw-tabs { flex: none; height: var(--w-bar); margin: 0; padding: 0 12px; border-bottom: 1px solid var(--fz-line); }
+.layout-wide .kyotsu-quiz .tw-pairs { flex: 1 1 0; display: flex; flex-direction: column; min-height: 0; }
+.layout-wide .kyotsu-quiz .tw-aside { flex: 1 1 0; min-height: 0; overflow: auto; padding: 12px var(--w-gutter); scrollbar-width: thin; scrollbar-color: var(--fz-line) transparent; }
+.layout-wide .kyotsu-quiz .tw[data-tab="pairs"] .tw-aside, .layout-wide .kyotsu-quiz .tw[data-tab="aside"] .tw-pairs { display: none; }
+.layout-wide .kyotsu-quiz .tw-filter { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; min-height: var(--w-ctl); padding: 4px 12px; font-size: var(--w-fs); border-bottom: 1px solid var(--fz-line); }
+.layout-wide .kyotsu-quiz .tw-filter label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.layout-wide .kyotsu-quiz .tw-filter #checkerWrap { width: auto !important; font-size: var(--w-fs) !important; }
+.layout-wide .kyotsu-quiz .tw-filter input { accent-color: var(--fz-accent); margin: 0; }
+.layout-wide .kyotsu-quiz .tw-filter #twCount { margin-left: auto; font-size: var(--w-fs-sm); color: var(--fz-muted); }
+.layout-wide .kyotsu-quiz .tw-scroll { flex: 1 1 0; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--fz-line) transparent; }
+.layout-wide .kyotsu-quiz .tw-table tbody tr { cursor: pointer; scroll-margin-top: var(--w-row); }
+.layout-wide .kyotsu-quiz .tw-table .jp { font-size: 15px; }
+.layout-wide .kyotsu-quiz .tw-table th:first-child, .layout-wide .kyotsu-quiz .tw-table td:first-child { width: 44px; }
+.layout-wide .kyotsu-quiz .tw-table .tw-st { color: var(--fz-bad); }
+.layout-wide .kyotsu-quiz .tw-table .tw-st.off { color: var(--fz-muted); }
+.layout-wide .kyotsu-quiz .tw-table .tw-fl { width: 72px; color: var(--fz-bad); white-space: nowrap; }
+
+.layout-wide .kyotsu-quiz .tw-stage { display: flex; flex-direction: column; padding: 0; }
+.layout-wide .kyotsu-quiz .tw-stage .card { flex: 1 0 auto; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 16px var(--w-gutter); background: none; border: 0; border-radius: 0; }
+.layout-wide .kyotsu-quiz .tw-stage .card > * { width: 100%; max-width: var(--w-measure); }
+.layout-wide .kyotsu-quiz .tw-stage .prompt #idx { margin: 0; font-size: var(--w-fs-h); font-family: inherit; }
+.layout-wide .kyotsu-quiz .tw-stage .voicechip { margin: 0; }
+.layout-wide .kyotsu-quiz .tw-stage .opt { gap: 4px; padding: 12px; border: 1px solid var(--fz-line); border-radius: var(--w-r); background: transparent; }
+.layout-wide .kyotsu-quiz .tw-stage .opt.cur { border-color: var(--fz-accent); box-shadow: inset 2px 0 0 var(--fz-accent); }
+.layout-wide .kyotsu-quiz .tw-stage .opt .surface { position: static; }
+.layout-wide .kyotsu-quiz .krow { min-height: 44px; margin-top: 4px; padding: 4px; border-radius: 0; background: none; }
+.layout-wide .kyotsu-quiz .krow .kword { font-size: 28px; font-weight: 400; color: var(--text-color); }
+.layout-wide .kyotsu-quiz .tw-stage .nextbtn, .layout-wide .kyotsu-quiz .tw-aside .nextbtn {
+    display: inline-flex; align-items: center; gap: 6px; height: var(--w-ctl); padding: 0 10px; border: 1px solid var(--fz-line); border-radius: var(--w-r);
+    font-size: var(--w-fs); font-weight: 400; color: var(--text-color); background: transparent; transform: none;
+}
+.layout-wide .kyotsu-quiz .tw-stage .nextbtn:hover, .layout-wide .kyotsu-quiz .tw-aside .nextbtn:hover { border-color: var(--fz-accent); }
+.layout-wide .kyotsu-quiz .tw-stage .nextbtn.flagged { border-color: var(--fz-bad); }
+.layout-wide .kyotsu-quiz .tw-stage > .kyotsu-note { flex: none; max-width: calc(var(--w-measure) + 2 * var(--w-gutter)); width: 100%; margin: 0 auto; padding: 8px var(--w-gutter); font-size: var(--w-fs-sm); line-height: 1.5; }
+
+.layout-wide .kyotsu-quiz .tw-aside .card { margin: 0 0 16px; padding: 0; background: none; border: 0; border-radius: 0; }
+.layout-wide .kyotsu-quiz .tw-aside .q { min-height: var(--w-ctl); margin: 0 0 8px; border-bottom: 1px solid var(--fz-line); font-size: var(--w-fs); font-weight: 700; line-height: var(--w-ctl); letter-spacing: 0; text-align: left; text-transform: none; color: var(--text-color); }
+.layout-wide .kyotsu-quiz .tw-aside .next { justify-content: flex-start; gap: 8px; margin-top: 8px; }
+.layout-wide .kyotsu-quiz .rp-head { flex-wrap: nowrap; align-items: stretch; border-bottom: 1px solid var(--fz-line); }
+.layout-wide .kyotsu-quiz .rp-head .q { flex: 1; margin: 0; border: 0; }
+.layout-wide .kyotsu-quiz .rp-filter { font-size: var(--w-fs-sm); }
+.layout-wide .kyotsu-quiz .rp-item { margin: 0; padding: 8px 0; border: 0; border-bottom: 1px solid var(--fz-line); border-radius: 0; }
+.layout-wide .kyotsu-quiz .rp-item.hl { padding-left: 8px; border-color: var(--fz-line); box-shadow: inset 2px 0 0 var(--fz-accent); background: var(--w-sel); }
+.layout-wide .kyotsu-quiz .rp-pair, .layout-wide .kyotsu-quiz .rp-body { font-size: var(--w-fs); }
+.layout-wide .kyotsu-quiz .rp-acts { gap: 4px; margin-top: 4px; }
+.layout-wide .kyotsu-quiz .rp-acts button { height: var(--w-ctl-sm); padding: 0 8px; border-radius: var(--w-r); font-size: var(--w-fs-sm); }
+
+@media (min-width: 2200px) {
+    .layout-wide .kyotsu-quiz .tw.w-panes { grid-template-columns: 420px minmax(0, 1fr) 480px; grid-template-rows: minmax(0, 1fr); }
+    .layout-wide .kyotsu-quiz .tw-left { display: contents; }
+    .layout-wide .kyotsu-quiz .tw-tabs { display: none; }
+    .layout-wide .kyotsu-quiz .tw-pairs, .layout-wide .kyotsu-quiz .tw[data-tab="aside"] .tw-pairs { display: flex; grid-column: 1; grid-row: 1; }
+    .layout-wide .kyotsu-quiz .tw-stage { grid-column: 2; grid-row: 1; border-left: 1px solid var(--fz-line); }
+    .layout-wide .kyotsu-quiz .tw-aside, .layout-wide .kyotsu-quiz .tw[data-tab="pairs"] .tw-aside { display: block; grid-column: 3; grid-row: 1; border-left: 1px solid var(--fz-line); }
+}
+
+/* ---- recording instructions: the rules at reading width beside the word list ---- */
+.layout-wide .instructions { max-width: none; margin: 0; clear: both; }
+.layout-wide .instructions.ins-panes { grid-auto-flow: row; grid-template-columns: 480px minmax(0, 1fr); }
+.layout-wide .ins-rules { font-size: var(--w-fs-body); line-height: 1.7; }
+.layout-wide .ins-rules > .ins-meta { margin: 0 0 8px; font-size: var(--w-fs-sm); color: var(--fz-muted); }
+.layout-wide .instructions h2 { margin: 16px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--fz-line); font-size: var(--w-fs); color: var(--text-color); }
+.layout-wide .ins-words > h2:first-child { margin-top: 0; }
+.layout-wide .ins-lead { margin: 0; padding: 0 0 0 12px; background: none; border: 0; border-left: 2px solid var(--fz-accent); border-radius: 0; }
+.layout-wide .ins-lead p { margin: 0 0 8px; }
+.layout-wide .ins-list { margin: 0; padding-left: 20px; }
+.layout-wide .ins-list li { margin-bottom: 4px; }
+
+/* the word list: boxes become rows, as many columns as fit a row */
+.layout-wide .ins-grid { display: block; columns: 600px; column-gap: 32px; margin: 0; }
+.layout-wide .ins-pair {
+    display: grid; grid-template-columns: 32px 88px minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 0 8px; min-height: var(--w-row-lg);
+    padding: 0; background: none; border: 0; border-bottom: 1px solid var(--fz-line); border-radius: 0; break-inside: avoid;
+}
+.layout-wide .ins-ph { display: contents; }
+.layout-wide .ins-pr { overflow: hidden; font-size: var(--w-fs); white-space: nowrap; text-overflow: ellipsis; }
+.layout-wide .ins-w { gap: 4px; min-width: 0; padding: 0; }
+.layout-wide .ins-lbl { flex: none; width: 12px; font-size: var(--w-fs-sm); }
+.layout-wide .ins-jp { font-size: 16px; line-height: 1.25; white-space: nowrap; }
+.layout-wide .ins-jp ruby rt { font-size: 10px; }
+.layout-wide .ins-ref { font-size: var(--w-fs-xs); white-space: nowrap; }

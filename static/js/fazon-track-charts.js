@@ -197,6 +197,16 @@
     });
   };
 
+  // wide: charts stand side by side under the identity strip, so they can use the height; standard
+  // keeps the charts' default. The profile page redraws on the fz-layout event.
+  function wideH() {
+    return window.FazonWide && window.FazonWide.active() ? Math.max(240, Math.min(420, Math.round(window.innerHeight * 0.36))) : undefined;
+  }
+  function onLayout(box, draw) {
+    function f() { if (box.isConnected) draw(); else document.removeEventListener("fz-layout", f); }
+    document.addEventListener("fz-layout", f);
+  }
+
   function charts(root, d, weeks, own) {
     var F = window.Fazon, el = F.el;
     // continuous week axis: first logged week → the current week (gaps = 0 h / no score)
@@ -252,7 +262,7 @@
       return out;
     }
     function draw() {
-      var o = { x: keys, xLabel: xLabel, xTitle: T.weekTitle, series: series(), fmt: function (v, tick) { return tick ? T.fmtNum(v) : T.fmtH(v); },
+      var o = { x: keys, xLabel: xLabel, xTitle: T.weekTitle, series: series(), height: wideH(), fmt: function (v, tick) { return tick ? T.fmtNum(v) : T.fmtH(v); },
         ariaLabel: "Hours per week" + (mode === "all" ? " by category" : " of " + CAT[mode].label + " by sub-category") };
       if (chart) chart.update(o); else chart = FazonCharts.columns(box, o);
     }
@@ -267,6 +277,7 @@
     });
     if (used.length < 2 && !used.some(function (c) { return weeks.some(function (w) { return w.subtotals && w.subtotals[c.id] && Object.keys(w.subtotals[c.id]).some(function (s) { return s !== "none"; }); }); })) seg.hidden = true;
     draw();
+    onLayout(box, draw);
 
     accuracy(root, d, weeks, last);
     if (own) root.appendChild(el("p", { class: "tkp-link" }, el("a", { href: "/track/", text: "Log this week's hours →" })));
@@ -325,7 +336,7 @@
         });
         o = { x: wkeys, xLabel: function (k) { return T.fmtKeyAxis(k, multiYear); }, xTitle: T.weekTitle, ariaLabel: "Weekly Kotu and Kyōtsu accuracy" };
       }
-      o.series = ser; o.yMax = 100; o.fmt = pct; o.estimateGaps = true;
+      o.series = ser; o.yMax = 100; o.fmt = pct; o.estimateGaps = true; o.height = wideH();
       if (chart) chart.update(o); else chart = FazonCharts.lines(box, o);
       // a long day-by-day run scrolls inside the chart: open on the latest days
       var sc = box.querySelector(".fc-scroll");
@@ -343,6 +354,7 @@
       seg.appendChild(btn);
     });
     draw();
+    onLayout(box, draw);
   }
 
   function summaries(root, d, sums, own) {
@@ -360,7 +372,7 @@
     }
     more.addEventListener("click", page);
     page();
-    root.append(el("div", { class: "tkp-block" }, el("div", { class: "tkp-block-h" }, el("h3", { text: "Weekly summaries" })), list,
+    root.append(el("div", { class: "tkp-block tkp-sums" }, el("div", { class: "tkp-block-h" }, el("h3", { text: "Weekly summaries" })), list,
       el("div", { class: "sm-foot" }, more)));
   }
 })();

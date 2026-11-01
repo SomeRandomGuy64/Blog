@@ -368,7 +368,14 @@
         // fixed panel under its button, right-aligned to it; phone width: 16px gutters
         var r = btn.getBoundingClientRect(), vw = document.documentElement.clientWidth;
         var top = Math.max(8, r.bottom + 8);
-        panel.style.top = top + "px";
+        if (document.documentElement.classList.contains("layout-wide")) {   // wide: beside the sidebar, level with the button
+          panel.style.left = (document.querySelector(".site-header").getBoundingClientRect().right + 8) + "px";
+          panel.style.right = "auto"; panel.style.top = "auto";
+          panel.style.bottom = Math.max(8, window.innerHeight - r.bottom) + "px";
+          panel.style.maxHeight = (window.innerHeight - 32) + "px";
+          return;
+        }
+        panel.style.top = top + "px"; panel.style.bottom = "auto";
         if (vw <= 520) { panel.style.left = "16px"; panel.style.right = "16px"; }
         else { panel.style.left = "auto"; panel.style.right = Math.max(16, vw - r.right) + "px"; }
         panel.style.maxHeight = Math.max(160, window.innerHeight - top - 16) + "px";

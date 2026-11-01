@@ -5,15 +5,14 @@
   {{ with .Content }}{{ . }}{{ end }}
 
   <div class="kyotsu-quiz">
-    <div class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
-      <label for="speakerSel" style="font-weight:600;">Speaker</label>
-      <select id="speakerSel" class="nextbtn" style="cursor:pointer;padding:6px 10px;"></select>
-      <span id="speakerMeta" class="mono" style="font-size:.8rem;opacity:.65;"></span>
-      <span style="margin-left:auto;display:flex;align-items:center;gap:6px;">
-        <label for="jumpInput" style="font-weight:600;">Go to pair</label>
-        <input id="jumpInput" type="number" min="1" inputmode="numeric" placeholder="#"
-          style="width:5em;padding:6px 8px;" />
-        <button class="nextbtn" id="jumpBtn">Go</button>
+    <div class="card kt-ctl" id="twCtl">
+      <label for="speakerSel">Speaker</label>
+      <select id="speakerSel" class="nextbtn w-input"></select>
+      <span id="speakerMeta" class="mono"></span>
+      <span class="kt-jump">
+        <label for="jumpInput">Go to pair</label>
+        <input id="jumpInput" class="w-input" type="number" min="1" inputmode="numeric" placeholder="#" />
+        <button class="nextbtn w-btn" id="jumpBtn">Go</button>
       </span>
       <label id="checkerWrap" style="display:none;align-items:center;gap:6px;width:100%;font-size:.9rem;">
         <input type="checkbox" id="checkerOnly" /> Only pairs the pitch checker flagged
@@ -21,7 +20,7 @@
       </label>
     </div>
 
-    <div class="card">
+    <div class="card" id="twStage">
       <div class="prompt">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
           <div class="reading jp" id="idx">—</div>
@@ -33,13 +32,13 @@
       <div class="options" id="options" style="margin-top:14px;"></div>
 
       <div class="next" style="display:flex;gap:10px;justify-content:space-between;margin-top:16px;">
-        <button class="nextbtn" id="prevBtn">← Prev</button>
-        <button class="nextbtn" id="replayBtn">▶ Replay both</button>
-        <button class="nextbtn" id="nextBtn">Next →</button>
+        <button class="nextbtn" id="prevBtn">← Prev<kbd class="w-only">[</kbd></button>
+        <button class="nextbtn" id="replayBtn">▶ Replay both<kbd class="w-only">Space</kbd></button>
+        <button class="nextbtn" id="nextBtn">Next →<kbd class="w-only">]</kbd></button>
       </div>
     </div>
 
-    <div class="card" style="margin-top:14px;">
+    <div class="card kt-gap" id="twFlags">
       <div class="q">Flagged as wrong</div>
       <div id="flagList" class="mono" style="font-size:.85rem;line-height:1.7;word-break:break-word;">— none yet —</div>
       <div class="next" style="margin-top:10px;">
@@ -48,19 +47,44 @@
       </div>
     </div>
 
-    <p class="kyotsu-note">
+    <p class="kyotsu-note" id="twNote">
       Plays A then B for each pair, in list order. If a clip's audio doesn't match its word/pattern,
       tap <b>Flag</b> under it. Progress is saved in this browser.<br>
       <span id="tStats"></span>Pitch: the line sits over high morae; a tick marks where the pitch drops (also after the last mora).
     </p>
 
     <!-- label reports sent from the trainer after a wrong answer (moderators/admins only) -->
-    <div class="card" id="reportsCard" style="margin-top:14px;display:none;">
+    <div class="card kt-gap" id="reportsCard" style="display:none;">
       <div class="rp-head">
         <div class="q">Label reports <span id="rpCount" class="mono" style="opacity:.65;font-weight:400;"></span></div>
         <label class="rp-filter"><input type="checkbox" id="rpResolved" /> Show resolved</label>
       </div>
       <div id="rpList"></div>
+    </div>
+
+    <!-- wide: the review as panes; the cards above move in (see arrange()). The third pane folds
+         into the left one as a tab until the window has room for it. -->
+    <div class="w-panes tw w-only" id="tw" data-tab="pairs">
+      <div class="tw-left w-pane">
+        <div class="w-tabs tw-tabs" role="tablist" aria-label="Review lists">
+          <button type="button" role="tab" data-tab="pairs" aria-selected="true">Pairs</button>
+          <button type="button" role="tab" data-tab="aside" aria-selected="false"><span id="twAsideName">Flags</span> <span class="mono" id="twFlagN"></span></button>
+        </div>
+        <div class="tw-pairs">
+          <div class="tw-filter" id="twFilter">
+            <label><input type="checkbox" id="flaggedOnly" /> Only my flags</label>
+            <span class="mono" id="twCount"></span>
+          </div>
+          <div class="tw-scroll">
+            <table class="w-table tw-table">
+              <thead><tr><th class="num">#</th><th>Reading</th><th>Status</th><th>Flag</th></tr></thead>
+              <tbody id="twRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="tw-aside" id="twAside"></div>
+      </div>
+      <div class="w-pane tw-stage" id="twMain"></div>
     </div>
   </div>
 
@@ -130,19 +154,41 @@
     const flagStore=s=>s.id==="yura"?"kyotsu-test":"kyotsu-test-"+s.id;
     let spk=SPEAKERS.find(s=>s.id===localStorage.getItem(SPK_STORE))||SPEAKERS[0];
     let flags=new Set(JSON.parse(localStorage.getItem(flagStore(spk))||"[]"));
+    const wide=()=>!!(window.FazonWide&&FazonWide.active());
     const patternFor=m=>spk.overrides[m.audio]||m.pattern;
     // F0 checker shortlist for the current speaker: clip → [heard, margin, both-clips-flagged]
     const pflags=()=>(typeof PITCH_FLAGS!=="undefined"&&PITCH_FLAGS[spk.id])||null;
     const pairFlagged=p=>{const f=pflags();return !!f&&p.members.some(m=>f[m.audio]);};
     let rows=[];                       // pairs visible for the current speaker (all recorded, or checker-flagged only)
     const buildRows=()=>{
-      const cur=rows[i]&&rows[i].n, f=pflags(), only=f&&$("#checkerOnly").checked;
-      rows=TEST.filter(p=>+p.n<=(spk.upto||308)&&(!only||pairFlagged(p)));
+      const cur=rows[i]&&rows[i].n, f=pflags(), only=f&&$("#checkerOnly").checked, mine=$("#flaggedOnly").checked;
+      const pool=TEST.filter(p=>+p.n<=(spk.upto||308)&&(!only||pairFlagged(p)));
+      rows=mine?pool.filter(p=>p.members.some(m=>flags.has(m.audio))):pool;
       $("#checkerWrap").style.display=f?"flex":"none";
       if(f) $("#checkerCount").textContent=`(${TEST.filter(pairFlagged).length} pairs)`;
       const k=rows.findIndex(p=>p.n===cur); i=k>=0?k:(i<rows.length?i:0);
+      renderPairs();
     };
-    let i=0;
+    // wide: the pair list. Status comes from the same place as the chip on the stage.
+    const statusOf=p=>(spk.blacklist&&spk.blacklist.has(p.n))?"blacklist":(spk.forceOk?"ok":p.status);
+    function renderPairs(){
+      if(!wide()) return;
+      $("#twRows").innerHTML=rows.map((p,k)=>`<tr data-k="${k}"><td class="num mono">${p.n}</td><td class="jp">${hira(p.reading)}</td><td class="tw-st"></td><td class="tw-fl"></td></tr>`).join("");
+      $("#twCount").textContent=`${rows.length} pair${rows.length===1?"":"s"}`;
+      paintPairs();
+    }
+    function paintPairs(){
+      if(!wide()) return;
+      [...$("#twRows").children].forEach(tr=>{
+        const k=+tr.dataset.k, p=rows[k], st=statusOf(p), on=k===i;
+        const mark=p.members.filter(m=>flags.has(m.audio)).map(m=>m.audio.slice(-1)).join(" ")+(pairFlagged(p)?" ⚠":"");
+        tr.children[2].textContent=st; tr.children[2].classList.toggle("off",st==="ok");
+        tr.children[3].textContent=mark;
+        if(on!==(tr.getAttribute("aria-selected")==="true")){ tr.setAttribute("aria-selected",on); if(on) tr.scrollIntoView({block:"nearest"}); }
+      });
+      $("#twFlagN").textContent=flags.size?String(flags.size):"";
+    }
+    let i=0, clip=0, clipPair="";   // clip: the one f flags in wide, A or B
     const audioEl=new Audio();
     function moras(r){const o=[];for(const c of r){if(SMALL.has(c)&&o.length)o[o.length-1]+=c;else o.push(c);}return o;}
     const hira=r=>r.replace(/[\u30A1-\u30F6]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60));
@@ -168,11 +214,13 @@
       return `<div class="mono" style="font-size:.78rem;margin-top:4px;color:var(--k-bad,#c0392b);">`+
         `⚠ pitch check: heard ${x[0]} · margin ${x[1].toFixed(1)}${x[2]?" · both clips flagged (A/B swap?)":""}</div>`;
     }
-    function show(){
+    function pickClip(k){ clip=k; document.querySelectorAll("#options .opt").forEach((o,mi)=>o.classList.toggle("cur",mi===k)); }
+    function show(quiet){
       const p=rows[i];
+      if(p.n!==clipPair){ clip=0; clipPair=p.n; }
       $("#idx").textContent=`Pair ${p.n} · ${i+1}/${rows.length}`;
       $("#reading").textContent=hira(p.reading);
-      const st=(spk.blacklist&&spk.blacklist.has(p.n))?"blacklist":(spk.forceOk?"ok":p.status);
+      const st=statusOf(p);
       const chip=$("#statusChip");
       chip.textContent=st;
       chip.parentElement.style.opacity=(st==="ok")?.5:1;
@@ -180,7 +228,7 @@
       p.members.forEach((m,mi)=>{
         const flagged=flags.has(m.audio);
         const el=document.createElement("div");
-        el.className="opt answered";el.style.cursor="default";
+        el.className="opt answered"+(mi===clip?" cur":"");el.style.cursor="default";
         const pat=patternFor(m);
         el.innerHTML=
           `<div class="surface jp" style="font-size:1.3rem">${"AB"[mi]}: ${m.surface}</div>`+
@@ -188,17 +236,19 @@
           `<div class="pat">${pat}${(spk.merged&&spk.merged.has(p.n))?' <span style="opacity:.6">(merges for him · checker pitch)</span>':(spk.personal&&spk.personal.has(m.audio))?' <span style="opacity:.6">(speaker-specific)</span>':''}</div>`+
           checkerNote(m.audio)+
           `<div style="display:flex;gap:8px;margin-top:8px;">
-             <button class="nextbtn playone" data-a="${m.audio}">▶ Play</button>
-             <button class="nextbtn flagone ${flagged?'flagged':''}" data-a="${m.audio}"
+             <button class="nextbtn playone" data-a="${m.audio}" data-i="${mi}">▶ Play<kbd class="w-only">${"ab"[mi]}</kbd></button>
+             <button class="nextbtn flagone ${flagged?'flagged':''}" data-a="${m.audio}" data-i="${mi}"
                style="${flagged?'background:var(--k-bad,#c0392b);color:#fff;':''}">${flagged?'✓ flagged':'⚑ Flag'}</button>
            </div>`;
         opts.appendChild(el);
       });
-      opts.querySelectorAll(".playone").forEach(b=>b.onclick=()=>play(b.dataset.a));
+      opts.querySelectorAll(".playone").forEach(b=>b.onclick=()=>{pickClip(+b.dataset.i);play(b.dataset.a);});
       opts.querySelectorAll(".flagone").forEach(b=>b.onclick=()=>{
-        const a=b.dataset.a; if(flags.has(a))flags.delete(a);else flags.add(a); renderFlags(); show();
+        pickClip(+b.dataset.i);
+        const a=b.dataset.a; if(flags.has(a))flags.delete(a);else flags.add(a); renderFlags(); show(true);
       });
-      playBoth(p);
+      paintPairs();
+      if(!(quiet&&wide())) playBoth(p);   // wide: flagging a clip doesn't replay the pair
     }
     $("#prevBtn").onclick=()=>{if(i>0){i--;show();}};
     $("#nextBtn").onclick=()=>{if(i<rows.length-1){i++;show();}};
@@ -211,10 +261,15 @@
       else { const j=$("#jumpInput"); j.value=""; j.placeholder="no "+num; }
     }
     $("#checkerOnly").onchange=()=>{buildRows();refreshSpeakerMeta();show();};
+    $("#flaggedOnly").onchange=e=>{
+      buildRows();
+      if(!rows.length){ e.target.checked=false; buildRows(); $("#twCount").textContent="no flags here"; return; }
+      refreshSpeakerMeta();show();
+    };
     $("#jumpBtn").onclick=()=>jumpTo($("#jumpInput").value);
     $("#jumpInput").addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault();jumpTo(e.target.value);} });
     $("#copyBtn").onclick=()=>{const t=[...flags].sort().join(", ");navigator.clipboard&&navigator.clipboard.writeText(t);$("#copyBtn").textContent="Copied!";setTimeout(()=>$("#copyBtn").textContent="Copy flagged list",1200);};
-    $("#clearBtn").onclick=()=>{if(confirm("Clear all flags?")){flags.clear();renderFlags();show();}};
+    $("#clearBtn").onclick=()=>{if(confirm("Clear all flags?")){flags.clear();$("#flaggedOnly").checked=false;buildRows();refreshSpeakerMeta();renderFlags();show();}};
     document.addEventListener("keydown",e=>{
       if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT")return;
       if(e.key==="ArrowRight")$("#nextBtn").click();
@@ -224,6 +279,7 @@
     function refreshSpeakerMeta(){
       $("#tStats").textContent=`${rows.length} pairs · ${rows.length*2} clips · ${spk.label}. `;
       $("#speakerMeta").textContent=spk.region;
+      $("#speakerSel").setAttribute("data-tip",spk.region);
     }
     function setupSpeakers(){
       const sel=$("#speakerSel");
@@ -238,6 +294,40 @@
     if(typeof TEST!=="undefined"){
       buildRows();setupSpeakers();refreshSpeakerMeta();
       renderFlags();show();
+    }
+
+    // ---- wide: panes around the same cards; each node leaves a marker so it can go home ----
+    function setTab(t){
+      $("#tw").dataset.tab=t;
+      document.querySelectorAll(".tw-tabs [data-tab]").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.tab===t)));
+    }
+    const homes=new Map();
+    function moveTo(host,...nodes){ nodes.forEach(n=>{ if(!homes.has(n)){ const m=document.createComment(""); n.before(m); homes.set(n,m); } host.append(n); }); }
+    function arrange(on){
+      if(on){
+        moveTo($("#twFilter"),$("#checkerWrap"));
+        moveTo(FazonWide.tools(),$("#twCtl"));
+        moveTo($("#twMain"),$("#twStage"),$("#twNote"));
+        moveTo($("#twAside"),$("#twFlags"),$("#reportsCard"));
+        renderPairs();
+      }else{
+        homes.forEach((m,n)=>m.after(n));
+        $("#flaggedOnly").checked=false; buildRows(); refreshSpeakerMeta();
+      }
+    }
+    if(window.FazonWide&&typeof TEST!=="undefined"){
+      document.querySelectorAll(".tw-tabs [data-tab]").forEach(b=>b.addEventListener("click",()=>setTab(b.dataset.tab)));
+      $("#twRows").addEventListener("click",e=>{ const tr=e.target.closest("tr"); if(tr){ i=+tr.dataset.k; show(); } });
+      const clipKey=k=>()=>{ pickClip(k); play(rows[i].members[k].audio); };
+      FazonWide.key("[","Previous pair",()=>$("#prevBtn").click());
+      FazonWide.key("]","Next pair",()=>$("#nextBtn").click());
+      FazonWide.key("k","Previous pair",()=>$("#prevBtn").click());
+      FazonWide.key("j","Next pair",()=>$("#nextBtn").click());
+      FazonWide.key("a","Play clip A",clipKey(0));
+      FazonWide.key("b","Play clip B",clipKey(1));
+      FazonWide.key("f","Flag the selected clip",()=>{ const b=document.querySelectorAll("#options .flagone")[clip]; if(b) b.click(); });
+      document.addEventListener("fz-layout",e=>arrange(e.detail.wide));
+      if(wide()) arrange(true);
     }
 
     // ---- label reports (trainer → API; moderators/admins see them here) ----
@@ -299,6 +389,7 @@
     }
     function focusReport(){
       hlId=reportMatch(); if(!hlId) return;
+      setTab("aside");
       renderReports();
       const n=document.getElementById("report-"+hlId); if(n) n.scrollIntoView({behavior:"smooth",block:"center"});
     }
@@ -306,6 +397,7 @@
     if(F) F.me().then(m=>{
       if(!F.isStaff(m.user)) return;
       $("#reportsCard").style.display="";
+      $("#twAsideName").textContent="Flags + reports";
       loadReports().then(focusReport);
       window.addEventListener("hashchange",()=>{ if(reportMatch()) loadReports().then(focusReport); });
     });

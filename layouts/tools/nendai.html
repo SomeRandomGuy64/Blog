@@ -1,20 +1,31 @@
 {{ define "main" }}
   <h1>{{ .Title }}</h1>
-  {{ with .Content }}{{ . }}{{ end }}
+  {{ with .Content }}<div class="w-hide">{{ . }}</div>{{ end }}
 
-  <div class="nendai">
-    <form id="nendaiForm" class="nd-form" autocomplete="off">
-      <label for="birthYear">Your birth year</label>
-      <input id="birthYear" type="number" inputmode="numeric" placeholder="e.g. 1999"
-             min="1935" max="2020" step="1" />
-      <button type="submit" id="nendaiGo">Show me</button>
-    </form>
+  {{/* Wide: rail | one list | by year (21:9). Standard ignores .w-pane and .w-panes and shows
+       the form, then every section in #nendaiOut, as it always has. */}}
+  <div class="nendai w-panes" id="nendai">
+    <div class="nd-side w-pane">
+      <form id="nendaiForm" class="nd-form" autocomplete="off">
+        <label for="birthYear">Your birth year</label>
+        <input id="birthYear" type="number" inputmode="numeric" placeholder="e.g. 1999"
+               min="1935" max="2020" step="1" />
+        <button type="submit" id="nendaiGo">Show me</button>
+      </form>
 
-    <p id="nendaiErr" class="nd-err" hidden></p>
-    <div id="nendaiOut"></div>
+      <p id="nendaiErr" class="nd-err" hidden></p>
+      <div class="w-only" id="ndRail"></div>
+      <details class="nd-about w-only">
+        <summary>About this tool</summary>
+        {{ with .Content }}{{ . }}{{ end }}
+        <div id="ndAboutSrc"></div>
+      </details>
+    </div>
+    <div id="nendaiOut" class="nd-main w-pane"></div>
+    <div id="ndYears" class="nd-years w-pane w-only"></div>
   </div>
 
-  <p style="text-align:center;margin-top:40px;">
+  <p class="w-hide" style="text-align:center;margin-top:40px;">
     <a href="{{ relURL "tools" }}">← Back to Tools</a>
   </p>
 
@@ -107,24 +118,30 @@
       return out;
     }
 
-    function ageTag(year, age) {
-      if (age < 0) return `${year} · before you were born`;
-      if (age === 0) return `${year} · the year you were born`;
-      return `${year} · you were ${age}`;
+    function agePhrase(age) {
+      if (age < 0) return "before you were born";
+      if (age === 0) return "the year you were born";
+      return `you were ${age}`;
     }
+    // "1999 · you were 5", in pieces so wide can give the year and the age a column each
+    function ageCells(year, age) {
+      return `<span class="nd-y">${year}</span><span class="w-hide"> · </span><span class="nd-a">${esc(agePhrase(age))}</span>`;
+    }
+    const HEAD = `<li class="nd-head w-only" aria-hidden="true"><span>Title</span><span></span><span>Year</span><span>Age</span></li>`;
 
     function sectionHTML(sec, birth, seen) {
       const rows = collect(sec, birth, seen);
       if (!rows.length) return "";
       const items = rows.map(r =>
-        `<li><span class="nd-lbl">${esc(r.label)}</span>` +
+        `<li data-year="${r.year}" data-age="${r.age}"><span class="nd-lbl">${esc(r.label)}</span>` +
         (r.sub ? ` <span class="nd-sub">${esc(r.sub)}</span>` : "") +
-        `<span class="nd-age">${esc(ageTag(r.year, r.age))}</span></li>`
+        `<span class="nd-age">${ageCells(r.year, r.age)}</span></li>`
       ).join("");
-      return `<section class="nd-sec">
+      const short = sec.title.split(" — ")[0].replace(" you lived through", "").replace(" of your youth", "").replace(" you grew up on", "").replace(" you grew up with", "").replace(" everyone saw", "").replace(", fashion & products", " & products");
+      return `<section class="nd-sec" data-key="${sec.key}" data-icon="${sec.icon}" data-short="${esc(short)}">
         <h2 class="nd-h2"><span class="nd-ic">${sec.icon}</span>${esc(sec.title)}</h2>
         <p class="nd-note">${esc(sec.note)}</p>
-        <ul class="nd-items">${items}</ul>
+        <ul class="nd-items">${HEAD}${items}</ul>
       </section>`;
     }
 
@@ -134,8 +151,8 @@
       const era = (YEARS[String(birth)] || {}).era;
       let html = `<div class="nd-greet">
         <div class="nd-greet-big">Born in ${birth}${era ? ` <span class="nd-era">(${esc(era)})</span>` : ""}?</div>
-        <div class="nd-greet-sub">You're ${age} in ${NOW}. Here's the Japan you grew up with —
-        the touchstones a Japanese person your age would be expected to know.</div>
+        <div class="nd-greet-sub">You're ${age} in ${NOW}.<span class="w-hide"> Here's the Japan you grew up with —
+        the touchstones a Japanese person your age would be expected to know.</span></div>
       </div>`;
 
       const seen = new Set();
@@ -151,6 +168,130 @@
 
       html += `<p class="nd-src">The events, buzzword, fashion and product lists end in 2009 and the anime list in 2019, so those sections thin out for the most recent birth years. Tokusatsu and video games are hand-curated additions.</p>`;
       out.innerHTML = html;
+      wideRender(birth, out);
+    }
+
+    // ---- wide (css/wide-tools.css): one list at a time. The rail picks a section; on a very wide
+    // window the By year pane picks a year instead, which lists that year across every section.
+    // All of it is laid over what render() wrote, which standard shows as it is. ----
+    const wide = () => !!(window.FazonWide && FazonWide.active());
+    const threePanes = window.matchMedia("(min-width: 2300px)");
+    let current = null;            // the birth year on screen
+    let secKey = null, yearSel = null;
+    const secs = () => [...$("#nendaiOut").querySelectorAll(".nd-sec:not(.nd-yearview)")];
+    const count = sec => sec.querySelectorAll("li:not(.nd-head)").length;
+
+    function wideClear() {
+      $("#ndRail").textContent = ""; $("#ndYears").textContent = ""; $("#ndAboutSrc").textContent = "";
+    }
+    function wideRender(birth, out) {
+      current = birth;
+      wideClear();
+      if (!wide()) return;
+      const rail = $("#ndRail");
+      const greet = out.querySelector(".nd-greet"), src = out.querySelector(".nd-src");
+      if (greet) rail.append(greet);
+      if (src) $("#ndAboutSrc").append(src);
+      const nav = document.createElement("nav");
+      nav.className = "nd-rail"; nav.setAttribute("aria-label", "Sections");
+      let edge = false;
+      for (const sec of secs()) {
+        sec.querySelectorAll("li:not(.nd-head)").forEach((li, i, all) => {
+          // a year's name only on its first row, so the column reads as a timeline
+          li.classList.toggle("nd-same", i > 0 && all[i - 1].dataset.year === li.dataset.year);
+        });
+        if ((sec.dataset.key === "young" || sec.dataset.key === "old") && !edge) {
+          edge = true;
+          const h = document.createElement("div"); h.className = "nd-rail-h"; h.textContent = "Just outside your years";
+          nav.append(h);
+        }
+        const b = document.createElement("button");
+        b.type = "button"; b.dataset.key = sec.dataset.key;
+        b.innerHTML = `<span>${esc(sec.dataset.short)}</span><span class="nd-n">${count(sec)}</span>`;
+        b.addEventListener("click", () => { yearSel = null; secKey = sec.dataset.key; paint(); });
+        nav.append(b);
+      }
+      rail.append(nav);
+      buildYears(birth);
+      if (yearSel != null && !yearRows(yearSel).length) yearSel = null;
+      paint();
+    }
+
+    function yearRows(year) {
+      return secs().flatMap(sec => [...sec.querySelectorAll(`li[data-year="${year}"]`)].map(li => ({ sec, li })));
+    }
+
+    function buildYears(birth) {
+      const box = $("#ndYears"), tally = new Map();
+      for (const sec of secs())
+        sec.querySelectorAll("li:not(.nd-head)").forEach(li => {
+          const t = tally.get(li.dataset.year) || { age: +li.dataset.age, n: 0 };
+          t.n++; tally.set(li.dataset.year, t);
+        });
+      if (!tally.size) return;
+      const h = document.createElement("h2"); h.className = "nd-years-h"; h.textContent = "By year";
+      const list = document.createElement("div"); list.className = "nd-rail";
+      [...tally.keys()].sort().forEach(y => {
+        const b = document.createElement("button"), t = tally.get(y);
+        b.type = "button"; b.dataset.year = y;
+        b.innerHTML = `<span class="nd-yy">${y}</span><span class="nd-ya">${t.age < 0 ? "" : esc(t.age === 0 ? "born" : "age " + t.age)}</span><span class="nd-n">${t.n}</span>`;
+        b.addEventListener("click", () => { yearSel = yearSel === y ? null : y; paint(); });
+        list.append(b);
+      });
+      box.append(h, list);
+    }
+
+    function paint() {
+      const all = secs(), out = $("#nendaiOut");
+      if (!all.length) return;
+      if (!threePanes.matches) yearSel = null;
+      const active = all.find(x => x.dataset.key === secKey) || all[0];
+      secKey = active.dataset.key;
+      all.forEach(x => x.classList.toggle("nd-active", yearSel == null && x === active));
+      out.querySelector(".nd-yearview")?.remove();
+      document.querySelectorAll("#ndRail .nd-rail button").forEach(b => b.setAttribute("aria-pressed", String(yearSel == null && b.dataset.key === secKey)));
+      document.querySelectorAll("#ndYears button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.year === yearSel)));
+      if (yearSel != null) {
+        const rows = yearRows(yearSel), view = document.createElement("section");
+        view.className = "nd-sec nd-yearview nd-active";
+        const age = +rows[0].li.dataset.age;
+        view.innerHTML = `<h2 class="nd-h2">${yearSel}</h2><p class="nd-note">${esc(agePhrase(age).replace(/^./, c => c.toUpperCase()))}. Everything from every section.</p>`;
+        const ul = document.createElement("ul"); ul.className = "nd-items";
+        ul.insertAdjacentHTML("beforeend", `<li class="nd-head" aria-hidden="true"><span>Title</span><span></span><span>Section</span></li>`);
+        rows.forEach(({ sec, li }) => {
+          const c = li.cloneNode(true); c.classList.remove("nd-same");
+          c.querySelector(".nd-age").innerHTML = `<span class="nd-y">${esc(sec.dataset.short)}</span>`;
+          ul.append(c);
+        });
+        view.append(ul);
+        out.prepend(view);
+      }
+      out.scrollTop = 0;
+    }
+
+    function stepSection(by) {
+      const all = secs(); if (!all.length) return;
+      const i = all.findIndex(x => x.dataset.key === secKey);
+      yearSel = null;
+      secKey = all[Math.min(all.length - 1, Math.max(0, i + by))].dataset.key;
+      paint();
+    }
+    function stepYear(by) {
+      if (!threePanes.matches) return;
+      const ys = [...document.querySelectorAll("#ndYears button")].map(b => b.dataset.year);
+      if (!ys.length) return;
+      const i = ys.indexOf(yearSel);
+      yearSel = ys[i < 0 ? (by > 0 ? 0 : ys.length - 1) : Math.min(ys.length - 1, Math.max(0, i + by))];
+      paint();
+    }
+    document.addEventListener("fz-layout", () => { if (current != null) render(current); });
+    threePanes.addEventListener("change", () => { if (wide()) paint(); });
+    if (window.FazonWide) {
+      FazonWide.key("j", "Next section", () => stepSection(1));
+      FazonWide.key("k", "Previous section", () => stepSection(-1));
+      FazonWide.key("/", "Birth year", () => { const i = $("#birthYear"); i.focus(); i.select(); });
+      FazonWide.key("]", "Next year (very wide windows)", () => stepYear(1));
+      FazonWide.key("[", "Previous year (very wide windows)", () => stepYear(-1));
     }
 
     function submit(e) {
@@ -160,7 +301,7 @@
       err.hidden = true;
       if (!v || v < 1935 || v > 2020) {
         err.textContent = "Enter a birth year between 1935 and 2020.";
-        err.hidden = false; $("#nendaiOut").innerHTML = ""; return;
+        err.hidden = false; $("#nendaiOut").innerHTML = ""; current = null; wideClear(); return;
       }
       localStorage.setItem(STORE, String(v));
       render(v);

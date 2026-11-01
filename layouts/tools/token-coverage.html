@@ -1,11 +1,14 @@
 {{ define "main" }}
   <h1>{{ .Title }}</h1>
-  {{ with .Content }}{{ . }}{{ end }}
+  {{ with .Content }}<div class="w-hide">{{ . }}</div>{{ end }}
 
-  <div class="tc" id="tc">
+  {{/* Wide: the setup steps in a left pane, the result beside them. Standard ignores these
+       panes and .tc-setup, and the .w-only bits don't show. */}}
+  <div class="tc w-panes" id="tc">
+    <div class="tc-setup w-pane">
     <!-- 1 · connect -->
     <section class="tc-step" id="tcStepConnect">
-      <h2 class="tc-h2"><span class="tc-num">1</span> Connect to Anki</h2>
+      <h2 class="tc-h2"><span class="tc-num">1</span> <span class="tc-name">Connect to Anki</span><span class="tc-sum w-only"></span><button type="button" class="w-btn sm tc-edit w-only">Edit</button></h2>
       <details class="tc-help">
         <summary>What you need</summary>
         <ul>
@@ -34,7 +37,7 @@
 
     <!-- 2 · what you know -->
     <section class="tc-step" id="tcStepKnown" hidden>
-      <h2 class="tc-h2"><span class="tc-num">2</span> Your known words</h2>
+      <h2 class="tc-h2"><span class="tc-num">2</span> <span class="tc-name">Your known words</span><span class="tc-sum w-only"></span><button type="button" class="w-btn sm tc-edit w-only">Edit</button></h2>
       <p class="tc-note">Mirror your AnkiMorphs <em>note filters</em>: which note type and field hold the Japanese
         you study. A word counts as <strong>learned</strong> once any card containing it has been studied,
         and as <strong>mature</strong> once one has an interval of 21+ days (adjustable below).</p>
@@ -76,7 +79,7 @@
 
     <!-- 3 · the media -->
     <section class="tc-step" id="tcStepMedia" hidden>
-      <h2 class="tc-h2"><span class="tc-num">3</span> The video</h2>
+      <h2 class="tc-h2"><span class="tc-num">3</span> <span class="tc-name">The video</span><span class="tc-sum w-only"></span><button type="button" class="w-btn sm tc-edit w-only">Edit</button></h2>
       <div class="tc-row">
         <label class="tc-field"><span>Japanese subtitles <span class="tc-opt">(.srt, .vtt or .json — used for coverage)</span></span>
           <input id="tcSubs" type="file" accept=".srt,.vtt,.json,application/json,text/plain">
@@ -99,8 +102,14 @@
       <p class="tc-status" id="tcMediaStatus" role="status"></p>
     </section>
 
+    <details class="tc-about w-only">
+      <summary>About this tool</summary>
+      {{ with .Content }}{{ . }}{{ end }}
+    </details>
+    </div>
+
     <!-- results -->
-    <section id="tcResults" hidden>
+    <section id="tcResults" class="w-pane" hidden>
       <div class="tc-tiles" id="tcTiles"></div>
 
       <div class="tc-player" id="tcPlayerWrap" hidden>
@@ -186,16 +195,19 @@
           <button type="button" class="tc-btn tc-btn-ghost tc-btn-sm" id="tcCsvOut">Download CSV</button>
         </div>
         <p class="tc-note">Ranked by how often they're said — learning the top few lifts your coverage the most.</p>
-        <table class="tc-table">
+        <table class="tc-table w-table">
           <thead><tr><th>#</th><th>Word</th><th>Reading</th><th class="tc-r">Times</th><th class="tc-r">Coverage gain</th><th class="tc-r">First said</th></tr></thead>
           <tbody id="tcUnkBody"></tbody>
         </table>
         <button type="button" class="tc-btn tc-btn-ghost tc-btn-sm" id="tcUnkMore" hidden>Show all</button>
       </div>
     </section>
+    <div class="tc-empty w-pane w-only">
+      <p class="w-empty">Your coverage shows up here once the steps on the left are done.</p>
+    </div>
   </div>
 
-  <p style="text-align:center;margin-top:40px;">
+  <p class="w-hide" style="text-align:center;margin-top:40px;">
     <a href="{{ relURL "tools" }}">← Back to Tools</a>
   </p>
 

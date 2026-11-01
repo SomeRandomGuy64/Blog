@@ -7,7 +7,12 @@
   (function(){
     const F=window.Fazon, el=F.el, box=document.getElementById("notifBox");
     const LIMIT=30;
-    let list, moreBtn, allBtn, lastId=null, unread=0;
+    let list, moreBtn, allBtn, tools, lastId=null, unread=0;
+    // wide: the tools sit in the page bar; the All | Unread switch only exists there
+    const wide=()=>!!(window.FazonWide&&FazonWide.active());
+    const place=()=>{ if(!tools) return; if(wide()) FazonWide.tools().append(tools); else box.prepend(tools); };
+    document.addEventListener("fz-layout",place);
+    const markUnreadGone=a=>{ a.classList.remove("unread"); const u=a.querySelector(".notif-u"); if(u) u.remove(); };
 
     function setUnread(n){ unread=n; F.setUnread(n); allBtn.disabled=n<=0; }
     const href=F.notifHref;
@@ -18,12 +23,13 @@
         el("div",{class:"notif-line"},
           el("b",{text:F.notifActor(n)})," ",F.notifVerb(n)," ",
           el("b",{text:n.page_title||n.page||"a page"})),
-        n.snippet?el("div",{class:"notif-snip",text:"“"+n.snippet+"”"}):null,
-        el("div",{class:"notif-meta"},F.timeEl(n.created),n.read?"":" · unread")));
+        n.snippet?el("div",{class:"notif-snip","data-tip":n.snippet,text:"“"+n.snippet+"”"}):null,
+        el("div",{class:"notif-meta"},F.timeEl(n.created),n.read?"":el("span",{class:"notif-u",text:" · unread"}))));
+      a._n=n;
       a.addEventListener("click",e=>{
         if(n.read||e.ctrlKey||e.metaKey||e.shiftKey||e.button!==0) return;
         e.preventDefault();
-        n.read=true; a.classList.remove("unread");
+        n.read=true; markUnreadGone(a);
         const go=()=>{ location.href=a.href; };
         F.api("/v1/notifications/read",{method:"POST",body:{ids:[n.id]},keepalive:true})
           .then(d=>{ if(d&&typeof d.unread==="number") F.setUnread(d.unread); },()=>{}).then(go);
@@ -57,15 +63,39 @@
       allBtn.addEventListener("click",()=>{
         allBtn.disabled=true;
         F.api("/v1/notifications/read",{method:"POST",body:{all:true}}).then(d=>{
-          list.querySelectorAll(".notif.unread").forEach(a=>{ a.classList.remove("unread");
-            const meta=a.querySelector(".notif-meta"); if(meta&&meta.lastChild&&meta.lastChild.nodeType===3) meta.lastChild.remove(); });
+          list.querySelectorAll(".notif.unread").forEach(a=>{ a._n.read=true; markUnreadGone(a); });
           setUnread(d&&typeof d.unread==="number"?d.unread:0);
         },()=>{ allBtn.disabled=false; });
       });
       list=el("ul",{class:"notif-list"});
       moreBtn=el("button",{class:"fz-btn",type:"button",text:"Load more",hidden:true});
       moreBtn.addEventListener("click",load);
-      box.append(el("div",{class:"notif-tools"},allBtn),list,el("div",{class:"notif-more"},moreBtn));
+      const none=el("p",{class:"w-empty w-only notif-none",text:"Nothing unread."});
+      const seg=el("div",{class:"w-seg w-only",role:"group","aria-label":"Show"});
+      [["All",false],["Unread",true]].forEach(([t,on])=>{
+        const b=el("button",{type:"button",text:t,"aria-pressed":String(!on)});
+        b.addEventListener("click",()=>{
+          list.classList.toggle("notif-only-unread",on);
+          [...seg.children].forEach(x=>x.setAttribute("aria-pressed",String(x===b)));
+        });
+        seg.append(b);
+      });
+      tools=el("div",{class:"notif-tools"},seg,allBtn);
+      box.append(tools,list,none,el("div",{class:"notif-more"},moreBtn));
+      place();
+      // keys: a row is "selected" by having focus, so Enter just follows the link
+      const rows=()=>[...list.querySelectorAll(".notif")].filter(a=>a.offsetParent);
+      const step=by=>{ const r=rows(), i=r.indexOf(document.activeElement); const n=r[i<0?0:Math.max(0,Math.min(r.length-1,i+by))]; if(n) n.focus(); };
+      if(window.FazonWide){
+        FazonWide.key("j","Next notification",()=>step(1));
+        FazonWide.key("k","Previous notification",()=>step(-1));
+        FazonWide.key("Enter","Open it",()=>{ const t=document.activeElement; if(t&&t.closest("a, button")) t.click(); });
+        FazonWide.key("x","Mark it read",()=>{
+          const a=document.activeElement; if(!a||!a._n||a._n.read) return;
+          a._n.read=true; markUnreadGone(a);
+          F.api("/v1/notifications/read",{method:"POST",body:{ids:[a._n.id]}}).then(d=>{ if(d&&typeof d.unread==="number") setUnread(d.unread); },()=>{});
+        });
+      }
       load();
     });
   })();

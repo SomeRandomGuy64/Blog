@@ -5,12 +5,12 @@
   {{ with .Content }}{{ . }}{{ end }}
 
   <div class="kyotsu-quiz" id="quiz">
-    <div class="layout-toggle mode-toggle" id="modeToggle" role="group" aria-label="Pitch" hidden>
+    <div class="layout-toggle mode-toggle w-seg" id="modeToggle" role="group" aria-label="Pitch" hidden>
       <span class="lt-k">Pitch</span>
       <button type="button" data-mode="keihan">Keihan</button>
       <button type="button" data-mode="tokyo">Tokyo <span class="jp">標準語</span></button>
     </div>
-    <div class="layout-toggle" role="group" aria-label="Test layout">
+    <div class="layout-toggle w-seg" id="layoutToggle" role="group" aria-label="Test layout">
       <span class="lt-k">Layout</span>
       <button type="button" data-layout="kotu">Kotu-style</button>
       <button type="button" data-layout="classic">Pitch Graph</button>
@@ -20,9 +20,12 @@
       <span class="listen-k">Advanced Mode<small>One listen per word, no replays</small></span>
       <input type="checkbox" class="sw-in" id="listenMode"><span class="sw" aria-hidden="true"></span>
     </label>
+    <!-- wide: the bar's settings menu; the Pause switches move into it -->
+    <button type="button" class="w-btn w-only" id="kqSetBtn" popovertarget="kqSet">Settings</button>
+    <div class="kq-pop w-only" id="kqSet" popover aria-label="Settings"></div>
 
-    <div class="kq-grid">
-    <div class="kq-main">
+    <div class="kq-grid w-panes w-insp">
+    <div class="kq-main w-pane">
     <div class="card">
       <div class="kotu-label">Prompt</div>
       <div class="prompt">
@@ -31,7 +34,7 @@
         <div class="voicechip"><span class="dot"></span><span id="voiceName">—</span></div>
       </div>
       <div class="play">
-        <button class="playbtn" id="playBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span class="for-classic">Play word</span><span class="for-kotu">Replay Audio</span></button>
+        <button class="playbtn" id="playBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span class="for-classic">Play word</span><span class="for-kotu">Replay Audio</span><kbd class="w-only">Space</kbd></button>
       </div>
 
       <div class="q" id="qText">Tap the word you heard</div>
@@ -41,7 +44,7 @@
 
       <div class="verdict" id="verdict"></div>
       <div class="reveal" id="reveal"></div>
-      <div class="next"><button class="nextbtn" id="nextBtn" hidden>Next word →</button></div>
+      <div class="next"><button class="nextbtn" id="nextBtn" hidden>Next word →<kbd class="w-only">Enter</kbd></button></div>
       <form class="label-report" id="labelReport" hidden>
         <label class="lr-k" for="lrBody">Think these words or pitches are labelled wrong? Tell me what you heard.</label>
         <textarea id="lrBody" rows="2" maxlength="1000" placeholder="e.g. the first one sounds HLLL to me, not LHLL"></textarea>
@@ -55,12 +58,12 @@
     </div>
 
     <p class="kyotsu-note">
-      <span id="replayNote">After you answer, tap either word to replay it.</span><br>
+      <span class="w-hide" id="replayNote">After you answer, tap either word to replay it.</span><span class="w-only">After you answer, click a word or press its number to replay it.</span><br>
       <span id="qStats"></span><span id="pitchNote">Keihan pitch.</span> <span class="for-classic">Pitch shown high/low per mora, ˺ marks a downstep.</span><span class="for-kotu">The line sits over high morae; a tick marks where the pitch drops (also after the last mora). <span id="keysNote">Keys 1/2</span> pick a row.</span>
     </p>
     </div>
 
-    <aside class="kq-side">
+    <aside class="kq-side w-pane">
       <section class="panel">
         <div class="panel-h">Statistics</div>
         <div class="acc-row">
@@ -399,6 +402,16 @@
       });
     }
     const pct=(c,t)=>t?Math.round(c/t*100):0;
+    const wide=()=>!!(window.FazonWide&&FazonWide.active());
+    // wide: Pattern Stats as a table (the Japanese names are on the row's tooltip), history as rows
+    function patTable(){
+      return `<table class="w-table kq-pat"><thead><tr><th>Pattern</th><th>Shape</th><th class="num">Right</th><th class="num">%</th></tr></thead><tbody>`+
+        shownCats.map(c=>{ const r=stats.cats[c.id]||{c:0,t:0};
+          return `<tr data-tip="${esc(c.jp)}"><td>${esc(c.en)}</td><td>${overline("◯".repeat(c.eg.replace(/[↘↓]/g,"").length),c.eg)}</td>`+
+            `<td class="num">${r.c}/${r.t}</td><td class="num">${r.t?pct(r.c,r.t):"—"}</td></tr>`; }).join("")+`</tbody></table>`;
+    }
+    const histRow=(h,i)=>`<button type="button" class="hchip hrow ${h.ok?"good":"bad"}" data-i="${i}" aria-label="Replay ${esc(h.surface)}, ${h.ok?"right":"wrong"}">`+
+      `<span class="hmark" aria-hidden="true">${h.ok?"✓":"✗"}</span>${overline(h.reading,h.pat,h.dv)}<span class="hsurf jp">${esc(h.surface)}</span><span class="hpat mono">${esc(h.pat)}</span></button>`;
     function renderStats(){
       const st=stats;
       $("#accFrac").textContent=`${st.correct} / ${st.total}`;
@@ -407,10 +420,11 @@
       $("#accRing").style.strokeDasharray=`${circ*st.correct/(st.total||1)} ${circ}`;
       $("#kAnswered").textContent=st.total;
       $("#patTotal").textContent=`${st.correct} of ${st.total} (${pct(st.correct,st.total)}%)`;
-      $("#patRows").innerHTML=shownCats.map(c=>{ const r=st.cats[c.id]||{c:0,t:0};
+      const w=wide();
+      $("#patRows").innerHTML=w?patTable():shownCats.map(c=>{ const r=st.cats[c.id]||{c:0,t:0};
         return `<div class="pat-row"><div><div class="pat-k">${c.en} <span class="jp">${c.jp}</span></div>${overline("◯".repeat(c.eg.replace(/[↘↓]/g,"").length),c.eg)}</div>`+
           `<span class="pat-n">${r.c} of ${r.t} (${pct(r.c,r.t)}%)</span></div>`; }).join("");
-      $("#hist").innerHTML=st.hist.map((h,i)=>`<button type="button" class="hchip ${h.ok?"good":"bad"}" data-i="${i}" title="${esc(h.surface)} · ${esc(h.pat)}">${overline(h.reading,h.pat,h.dv)}</button>`).join("");
+      $("#hist").innerHTML=st.hist.map((h,i)=>w?histRow(h,i):`<button type="button" class="hchip ${h.ok?"good":"bad"}" data-i="${i}" title="${esc(h.surface)} · ${esc(h.pat)}">${overline(h.reading,h.pat,h.dv)}</button>`).join("");
       $("#histEmpty").hidden=st.hist.length>0;
       if(!saving) $("#endBtn").disabled=session.answers.length===0;
     }
@@ -576,7 +590,7 @@
 
     // Kotu-style: number keys pick (or, once answered, replay) the row with that badge
     document.addEventListener("keydown",e=>{
-      if(layout!=="kotu"||!cur||cur.skipping||e.ctrlKey||e.metaKey||e.altKey) return;
+      if((layout!=="kotu"&&!wide())||!cur||cur.skipping||e.ctrlKey||e.metaKey||e.altKey||(e.repeat&&wide())) return;
       if(e.target.closest&&e.target.closest("textarea,input,select")) return;
       const n=+e.key; if(!(n>=1&&n<=cur.order.length)) return;
       const mi=cur.order[n-1];
@@ -610,6 +624,37 @@
             note.classList.add("err");
             note.textContent=(e.status===401?"You've been logged out — log in again in another tab, then retry. ":"Couldn't save the session: "+e.message+" ")+"Your answers are still here."; });
     });
+
+    // ---- wide: the same controls, in other places. Each node leaves a marker so it can go home
+    // when wide turns off; no logic forks, the listeners above stay on the nodes. ----
+    const homes=new Map();
+    function moveTo(host,...nodes){ nodes.forEach(n=>{ if(!homes.has(n)){ const m=document.createComment(""); n.before(m); homes.set(n,m); } host.append(n); }); }
+    function arrange(on){
+      if(on){
+        moveTo(FazonWide.tools(),$("#modeToggle"),$("#layoutToggle"),$("#listenBar"),$("#kqSetBtn"));
+        moveTo($("#kqSet"),$(".kq-side .settings"));
+        moveTo($("#hist").parentNode,$("#labelReport"));
+      }else{
+        const pop=$("#kqSet"); if(pop.hidePopover&&pop.matches(":popover-open")) pop.hidePopover();
+        homes.forEach((m,n)=>m.after(n));
+      }
+    }
+    if(window.FazonWide){
+      // a focused control keeps its own Space and Enter; otherwise they drive the question
+      const focused=()=>{ const a=document.activeElement; return a&&a.matches("button:not(:disabled),a[href],summary")?a:null; };
+      FazonWide.key(" ","Replay the word",e=>{ if(e.repeat) return; const a=focused(); (a&&a.id!=="nextBtn"?a:$("#playBtn")).click(); });
+      FazonWide.key("Enter","Next word",e=>{ if(e.repeat) return; const a=focused(); if(a) a.click(); else if(!$("#nextBtn").hidden) $("#nextBtn").click(); });
+      FazonWide.key("1","Pick option 1, or replay it after answering",()=>{});   // the number-key handler above does the work
+      FazonWide.key("2","Pick option 2, or replay it after answering",()=>{});
+      FazonWide.key("e","End session",()=>{ if(!$("#endSession").hidden) $("#endBtn").click(); });
+      // a mouse click shouldn't leave focus on a control, or the keys above would act on it
+      document.addEventListener("click",e=>{
+        if(!wide()||!e.detail||!e.target.closest||!e.target.closest("button,label")||e.target.closest("form")) return;
+        setTimeout(()=>{ const a=document.activeElement; if(a&&a.id!=="nextBtn"&&a.matches("button,input[type=checkbox]")) a.blur(); },0);
+      });
+      document.addEventListener("fz-layout",e=>{ arrange(e.detail.wide); renderStats(); });
+      if(wide()) arrange(true);
+    }
     setLayout(layout);
     timerPoke();   // the session (and its clock) starts with the page
     paintMode(mode); paintTexts();

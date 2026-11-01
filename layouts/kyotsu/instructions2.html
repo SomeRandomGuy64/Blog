@@ -3,7 +3,8 @@
   <div class="kyotsu-wordmark jp">京ツ</div>
   <h1>{{ .Title }}</h1>
 
-  <div class="instructions">
+  <div class="instructions w-panes ins-panes">
+    <div class="ins-rules w-pane">
     <p class="ins-meta">追加 209 ペア（418 語）・使用漢字 計 777 字</p>
 
     <div class="ins-lead">
@@ -37,7 +38,10 @@
       <li>ひとつの音声ファイルに<strong>続けて録音</strong>していただいて構いません（切り出しはこちらで行います）。</li>
     </ol>
 
+    </div>
+    <div class="ins-words w-pane">
     <h2>語彙リスト（追加 209 ペア）</h2>
     {{ partial "instructions_list_2.html" . }}
+    </div>
   </div>
 {{ end }}

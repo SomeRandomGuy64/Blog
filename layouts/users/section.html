@@ -27,6 +27,7 @@
         nameH.textContent="";
         nameH.append(el("span",{text:u.name}));
         if(u.admin) nameH.append(el("span",{class:"cmt-tag",text:"author"}));
+        const bar=document.getElementById("wBarTitle"); if(bar) bar.textContent=u.name;   // wide's page bar
       }
       paintName();
       document.title=u.name+" · Fazon Nexus";
@@ -56,9 +57,11 @@
       }
       paintBio();
       const id=el("div",{class:"pf-id"},nameH,el("div",{class:"pf-joined fz-muted",text:"Joined "+fmtDate(p.joined)}),bioBox);
-      const top=el("div",{class:"pf-top"},el("div",{class:"pf-avwrap"},F.avatar(u,120,{link:false,card:false})),id);
+      const avw=el("div",{class:"pf-avwrap"});
+      const top=el("div",{class:"pf-top"},avw,id);
       const cropSlot=el("div");
       const box=el("section",{class:"pf-card"},top,levelBox,stats,cropSlot,err);
+      paintAvatar=()=>avw.replaceChildren(F.avatar(u,wideOn()?48:120,{link:false,card:false}));   // its ring is drawn for its size
 
       if(own){
         const file=el("input",{type:"file",accept:"image/jpeg,image/png,image/webp,image/gif",class:"pf-file",tabindex:"-1","aria-hidden":"true"});
@@ -252,6 +255,45 @@
       return det;
     }
 
+    // Wide: the same nodes in panes (identity, charts, an inspector with tabs), so a switch keeps
+    // anything half-edited. Standard's order is restored from the parts.
+    let parts=null, tab=null, paintAvatar=()=>{};
+    const wideOn=()=>!!(window.FazonWide&&FazonWide.active());
+    function arrange(){
+      if(!parts) return;
+      paintAvatar();
+      const {card,track,recent,levels,dev,acc}=parts, sums=track.querySelector(".tkp-sums")||parts.sums||null;
+      parts.sums=sums;
+      if(!wideOn()){
+        root.replaceChildren(card,track,recent,levels);
+        if(sums&&sums.parentNode!==track) track.appendChild(sums);
+        if(dev) root.append(dev);
+        if(acc) root.append(acc);
+        return;
+      }
+      const hasAcct=!!(dev||acc), want=location.hash==="#developers"||location.hash==="#account";
+      if(want&&hasAcct&&!tab) tab="account";
+      const pages=[{id:"activity",label:"Activity",kids:[recent]}];
+      if(sums) pages.push({id:"summaries",label:"Summaries",kids:[sums]});
+      if(hasAcct) pages.push({id:"account",label:"Account",kids:[dev,acc]});
+      if(!pages.some(g=>g.id===tab)) tab="activity";
+      const bar=el("div",{class:"w-tabs pf-tabs",role:"tablist","aria-label":"Profile"});
+      const boxes=pages.map(g=>{
+        const on=g.id===tab, b=el("div",{class:"pf-page",role:"tabpanel",hidden:!on});
+        g.kids.forEach(k=>{ if(k) b.append(k); });
+        bar.append(el("button",{type:"button",role:"tab","aria-selected":String(on),text:g.label,
+          onclick:()=>{ tab=g.id; arrange(); const t=root.querySelector('.pf-tabs [aria-selected="true"]'); if(t) t.focus(); }}));
+        return b;
+      });
+      const empty=track.hidden?el("p",{class:"w-empty",text:"Nothing tracked here yet."}):null;
+      root.replaceChildren(el("div",{class:"w-panes w-insp pf-panes"},
+        el("div",{class:"w-pane pf-idp"},card,levels),
+        el("div",{class:"w-pane pf-charts"},track,empty),
+        el("div",{class:"w-pane pf-insp"},bar,...boxes)));
+      if(want&&tab==="account"){ const t=document.querySelector(location.hash); if(t) t.scrollIntoView({block:"start"}); }
+    }
+    document.addEventListener("fz-layout",arrange);
+
     let own=false;
     function load(){
       return Promise.all([F.me(),F.api("/v1/users/"+ID)]).then(([m,p])=>{
@@ -259,12 +301,15 @@
         root.textContent="";
         // Track charts + summaries (js/fazon-track-charts.js); stays hidden if they hid their track
         const track=el("section",{class:"pf-sec pf-track",hidden:true});
-        root.append(card(p,own),track,recent(p),levelsBox(p.user));
-        if(window.FazonTrack&&FazonTrack.renderProfile) FazonTrack.renderProfile(track,p.user.id);
+        parts={card:card(p,own),track,recent:recent(p),levels:levelsBox(p.user),dev:null,acc:null};
+        root.append(parts.card,track,parts.recent,parts.levels);
+        arrange();
+        if(window.FazonTrack&&FazonTrack.renderProfile) FazonTrack.renderProfile(track,p.user.id).then(arrange);
         // Developers: personal API keys (js/fazon-devkeys.js), on your own profile only
-        if(own&&window.FazonDevKeys){ const dev=el("section",{class:"pf-sec dk",id:"developers"}); root.append(dev); FazonDevKeys.render(dev); }
+        if(own&&window.FazonDevKeys){ const dev=parts.dev=el("section",{class:"pf-sec dk",id:"developers"}); root.append(dev); FazonDevKeys.render(dev); }
         // Your data: export + delete account (js/fazon-account.js), on your own profile only
-        if(own&&window.FazonAccount){ const acc=el("section",{class:"pf-sec acc",id:"account"}); root.append(acc); FazonAccount.render(acc,m.user); }
+        if(own&&window.FazonAccount){ const acc=parts.acc=el("section",{class:"pf-sec acc",id:"account"}); root.append(acc); FazonAccount.render(acc,m.user); }
+        arrange();
       },e=>{
         if(e.status===404) msg("There's no user with that id.");
         else msg(e.message);

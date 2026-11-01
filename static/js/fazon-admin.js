@@ -11,6 +11,12 @@
   if (!F || !root) return;
   var ROLES = { user: "User", moderator: "Moderator", admin: "Admin" };
   var PAGE = 50;
+  // Wide lays the same rows and controls out as one table with the search in the page bar; the
+  // choice is made in row() and init(), and the whole list is rebuilt when wide flips.
+  var isWide = function () { return !!(window.FazonWide && FazonWide.active()); };
+  var insp3 = window.matchMedia("(min-width: 2300px)");
+  var keep = { q: "", selId: 0 };
+  var cur = null;
   var fmtDate = function (iso) {
     var d = new Date(iso);
     return isNaN(d) ? "" : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
@@ -25,21 +31,50 @@
     if (m.offline) msg("Couldn't reach the server. Try again in a moment.");
     else if (!m.user) msg(el("a", { href: F.loginHref(), text: "Log in" }), " to see this page.");
     else if (!F.isStaff(m.user)) msg(el("b", { text: "Not allowed." }), " This page is for moderators and admins.");
-    else init(m.user);
+    else {
+      init(m.user);
+      document.addEventListener("fz-layout", function () { init(m.user); });
+    }
   });
+  if (window.FazonWide) {
+    FazonWide.key("/", "Search users", function () { if (cur && cur.search) { cur.search.focus(); cur.search.select(); } });
+    FazonWide.key("j", "Next user", function () { if (cur && cur.step) cur.step(1); });
+    FazonWide.key("k", "Previous user", function () { if (cur && cur.step) cur.step(-1); });
+    FazonWide.key("Enter", "Open their profile", function () { if (cur && cur.open) cur.open(); });
+  }
 
   function init(me) {
     var isAdmin = me.role === "admin";
-    var q = "", offset = 0, total = 0, seq = 0, timer = 0;
+    var wide = isWide();
+    var q = keep.q, offset = 0, total = 0, seq = 0, timer = 0;
+    var byId = {};
+    var COLS = (isAdmin ? ["User", "Email", "Role", "Muted", "Tokyo"] : ["User", "Role", "Muted"]).concat(["Joined", "Last seen", "Comments", "Track", ""]);
     var search = el("input", { type: "search", class: "fz-input adm-search", "aria-label": "Search users",
       placeholder: isAdmin ? "Search by name or email" : "Search by name" });
+    search.value = q;
     var count = el("p", { class: "adm-count fz-muted", role: "status", "aria-live": "polite" });
-    var list = el("ul", { class: "adm-list" });
+    var list = wide ? el("table", { class: "w-table users-table" }, el("thead", {}, el.apply(null, ["tr", {}].concat(COLS.map(function (c) {
+      return el("th", { class: c === "Comments" ? "num" : null, text: c });
+    }))))) : el("ul", { class: "adm-list" });
     var more = el("button", { type: "button", class: "fz-btn adm-more", text: "Load more", hidden: true });
     var listErr = el("p", { class: "fz-error", role: "alert" });
 
     root.textContent = "";
-    root.append(
+    if (window.FazonWide) FazonWide.tools().textContent = "";
+    var help = "You're signed in as " + me.name + " (" + ROLES[me.role] + "). " +
+      (isAdmin ? "Admins can change roles, mute people and delete accounts. Moderators can delete any comment and mute or unmute regular users."
+        : "Moderators can delete any comment and mute or unmute regular users.") +
+      " Muted people can still read, like comments and use Track, but can't post comments or replies." +
+      (isAdmin ? " Tokyo mode is the Kyōtsu trainer's Tokyo pitch mode, which uses Kotu's NHK accent-dictionary recordings. " +
+        "They aren't ours to share, so only admins and the accounts you turn it on for get it." : "");
+    var insp = wide ? el("aside", { class: "w-pane users-insp", "aria-label": "Selected user" }) : null;
+    if (wide) {
+      FazonWide.tools().append(
+        el("button", { type: "button", class: "w-btn sm users-help", text: "?", "data-tip": help, "aria-label": help }),
+        count, search);
+      root.append(el("div", { class: "w-panes users-panes" },
+        el("div", { class: "w-pane users-main" }, list, listErr, el("div", { class: "adm-foot" }, more)), insp));
+    } else root.append(
       el("p", { class: "adm-intro" }, "You're signed in as ", el("b", { class: "adm-you", text: me.name }), " (" + ROLES[me.role] + "). ",
         isAdmin ? "Admins can change roles, mute people and delete accounts. Moderators can delete any comment and mute or unmute regular users."
           : "Moderators can delete any comment and mute or unmute regular users."),
@@ -60,8 +95,12 @@
       var qs = "?limit=" + PAGE + "&offset=" + offset + (q ? "&q=" + encodeURIComponent(q) : "");
       F.api("/v1/admin/users" + qs).then(function (d) {
         if (my !== seq) return;
-        if (reset) list.textContent = "";
+        if (reset) {
+          if (wide) list.querySelectorAll("tbody").forEach(function (b) { b.remove(); });
+          else list.textContent = "";
+        }
         (d.users || []).forEach(function (a) { list.appendChild(row(a)); });
+        paintSel();
         total = d.total || 0;
         offset += (d.users || []).length;
         paintCount();
@@ -75,18 +114,83 @@
     }
     search.addEventListener("input", function () {
       clearTimeout(timer);
-      timer = setTimeout(function () { var v = search.value.trim(); if (v !== q) { q = v; load(true); } }, 300);
+      timer = setTimeout(function () { var v = search.value.trim(); if (v !== q) { q = keep.q = v; load(true); } }, 300);
     });
     more.addEventListener("click", function () { load(false); });
     load(true);
 
+    // ---- wide: the selected row, and the inspector on a very wide window ----
+    function rowsNow() { return [].slice.call(list.querySelectorAll("tr[data-id]")); }
+    function paintSel(scroll) {
+      if (!wide) return;
+      var on = null;
+      rowsNow().forEach(function (tr) {
+        var yes = +tr.dataset.id === keep.selId;
+        tr.setAttribute("aria-selected", String(yes));
+        if (yes) on = tr;
+      });
+      if (on && scroll) on.scrollIntoView({ block: "nearest" });
+      paintInsp();
+    }
+    function select(id, scroll) { keep.selId = id; paintSel(scroll); }
+    var inspFor = 0;
+    function paintInsp() {
+      if (!insp || !insp3.matches) return;
+      var a = byId[keep.selId];
+      if (!a) { inspFor = 0; insp.textContent = ""; insp.append(el("p", { class: "w-empty", text: "Select someone to see their details." })); return; }
+      var u = a.user || {}, id = u.id;
+      inspFor = id;
+      var line = function (k, v) { return v == null || v === "" ? null : el("tr", {}, el("th", { text: k }), el("td", {}, v)); };
+      var recent = el("ul", { class: "users-recent" }, el("li", { class: "fz-muted", text: "Loading…" }));
+      insp.textContent = "";
+      insp.append(
+        el("div", { class: "users-who" }, F.avatar(u, 48), el("div", {},
+          el("a", { href: F.profileHref(u), text: u.name || "User" }),
+          el("div", { class: "fz-muted", text: ROLES[a.role] || a.role }))),
+        el("table", { class: "users-facts" }, el("tbody", {},
+          line("Email", a.email), line("Joined", fmtDate(a.joined)), line("Last seen", a.last_active ? F.timeEl(a.last_active) : "never"),
+          line("Comments", String(a.comments)), line("Track", a.track_public ? "Public" : "Hidden"),
+          line("Muted", a.muted ? el("span", {}, F.timeEl(a.muted_at), a.muted_by ? " by " + a.muted_by.name : "") : "No"),
+          isAdmin ? line("Tokyo mode", a.hyojungo ? "On" : "Off") : null)),
+        el("div", { class: "w-sec" }, el("h2", { class: "w-sec-h", text: "Recent comments" }), recent));
+      F.api("/v1/users/" + id).then(function (p) {
+        if (inspFor !== id) return;
+        recent.textContent = "";
+        ((p && p.recent) || []).forEach(function (c) {
+          recent.appendChild(el("li", {}, el("a", { href: (F.safePath(c.page || "") || "/") + "#comment-" + (c.id | 0) },
+            el("span", { text: c.page_title || c.page || "a page" }), c.snippet ? el("span", { class: "fz-muted", text: "“" + c.snippet + "”" }) : null, F.timeEl(c.created))));
+        });
+        if (!recent.children.length) recent.append(el("li", { class: "fz-muted", text: "No comments yet." }));
+      }, function () { if (inspFor === id) { recent.textContent = ""; recent.append(el("li", { class: "fz-muted", text: "Couldn't load their comments." })); } });
+    }
+    cur = { search: search };
+    if (wide) {
+      list.addEventListener("click", function (e) {
+        if (e.target.closest("a, button, select, input")) return;
+        var tr = e.target.closest("tr[data-id]");
+        if (tr) select(+tr.dataset.id);
+      });
+      cur.step = function (by) {
+        var rs = rowsNow(), i = rs.findIndex(function (tr) { return +tr.dataset.id === keep.selId; });
+        var next = rs[i < 0 ? 0 : Math.max(0, Math.min(rs.length - 1, i + by))];
+        if (next) select(+next.dataset.id, true);
+      };
+      cur.open = function () {
+        var t = document.activeElement;     // Enter on a focused control does what it always does
+        if (t && t.closest && t.closest("a, button, summary")) { t.click(); return; }
+        var a = byId[keep.selId]; if (a) location.href = F.profileHref(a.user);
+      };
+      insp3.addEventListener("change", function () { paintSel(); });
+    }
+
     // ---- one user ----
     function row(a) {
-      var u = a.user || {}, li = el("li", { class: "adm-row" + (a.muted ? " muted" : ""), id: "adm-user-" + (u.id | 0) });
+      var u = a.user || {}, li = el(wide ? "tbody" : "li", { class: "adm-row" + (a.muted ? " muted" : ""), id: "adm-user-" + (u.id | 0) });
+      byId[u.id] = a;
       var self = u.id === me.id;
       var err = el("p", { class: "fz-error adm-err", role: "alert" });
       var slot = el("div", { class: "adm-slot" });
-      function replace(next) { var n = row(next); li.replaceWith(n); return n; }
+      function replace(next) { var n = row(next); li.replaceWith(n); paintSel(); return n; }
       function fail(e) { err.textContent = e.message; }
 
       var name = el("div", { class: "adm-name" },
@@ -121,18 +225,19 @@
         ctl.appendChild(sel);
       }
       if (a.can.mute) {
-        var mute = el("button", { type: "button", class: "fz-btn", text: a.muted ? "Unmute" : "Mute",
+        var mute = el("button", { type: "button", class: "fz-btn adm-mute" + (wide ? " sm" : ""), text: a.muted ? "Unmute" : "Mute",
           "aria-label": (a.muted ? "Unmute " : "Mute ") + (u.name || "user") });
         mute.addEventListener("click", function () {
           mute.disabled = true; err.textContent = "";
           F.api("/v1/admin/users/" + u.id + "/" + (a.muted ? "unmute" : "mute"), { method: "POST" }).then(function (d) {
-            var n = replace(d.user), b = n.querySelector(".adm-ctl .fz-btn"); if (b) b.focus();
+            var n = replace(d.user), b = n.querySelector(".adm-mute"); if (b) b.focus();
           }, function (e) { mute.disabled = false; fail(e); });
         });
         ctl.appendChild(mute);
       }
       if (a.can.hyojungo) {
-        var tok = el("button", { type: "button", class: "fz-btn adm-tokyo", text: "Tokyo mode: " + (a.hyojungo ? "On" : "Off"), "aria-pressed": a.hyojungo ? "true" : "false",
+        var tok = el("button", { type: "button", class: "fz-btn adm-tokyo" + (wide ? " sm" : ""), text: (wide ? "" : "Tokyo mode: ") + (a.hyojungo ? "On" : "Off"), "aria-pressed": a.hyojungo ? "true" : "false",
+          "aria-label": wide ? "Tokyo mode for " + (u.name || "user") + ": " + (a.hyojungo ? "On" : "Off") : null,
           title: (a.hyojungo ? "Turn off" : "Turn on") + " the Kyōtsu trainer's Tokyo mode for " + (u.name || "this user") });
         tok.addEventListener("click", function () {
           tok.disabled = true; err.textContent = "";
@@ -143,7 +248,7 @@
         ctl.appendChild(tok);
       }
       if (a.can.delete) {
-        var del = el("button", { type: "button", class: "fz-btn adm-danger", text: "Delete account…",
+        var del = el("button", { type: "button", class: "fz-btn adm-danger" + (wide ? " sm" : ""), text: wide ? "Delete…" : "Delete account…",
           "aria-label": "Delete the account of " + (u.name || "user") });
         del.addEventListener("click", function () { confirmDelete(); });
         ctl.appendChild(del);
@@ -169,8 +274,11 @@
           if (!ok()) return;
           go.disabled = cancel.disabled = inp.disabled = true; go.textContent = "Deleting…";
           F.api("/v1/admin/users/" + u.id, { method: "DELETE" }).then(function () {
-            var gone = el("li", { class: "adm-row adm-gone", tabindex: "-1" }, el("span", {}, el("b", { text: u.name || "User" }), "'s account was deleted."));
-            li.replaceWith(gone); gone.focus();
+            var note = el("span", {}, el("b", { text: u.name || "User" }), "'s account was deleted.");
+            var gone = wide ? el("tbody", { class: "adm-gone", tabindex: "-1" }, el("tr", {}, el("td", { colspan: COLS.length }, note)))
+              : el("li", { class: "adm-row adm-gone", tabindex: "-1" }, note);
+            delete byId[u.id]; if (keep.selId === u.id) keep.selId = 0;
+            li.replaceWith(gone); gone.focus(); paintSel();
             total = Math.max(0, total - 1); offset = Math.max(0, offset - 1); paintCount();
           }, function (e) {
             go.textContent = "Delete account"; cancel.disabled = inp.disabled = false; go.disabled = !ok(); fail(e);
@@ -187,8 +295,32 @@
         inp.focus();
       }
 
+      if (wide) return wideRow();
       li.append(el("div", { class: "adm-top" }, F.avatar(u, 44), info, ctl.children.length ? ctl : null), slot, err);
       return li;
+
+      // the same controls, one cell each; the delete confirmation opens on a row of its own
+      function wideRow() {
+        var who = el("td", { class: "users-user" }, F.avatar(u, 20, { ring: false, badge: false, link: false }),
+          el("a", { href: F.profileHref(u), "data-user-card": String(u.id | 0), text: u.name || "User" }),
+          self ? el("span", { class: "fz-muted", text: "(you)" }) : null);
+        var roleCell = el("td", {}, sel || el("span", { text: ROLES[a.role] || a.role }));
+        var muteCell = el("td", { class: "users-mc" });
+        if (a.muted) muteCell.append(el("span", { class: "adm-mutedby" }, "Muted ", F.timeEl(a.muted_at), a.muted_by ? " by " + a.muted_by.name : ""));
+        if (mute) muteCell.append(a.muted ? mute : el("span", { class: "w-acts" }, mute));
+        var cells = [who];
+        if (isAdmin) cells.push(el("td", { class: "users-mail", text: a.email == null ? "" : a.email, title: a.email || null }));
+        cells.push(roleCell, muteCell);
+        if (isAdmin) cells.push(el("td", {}, tok || el("span", { class: "fz-muted", text: a.can.hyojungo === false && a.role === "admin" ? "Always" : (a.hyojungo ? "On" : "Off") })));
+        cells.push(el("td", { class: "users-d", text: fmtDate(a.joined) }),
+          el("td", { class: "users-d" }, a.last_active ? F.timeEl(a.last_active) : null),
+          el("td", { class: "num", text: String(a.comments) }),
+          el("td", { class: "users-d", text: a.track_public ? "Public" : "Hidden" }),
+          el("td", { class: "users-a" }, del ? el("span", { class: "w-acts" }, del) : null));
+        li.append(el.apply(null, ["tr", { "data-id": String(u.id | 0), "aria-selected": String(u.id === keep.selId) }].concat(cells)),
+          el("tr", { class: "users-detail" }, el("td", { colspan: COLS.length }, slot, err)));
+        return li;
+      }
     }
   }
 })();
