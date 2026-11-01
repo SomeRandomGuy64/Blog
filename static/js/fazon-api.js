@@ -503,6 +503,7 @@
       who, prof,
       el("a", { class: "fz-acct-item", href: "/account/notifications/", text: "Notifications" }),
       isStaff(user) ? el("a", { class: "fz-acct-item", href: "/admin/", text: "Admin" }) : null,
+      user.admin ? el("a", { class: "fz-acct-item", href: "/higuchi/", text: "Higuchi list" }) : null,
       el("button", { type: "button", class: "fz-acct-item", text: "Log out", onclick: function () { logout(); } }));
     acct = { btn: btn, who: who, profile: prof };
     paintAccount(user);

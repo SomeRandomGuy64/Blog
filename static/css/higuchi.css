@@ -1,0 +1,57 @@
+/* /higuchi/: the private watch list (js/fazon-higuchi.js). */
+.hg { --hg-zat: #3987e5; --hg-mem: #d95926; margin-top: 20px; }
+.light-mode .hg { --hg-zat: #2a78d6; --hg-mem: #eb6834; }
+.hg-msg { text-align: center; }
+
+.hg-head { position: sticky; top: 0; z-index: 2; background: var(--bg-color); padding: 10px 0; }
+.hg-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.hg-stat { background: var(--fz-surface); border: 1px solid var(--fz-line); border-radius: 10px; padding: 12px 16px; min-width: 0; }
+.hg-stat b { display: block; font-size: 1.35em; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.hg-stat span { color: var(--fz-muted); font-size: 0.8em; }
+.hg-bar { height: 6px; margin: 12px 0; border-radius: 3px; background: var(--fz-line); overflow: hidden; }
+.hg-fill { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--fz-accent); transition: width 0.2s ease; }
+
+.hg-tools { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 0.85em; }
+.hg-tools label { display: inline-flex; gap: 6px; align-items: center; }
+.hg-tools .fz-btn { margin-left: auto; font-size: 0.95em; padding: 0.3em 0.8em; }
+.hg-tools select {
+    font: inherit; padding: 0.3em 0.6em; border-radius: 6px; cursor: pointer;
+    color: var(--text-color); background: var(--fz-surface); border: 1px solid var(--fz-line);
+}
+.hg-tools select:hover { border-color: var(--fz-accent); }
+.hg input[type="checkbox"] { accent-color: var(--fz-accent); width: 16px; height: 16px; margin: 0; cursor: pointer; }
+.hg-err { min-height: 1.4em; margin: 6px 0 0; font-size: 0.85em; color: var(--fz-bad); }
+
+.hg table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+.hg th { text-align: left; color: var(--fz-muted); font-weight: 400; }
+.hg th, .hg td { padding: 8px 6px; border-bottom: 1px solid var(--fz-line); vertical-align: top; }
+.hg-n, .hg-date, .hg-len { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.hg-n, .hg-len { color: var(--fz-muted); }
+.hg .hg-len { text-align: right; }
+.hg .hg-w { text-align: center; }
+.hg td.hg-w input { margin-top: 3px; }
+.hg-t a { overflow-wrap: anywhere; }
+.hg-t a:hover { text-decoration: underline; }
+.hg-ro { color: var(--fz-muted); font-size: 0.9em; overflow-wrap: anywhere; }
+.hg tr.done { background: var(--fz-accent-soft); }
+.hg tr.done .hg-t a { opacity: 0.7; }
+.hg-src { font-weight: 700; white-space: nowrap; }
+.hg-src.z { color: var(--hg-zat); }
+.hg-src.m { color: var(--hg-mem); }
+.hg-src small { display: block; font-weight: 400; color: var(--fz-muted); font-size: 0.9em; white-space: normal; }
+
+@media (max-width: 640px) {
+    .hg-head { position: static; }
+    .hg-stats { gap: 6px; }
+    .hg-stat { padding: 8px 10px; }
+    .hg-stat b { font-size: 1.05em; }
+    .hg table, .hg tbody { display: block; }
+    .hg thead, .hg td.hg-n { display: none; }
+    .hg tr { display: grid; grid-template-columns: 30px 1fr auto; gap: 2px 8px; padding: 8px 4px; border-bottom: 1px solid var(--fz-line); }
+    .hg tr[hidden] { display: none; }
+    .hg td { padding: 0; border: 0; }
+    .hg td.hg-w { grid-row: 1 / 4; }
+    .hg td.hg-t { grid-column: 2 / 4; grid-row: 2; }
+    .hg td.hg-len { grid-column: 2 / 4; grid-row: 3; text-align: left; }
+    .hg-src small { display: inline; margin-left: 6px; }
+}
