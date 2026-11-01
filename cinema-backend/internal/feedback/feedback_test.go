@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+func TestLimitZeroClosesPosting(t *testing.T) {
+	defer func(n int) { Limit = n }(Limit)
+	Limit = 0
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, st, err := s.Add("", "hello")
+	if !errors.Is(err, ErrQuota) || len(st.Items) != 0 || st.Limit != 0 || st.Remaining != 0 {
+		t.Fatalf("post with limit 0: %v %+v", err, st)
+	}
+}
+
 func TestQuotaAndLimits(t *testing.T) {
 	dir := t.TempDir()
 	s, err := Open(dir)
