@@ -56,15 +56,15 @@
 .layout-wide .wk-table thead th { height: 32px; }
 .layout-wide .wk-table tbody tr:hover { background: var(--w-hover); }
 .layout-wide .wk-table .wk-name { position: relative; }
-.layout-wide .wk-table td.wk-name { display: flex; align-items: center; gap: 4px; height: var(--w-row); box-sizing: border-box; }
-.layout-wide .wk-label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the name cell stays a table cell (a flex td drops out of the row and its hairline stops lining up); the label is the flex box */
+.layout-wide .wk-label { min-width: 0; display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .layout-wide .wk-label > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .layout-wide .wk-cat .wk-label { font-weight: 700; }
 .layout-wide .wk-sub .wk-label, .layout-wide .wk-other .wk-label { padding-left: 16px; }
 .layout-wide .wk-other .wk-label { color: var(--fz-muted); }
 .layout-wide .wk-label .tk-dotc { flex: none; margin: 0; }
 /* over the end of the name, so a hidden action never costs a row its label */
-.layout-wide .wk-table .w-acts { position: absolute; right: 2px; top: 1px; display: flex; gap: 2px; background: var(--bg-color); }
+.layout-wide .wk-table .w-acts { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); display: flex; gap: 2px; background: var(--bg-color); }
 .layout-wide .wk-table .tk-err { position: absolute; left: 0; top: 100%; z-index: 3; padding: 0 6px; background: var(--bg-color); }
 .layout-wide .wk-table .wk-name > .tk-err:empty { display: none; }
 .layout-wide .wk-act {
