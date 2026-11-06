@@ -121,7 +121,7 @@
     const SPEAKERS=[
       {id:"yura", label:"彩森遊楽 (Kobe)",  base:AUDIO_BASE,
         // her own Kobe pitch where it differs from the stored base (user ear-check 2026-10-03)
-        overrides:{"058A":"HHL","067A":"HL","097A":"HHL","081A":"LHHL","152A":"HLL","077A":"LLLH","075A":"LLH"}},
+        overrides:{"058A":"HHL","067A":"HL","097A":"HHL","081A":"LHHL","152A":"HHH","152B":"HLL","077A":"LLLH","075A":"LLH"}},
       {id:"nagi", label:"月野ナギ (Kyoto)", base:AUDIO_BASE+"nagi/", overrides:{
         // her personal deviations from the reference
         "001A":"LLHL","089A":"LLHL","152B":"HLL",
@@ -137,24 +137,31 @@
       // (= test.html's: ear-checks 2026-10-08/16 + his own merged-pair list, Keihan/atsuzaki/) and the pairs he
       // didn't record (128 129 359 360 501). Pairs 309–517 are his alone (quiz_data.js `voices`).
       {id:"atsuzaki", label:"厚崎ゆうま (Shiga/Osaka)", base:AUDIO_BASE+"atsuzaki/",
-        covers:(()=>{const skip=new Set(["006", "007", "010", "011", "031", "032", "040", "044", "045", "055", "057", "061", "062", "063", "065", "067", "068", "070", "078", "080", "092", "094", "095", "097", "101", "102", "104", "109", "114", "121", "127", "128", "129", "130", "131", "132", "135", "141", "142", "148", "158", "159", "166", "167", "168", "173", "174", "175", "178", "180", "185", "189", "190", "191", "192", "195", "198", "200", "201", "205", "217", "221", "226", "237", "241", "243", "245", "255", "263", "264", "265", "268", "274", "280", "281", "283", "284", "290", "291", "292", "294", "296", "298", "299", "300", "301", "302", "306", "310", "312", "313", "315", "316", "324", "327", "335", "337", "338", "339", "340", "345", "346", "352", "359", "360", "367", "368", "370", "372", "376", "378", "379", "383", "385", "386", "387", "388", "389", "393", "394", "403", "406", "409", "410", "415", "417", "421", "431", "432", "450", "452", "454", "455", "458", "462", "479", "485", "486", "495", "501", "503", "506", "510", "516"]);return n=>!skip.has(n);})(),
+        covers:(()=>{const skip=new Set(["006", "007", "010", "011", "031", "032", "040", "044", "045", "055", "057", "061", "062", "063", "065", "067", "068", "070", "078", "080", "092", "094", "095", "097", "101", "102", "104", "109", "114", "121", "127", "128", "129", "130", "131", "132", "135", "141", "142", "148", "158", "159", "166", "167", "168", "173", "174", "175", "178", "180", "185", "189", "190", "191", "192", "195", "198", "200", "201", "205", "217", "221", "226", "237", "241", "243", "245", "255", "263", "264", "265", "268", "274", "280", "281", "283", "284", "290", "291", "292", "294", "296", "298", "299", "300", "301", "302", "306", "310", "312", "313", "315", "316", "324", "327", "335", "337", "338", "339", "340", "345", "346", "352", "359", "360", "367", "368", "370", "372", "376", "378", "379", "383", "385", "386", "387", "388", "389", "391", "393", "394", "403", "406", "409", "410", "415", "416", "417", "421", "431", "432", "450", "452", "454", "455", "458", "462", "479", "485", "486", "495", "501", "503", "506", "510", "516"]);return n=>!skip.has(n);})(),
         overrides:{
         // the Kobe-divergent (hyogo) base pairs restored to Kyoto pitch (84k Kinki dict)
         "009A":"HHH","021A":"LHL","103A":"LLH","157A":"HLL","221B":"LH↘",
         // his own pitch (ear-check 2026-10-08)
         "060A":"HLLL","082B":"LH","093A":"HLL","105B":"LH","145A":"LH","152B":"HLL","165B":"LHL",
         // his own pitch (ear-check 2026-10-16)
-        "077A":"HHHL","089A":"HHHL","113B":"HHLL","164B":"HH","182A":"HHLL","184B":"HL","222A":"LHL","227A":"LLH","230A":"HLL","230B":"LHL","236A":"HHL","236B":"LLH","248A":"HHL","266A":"HL","278B":"HL","290B":"HL","296A":"HL","305B":"HH","357B":"HHLL","380B":"LHH","382A":"LLLH","407A":"LLLH","407B":"HHHL","418A":"HHLL",
+        "077A":"HHHL","089A":"HHHL","113B":"HHLL","164B":"HH","182A":"HHLL","184B":"HL","222A":"LHL","227A":"LLH","230A":"HLL","230B":"LHL","236A":"HHL","236B":"LLH","248A":"HHL","266A":"HL","278B":"HL","290B":"HL","296A":"HL","305B":"HH","380B":"LHH","382A":"LLLH","407A":"LLLH","407B":"HHHL","418A":"HHLL",
         // his own pitch (user ear-check 2026-10-18)
         "400A":"LHLL",
         // his own pitch (trainer label reports 2026-10-21: 染料, 町政)
-        "214B":"HLLL","466B":"LHLL"}},
+        "214B":"HLLL","466B":"LHLL",
+        // his own pitch (trainer label reports 2026-11-06: 太陽/大洋 swapped, 陰性/院生, 三升)
+        "357A":"HHLL","357B":"LHLL","402A":"HHHH","402B":"LHLL","438B":"HHHL"}},
     ];
     // Tokyo (標準語) mode: Kotu's own minimal sets (2 or 3 words each), NHK accent-dictionary
     // recordings. Those are NHK's, so they aren't on this site: the API serves the sets and clips
     // only to accounts with access (user.hyojungo), on the session cookie.
     const NHK={id:"nhk", label:"NHK (Tokyo)", base:(window.Fazon?Fazon.base:"")+"/v1/hyojungo/audio/", ext:".aac"};
-    const patternFor=(spk,m)=>(spk.overrides&&spk.overrides[m.audio])||m.pattern;
+    // Admin edits from the Sequential Clip Review (GET /v1/kyotsu/edits), on top of the data above:
+    // pat["<speaker>|<clip>"] / pat["|<clip>"] (every speaker), bl = blacklisted "<speaker>|<pair>" / "|<pair>".
+    // A speaker's own edit beats an every-speaker one, which beats the static overrides.
+    const EDITS={pat:{},bl:new Set()};
+    const patternFor=(spk,m)=>(spk!==NHK&&(EDITS.pat[spk.id+"|"+m.audio]||EDITS.pat["|"+m.audio]))||(spk.overrides&&spk.overrides[m.audio])||m.pattern;
+    const blocked=(spk,pn)=>spk!==NHK&&(EDITS.bl.has("|"+pn)||EDITS.bl.has(spk.id+"|"+pn));
     const $=s=>document.querySelector(s);
     const rnd=n=>Math.floor(Math.random()*n);
     const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>"&#"+c.charCodeAt(0)+";");   // Tokyo data comes from the API
@@ -346,13 +353,16 @@
     function preload(spk,pair){ _preload=pair.members.map(m=>{ const a=new Audio(); a.preload="auto"; a.src=clipUrl(spk,m); return a; }); }
 
     function newQuestion(){
-      let pair, key;
-      do{ pair=POOL[rnd(POOL.length)]; key=pair.key||pair.reading; }while(POOL.length>1 && key===lastKey);
-      lastKey=key;
       // a pair may restrict which speakers can voice it (e.g. 278 is Kobe-indiscernible)
-      // ...and a speaker may only cover some pairs (`covers`, e.g. a partial delivery)
-      const pn=pair.members[0].audio.slice(0,3);
-      const allowed=VOICES.filter(s=>(!pair.voices||pair.voices.includes(s.id))&&(!s.covers||s.covers(pn)));
+      // ...a speaker may only cover some pairs (`covers`, e.g. a partial delivery)
+      // ...and an admin edit may blacklist a pair for one speaker or all (re-pick when none is left)
+      let pair, key, allowed, tries=0;
+      do{
+        pair=POOL[rnd(POOL.length)]; key=pair.key||pair.reading;
+        const pn=pair.members[0].audio.slice(0,3);
+        allowed=VOICES.filter(s=>(!pair.voices||pair.voices.includes(s.id))&&(!s.covers||s.covers(pn))&&!blocked(s,pn));
+      }while(++tries<500&&((POOL.length>1&&key===lastKey)||!allowed.length));
+      lastKey=key;
       const speaker=allowed[rnd(allowed.length)];
       // N members (Keihan pairs: 2; Tokyo sets: 2 or 3): random target, shuffled rows
       const n=pair.members.length, target=rnd(n), order=pair.members.map((_,i)=>i);
@@ -602,6 +612,12 @@
     const END_NOTE=$("#endNote").textContent;
     // Tokyo first (saved / ?mode=tokyo): the card waits for /v1/me instead of starting a Keihan word
     const tokyoFirst=wantMode==="tokyo"&&!!window.Fazon;
+    if(window.Fazon) Fazon.api("/v1/kyotsu/edits").then(d=>{
+      ((d&&d.edits)||[]).forEach(e=>{ const k=e.speaker+"|"+e.item; if(e.kind==="pattern") EDITS.pat[k]=e.pattern; else EDITS.bl.add(k); });
+      // the first word may already be up: swap it if it's now blacklisted, else redraw its patterns
+      if(!cur||answered||mode!=="keihan") return;
+      if(blocked(cur.speaker,cur.pair.members[0].audio.slice(0,3))) newQuestion(); else renderOptions();
+    },()=>{});
     if(window.Fazon) Fazon.me().then(m=>{
       me=m; if(!$("#labelReport").hidden) paintReportWho();
       if(m.user) $("#endSession").hidden=false;

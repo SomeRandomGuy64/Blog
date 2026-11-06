@@ -319,3 +319,19 @@
 .layout-wide .ins-jp { font-size: 16px; line-height: 1.25; white-space: nowrap; }
 .layout-wide .ins-jp ruby rt { font-size: 10px; }
 .layout-wide .ins-ref { font-size: var(--w-fs-xs); white-space: nowrap; }
+
+/* review page: admin edits (see kyotsu.css) */
+.layout-wide .kyotsu-quiz .kt-hits { font-size: var(--w-fs-sm); color: var(--fz-muted); }
+.layout-wide .kyotsu-quiz .tw-stage .ed-bar { gap: 6px 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--fz-line); font-size: var(--w-fs); }
+.layout-wide .kyotsu-quiz .ed-scope { height: var(--w-ctl-sm); border: 1px solid var(--fz-line); border-radius: var(--w-r); }
+.layout-wide .kyotsu-quiz .ed-scope button { padding: 0 10px; font-size: var(--w-fs-sm); }
+.layout-wide .kyotsu-quiz .ed-scope button[aria-pressed="true"] { background: var(--fz-accent); }
+.layout-wide .kyotsu-quiz .ed-state { color: var(--fz-muted); font-size: var(--w-fs-sm); }
+.layout-wide .kyotsu-quiz #edBlBtn.flagged { border-color: var(--fz-bad); color: var(--fz-bad); }
+.layout-wide .kyotsu-quiz .ed-tag { color: var(--fz-accent); }
+.layout-wide .kyotsu-quiz .ed-x:hover { color: var(--fz-bad); }
+.layout-wide .kyotsu-quiz .kword.ed .m:hover { background: var(--w-sel); }
+.layout-wide .kyotsu-quiz .kword.ed.bad .m { color: var(--fz-bad); }
+.layout-wide .kyotsu-quiz .ed-msg { font-size: var(--w-fs-sm); color: var(--fz-muted); }
+.layout-wide .kyotsu-quiz .ed-msg.err { color: var(--fz-bad); }
+.layout-wide .kyotsu-quiz .ed-msg.warn { color: var(--fz-accent); }
