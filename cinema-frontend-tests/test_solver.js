@@ -343,7 +343,7 @@ for (const mode of ['most', 'strict']) {
   const plan = async () => { calls = []; await $('pgo').onclick(); return calls.map(b => b.travelMode); };
   const mode = v => { RAD.forEach(r => r.checked = r.value === v); $('ptm').onchange({ target: { value: v } }); };
   const box = (id, v) => $(id).onchange({ target: { checked: v } });
-  const keys = () => Object.keys(JSON.parse(LS.get('fazon-cinema-gtimes') || '{}')), prefixes = () => [...new Set(keys().map(k => k.split('|')[0]))].sort().join();
+  const keys = () => Object.keys(JSON.parse(LS.get('fazon-cinema-gtimes') || '{}')), prefixes = () => [...new Set(keys().filter(k => !k.includes('@')).map(k => k.split('|')[0]))].sort().join();   // late legs home: tested below
   const pre = await plan(), legs = pre.filter(m => m === 'TRANSIT').length;
   ok(legs === 3 && pre.includes('WALK') && prefixes() === 'T,W', 'plan: public transport fetched under the old T| and W| keys ' + prefixes());
   ok(/Using Google transit times for every journey/.test($('pbanner').innerHTML) && /travelmode=transit/.test($('pout').innerHTML) && !/ cycle| drive/.test($('pout').innerHTML), 'plan: transit wording and links');
@@ -405,6 +405,12 @@ for (const mode of ['most', 'strict']) {
   ok(/No public transport home/.test($('pout').innerHTML), 'late: a time far beyond the 17:00 one counts as no way home');
   fresh(); $ = boot(); lateStatus = 403; lateFn = () => ({ error: { message: 'nope' } }); await plan();
   ok(/~20 min home/.test($('pout').innerHTML) && !/No public transport/.test($('pout').innerHTML) && /couldn’t be checked/.test($('pbanner').innerHTML) && !keys().some(k => k.includes('@')), 'late: a failed lookup is not "no route": marked ~ and not cached');
+  ok(/Not checked for this time of night/.test($('pout').innerHTML) && /2 late journeys home in this plan couldn’t be checked/.test($('pout').innerHTML), 'late: an unchecked leg is warned about, not passed off as a way home');
+  // an early-evening leg home (leaving 19:00) is looked up too: rural and Sunday services can stop before 20:00
+  const s0 = DX.shows[0]; DX.shows[0] = { ...s0, t: iso(sun, '17:00'), e: iso(sun, '18:50') };
+  fresh(); $ = boot(); lateFn = () => ({}); await plan();
+  ok(keys().some(k => k.startsWith('T@1900u')) && /No public transport home/.test($('pout').innerHTML), 'late: a 19:00 leg home' + $('pout').innerHTML.match(/Leave 19[^<]*/) + '  is checked, and no service there is warned ' + keys().filter(k => k.includes('@')));
+  DX.shows[0] = s0;
   // a choice of late showings: a checked leg isn't given up for an unchecked one that only looks shorter
   DX.shows.push({ k: 'a', c: 1, t: iso(sun, '21:30'), e: iso(sun, '23:30'), d: 110, x: [] }, { k: 'a', c: 0, t: iso(sun, '21:20'), e: iso(sun, '23:20'), d: 110, x: [] }, { k: 'b', c: 0, t: iso(mon, '21:50'), e: iso(mon, '23:50'), d: 110, x: [] });
   fresh(); $ = boot(); lateFn = train(45); await plan();
@@ -461,6 +467,7 @@ for (const mode of ['most', 'strict']) {
   ok(G.lateMins(r('1500s', 30, 55), dep) === 55, 'lateMins: a wait left out of duration still counts');
   ok(G.lateMins(r('1500s', 91, 116), dep) === null && G.lateMins(r('1500s', 90, 115), dep) === 115, 'lateMins: over 90 min to the first service is no route');
   ok(G.lateMins({ routes: [{ duration: '600s', legs: [{ steps: [{}] }] }] }, dep) === 10, 'lateMins: a walk-only route is its duration');
+  ok(G.lateMins({ routes: [{ duration: '3600s', legs: [{ steps: [{}] }] }] }, dep) === 60 && G.lateMins({ routes: [{ duration: '3700s', legs: [{ steps: [{}] }] }] }, dep) === null, 'lateMins: a walk-only route over an hour is no public transport');
   const b = G.lateBody({ a: { lat: 53.1, lng: -2 }, b: { lat: 53.2, lng: -2 }, depart: dep, prof: 'Ttr' });
   ok(b.origin.location.latLng.latitude === 53.1 && b.departureTime === dep && b.transitPreferences.allowedTravelModes.join() === 'BUS,SUBWAY' && b.travelMode === 'TRANSIT', 'lateBody: request shape, avoidance kept');
   let n = 0; const got = []; const r1 = await G.late({ key: 'K', asks: [{ a: { lat: 1, lng: 1 }, b: { lat: 2, lng: 2 }, depart: dep, prof: 'T' }], onResult: (q, v) => got.push(v), sleep: async () => {},

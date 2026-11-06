@@ -12,6 +12,7 @@ const MASK='originIndex,destinationIndex,duration,condition,status';
 const ROUTE_URL='https://routes.googleapis.com/directions/v2:computeRoutes';
 const LATE_MASK='routes.duration,routes.legs.steps.transitDetails.stopDetails.departureTime,routes.legs.steps.transitDetails.stopDetails.arrivalTime';
 const MAX_WAIT=90;                          // a first bus or train further off than this is no way home that night
+const MAX_WALK=60;                          // a walk-only answer longer than this is no public transport, not a way home
 const MODES=['BUS','LIGHT_RAIL','RAIL'];   // TransitTravelMode: RAIL = TRAIN + SUBWAY + LIGHT_RAIL; LIGHT_RAIL = tram
 // Travel profile: names a set of times, so it is also the cache prefix. 'T' is the original key, which keeps old cached
 // times valid. Google documents allowedTravelModes as preferred modes: a route may still use others, and a matrix
@@ -85,11 +86,12 @@ async function run(o){const f=o.fetch,sleep=o.sleep||(ms=>new Promise(r=>setTime
   return {requests:N,error:fatal||soft||null}}
 const lateBody=q=>({origin:wp(q.a).waypoint,destination:wp(q.b).waypoint,travelMode:'TRANSIT',departureTime:q.depart,transitPreferences:{allowedTravelModes:ALLOW[q.prof]}});
 // a Compute Routes response -> minutes from `depart`, or null: no route, or the first service is too far off. The wait for
-// the first service counts, whether or not Google's duration has it. Without stop times (a walk-only route) it's the duration.
+// the first service counts, whether or not Google's duration has it. Without stop times (a walk-only route) it's the duration,
+// up to MAX_WALK: Google answers a transit request with a long walk when nothing runs.
 function lateMins(j,depart){const r=j&&Array.isArray(j.routes)&&j.routes[0],t0=Date.parse(depart);if(!r)return null;
   const sec=parseFloat(String(r.duration||''));if(!isFinite(sec))return null;
   const stops=[];for(const l of r.legs||[])for(const s of l.steps||[])if(s.transitDetails&&s.transitDetails.stopDetails)stops.push(s.transitDetails.stopDetails);
-  if(!stops.length)return Math.ceil(sec/60);
+  if(!stops.length)return sec/60<=MAX_WALK?Math.ceil(sec/60):null;
   const a=Date.parse(stops[0].departureTime),z=Date.parse(stops[stops.length-1].arrivalTime);
   if((a-t0)/6e4>MAX_WAIT)return null;
   return Math.ceil(Math.max(sec/60,z>t0?(z-t0)/6e4:0))}

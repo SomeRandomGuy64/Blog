@@ -103,11 +103,11 @@ function gSave(){const ks=Object.keys(GCACHE);
   for(let i=0;i<4;i++){if(lsSet(GC,JSON.stringify(GCACHE)))return;   // quota: drop the oldest half and retry
     const ks2=Object.keys(GCACHE).sort((a,b)=>GCACHE[a][1]-GCACHE[b][1]);ks2.slice(0,Math.ceil(ks2.length/2)).forEach(k=>delete GCACHE[k])}}
 const HLL=ht=>ht&&!ht.none&&typeof ht.lat==='number'?{lat:ht.lat,lng:ht.lng}:null;
-// Late journeys home (public transport only): every time above is for 17:00, so a leg home leaving after 20:00 gets its own
+// Late journeys home (public transport only): every time above is for 17:00, so a leg home leaving after 18:00 gets its own
 // lookup, once a plan actually uses it. Times come in half-hour bands, rounded up from the time you leave, each with its own
 // key, e.g. "T@2330f|…" (2430 = 00:30 the next morning; the letter is the plan day's timetable: w Mon–Thu, f Fri, a Sat, u Sun).
 // A cached null, or a time far longer than the 17:00 one, means nothing runs then, which isn't the same as not having looked (-2).
-const LATE={from:1200,step:30,n:18,p:180},LATE_UNSEEN=60,LATE_MORE=120,LATE_AHEAD=28,LATE_ROUNDS=4,LATE_MAX=16;
+const LATE={from:1080,step:30,n:22,p:180},LATE_UNSEEN=60,LATE_MORE=120,LATE_AHEAD=28,LATE_ROUNDS=4,LATE_MAX=16;
 const lateOn=()=>!!gkey&&tp[0]==='T';
 const lateK=(day,k)=>tp+'@'+pad(Math.floor((LATE.from+(k+1)*LATE.step)/60))+pad((LATE.from+(k+1)*LATE.step)%60)+'uwwwwfa'[wdOf(day)];
 const lateBand=m=>{const k=Math.ceil((m-LATE.from)/LATE.step)-1;return k>=0&&k<LATE.n?k:-1};
@@ -661,7 +661,7 @@ const gmap=(o,d,p)=>'https://www.google.com/maps/dir/?api=1'+(o?'&origin='+o.lat
 function renderResult(){const {r,ctx}=lastRes,out=$('pout');
   if(r.error){out.innerHTML=`<div class="banner err">Planner error: ${esc(r.error)}</div>`;lastRes.legs=null;banner();return}
   const {ht,win,T,E,dl,buf}=ctx,noHome=ht.none,anyPt=dl.some(x=>x.s||x.e),anyEnd=dl.some(x=>x.e);
-  const nPick=ctx.info.length,nGot=r.chosen.length;let totTr=0,html='',nLeg=0,nEst=0,nNoWay=0;
+  const nPick=ctx.info.length,nGot=r.chosen.length;let totTr=0,html='',nLeg=0,nEst=0,nNoWay=0,nUnk=0;
   const tilde=e=>{nLeg++;if(e){nEst++;return '~'}return ''};
   // what a leg's time is: transit needs no word; a cycling/driving plan's fallback estimate is not a cycling/driving time
   const how=e=>ctx.tp[0]==='T'?'':e?' (public transport estimate)':ctx.tp==='B'?' cycle':' drive';
@@ -680,8 +680,8 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
         ${bd?`<div>${bd}</div>`:''}${lateBy>0?`<div class="note">Arrives ~${lateBy} min after the listed start (during the ads/trailers)</div>`:''}</div>`;
       tEnd=h.en});
     const L=seq[seq.length-1],LC=CLL[L.c];
-    if(!free1){const dep=L.en+buf,t0h=o.b?o.b[L.c]:T[L.c*NC1+H],v=ctx.lateAt(dd.d,L.c,dep),t=v>=0?v:t0h,fe=v>=0?0:v===-1||lateBand(dep)>=0&&ctx.lateOn?1:o.b?o.be[L.c]:E[L.c*NC1+H],ti=tilde(fe),eL=o.e&&esc(fmtPC(o.e.pc));trv+=t;tEnd=dep+t;dayEst=dayEst||!!ti;if(v===-1){nNoWay++;if(!(o.b?o.be[L.c]:E[L.c*NC1+H]))nEst--}
-      tl+=`<div class="ev leg">Leave ${hm(dep)} · ${ti}${dur(t)}${how(fe)} ${eL?'to '+eL:'home'}${LC?` · <a href="${gmap(LC,o.e,ctx.tp)}" target="_blank" rel="noopener">route</a>`:''}${v===-1?`<div class="note">No public transport ${eL?'':'home '}at this time, so you may need a taxi or a lift. ${ti}${dur(t)} is the early-evening journey.</div>`:''}</div><div class="ev home">${eL?'Finish at '+eL:'Home by'} <b>${seq.some(h=>h.est)||dayEst?'~':''}${hm(tEnd)}</b></div>`}
+    if(!free1){const dep=L.en+buf,t0h=o.b?o.b[L.c]:T[L.c*NC1+H],v=ctx.lateAt(dd.d,L.c,dep),t=v>=0?v:t0h,fe=v>=0?0:v===-1||lateBand(dep)>=0&&ctx.lateOn?1:o.b?o.be[L.c]:E[L.c*NC1+H],ti=tilde(fe),unk=v===-2&&lateBand(dep)>=0&&ctx.lateOn,eL=o.e&&esc(fmtPC(o.e.pc));trv+=t;if(unk)nUnk++;tEnd=dep+t;dayEst=dayEst||!!ti;if(v===-1){nNoWay++;if(!(o.b?o.be[L.c]:E[L.c*NC1+H]))nEst--}
+      tl+=`<div class="ev leg">Leave ${hm(dep)} · ${ti}${dur(t)}${how(fe)} ${eL?'to '+eL:'home'}${LC?` · <a href="${gmap(LC,o.e,ctx.tp)}" target="_blank" rel="noopener">route</a>`:''}${v===-1?`<div class="note">No public transport ${eL?'':'home '}at this time, so you may need a taxi or a lift. ${ti}${dur(t)} is the early-evening journey.</div>`:unk?`<div class="note">Not checked for this time of night, so it may not run. ${ti}${dur(t)} is the early-evening journey.</div>`:''}</div><div class="ev home">${eL?'Finish at '+eL:'Home by'} <b>${seq.some(h=>h.est)||dayEst?'~':''}${hm(tEnd)}</b></div>`}
     totTr+=trv;
     html+=`<div class="iday"><div class="ih"><b>${esc(dayLbl(ctx.days[dd.d]))}</b><span class="meta">${seq.length} film${seq.length>1?'s':''} · ${free0&&free1?'':'out '}${hm(t0)}–${hm(tEnd)}${free0&&free1?'':' · '+(dayEst?'~':'')+dur(trv)+' travel'}</span></div><div class="tl">${tl}</div></div>`}
   lastRes.legs={n:nLeg,est:nEst};
@@ -710,7 +710,8 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
     <details class="hbl"><summary>Show ${nHB>1?'which showings':'which showing'}</summary><div class="hbw">${ctx.info.filter(x=>x.hb.length).map(x=>`<b>${esc(FI[x.p.k]?title(x.p.k):x.p.t)}</b>${miss.includes(x)?'':' <span class="meta">(in your plan at another time)</span>'}`+
       x.hb.slice().sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:a.st-b.st).map(h=>`<div>${esc(dayLbl(h.day))} ${hm(h.st)}–${hm(h.en)} · ${esc(D.cinemas[h.c].name)}</div>`).join('')).join('')}</div></details></div>`:'';
   const nw=nNoWay?`<div class="banner">${nNoWay===1?'One journey':nNoWay+' journeys'} in this plan ${nNoWay===1?'has':'have'} no public transport at the time you’d leave. You may need a taxi or a lift. Each is marked below.</div>`:'';
-  html=head+nw+hb+(days.length?html:'<div class="pempty">Nothing could be scheduled. See below.</div>');
+  const nu=nUnk?`<div class="banner">${nUnk===1?'One late journey':nUnk+' late journeys'} home in this plan couldn’t be checked against the night timetable, so ${nUnk===1?'it':'they'} may not run. Each is marked below. Pressing Plan again checks more.</div>`:'';
+  html=head+nw+nu+hb+(days.length?html:'<div class="pempty">Nothing could be scheduled. See below.</div>');
   if(miss.length)html+=`<div class="unf"><h3>Not scheduled (${miss.length})</h3>${miss.map(x=>`<div><b>${x.pi+1}. ${esc(FI[x.p.k]?title(x.p.k):x.p.t)}</b><span class="meta">${esc(why(x))}</span></div>`).join('')}</div>`;
   out.innerHTML=`<div class="res">${html}</div>`;banner()}
 
