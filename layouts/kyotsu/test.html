@@ -43,7 +43,7 @@
         <span id="edState" class="ed-state"></span>
       </div>
 
-      <div class="next" style="display:flex;gap:10px;justify-content:space-between;margin-top:16px;">
+      <div class="next" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;margin-top:16px;">
         <button class="nextbtn" id="prevBtn">← Prev<kbd class="w-only">[</kbd></button>
         <button class="nextbtn" id="replayBtn">▶ Replay both<kbd class="w-only">Space</kbd></button>
         <button class="nextbtn" id="nextBtn">Next →<kbd class="w-only">]</kbd></button>
@@ -93,7 +93,7 @@
             <label><input type="checkbox" id="flaggedOnly" /> Only my flags</label>
             <span class="mono" id="twCount"></span>
           </div>
-          <div class="tw-scroll">
+          <div class="tw-scroll" tabindex="0" role="region" aria-label="Pairs">
             <table class="w-table tw-table">
               <thead><tr><th class="num">#</th><th>Reading</th><th>Status</th><th>Flag</th></tr></thead>
               <tbody id="twRows"></tbody>
@@ -253,7 +253,7 @@
       const st=statusOf(p);
       const chip=$("#statusChip");
       chip.textContent=st;
-      chip.parentElement.style.opacity=(st==="ok")?.5:1;
+      chip.parentElement.classList.toggle("ok",st==="ok");
       const opts=$("#options");opts.innerHTML="";
       p.members.forEach((m,mi)=>{
         const flagged=flags.has(m.audio);
@@ -269,7 +269,7 @@
             `<div class="ed-row"><button class="nextbtn ed-save" data-i="${mi}"${chk.err?" disabled":""}>Save for ${scopeName(scope)}</button>`+
             `<button class="nextbtn ed-reset" data-i="${mi}">Reset</button></div>`:"")+
           checkerNote(m.audio)+
-          `<div style="display:flex;gap:8px;margin-top:8px;">
+          `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
              <button class="nextbtn playone" data-a="${m.audio}" data-i="${mi}">▶ Play<kbd class="w-only">${"ab"[mi]}</kbd></button>
              <button class="nextbtn flagone ${flagged?'flagged':''}" data-a="${m.audio}" data-i="${mi}"
                style="${flagged?'background:var(--k-bad,#c0392b);color:#fff;':''}">${flagged?'✓ flagged':'⚑ Flag'}</button>

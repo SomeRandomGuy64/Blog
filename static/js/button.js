@@ -3,11 +3,20 @@ const body = document.body;
 
 let isLightMode = false;
 
-// Check local storage for theme preference
-if (localStorage.getItem("theme") === "light") {
+// a saved choice wins; with none, the main site follows the OS light/dark setting (cinema stays dark)
+let savedTheme = null;
+try { savedTheme = localStorage.getItem("theme"); } catch (e) {}
+const followOS = !location.pathname.startsWith("/cinema") && window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches;
+if (savedTheme === "light" || (savedTheme === null && followOS)) {
     body.classList.add("light-mode");
     isLightMode = true;
 }
+
+// the header's toggle is a <button> (cinema's is still a div): say which way it's switched
+function syncToggleState() {
+    if (toggleButton.tagName === "BUTTON") toggleButton.setAttribute("aria-pressed", String(body.classList.contains("light-mode")));
+}
+syncToggleState();
 
 
 let fadeTimer;
@@ -17,16 +26,13 @@ toggleButton.addEventListener("click", () => {
     clearTimeout(fadeTimer);
     fadeTimer = setTimeout(() => document.documentElement.classList.remove("theme-fading"), 200);
     body.classList.toggle("light-mode");
+    isLightMode = body.classList.contains("light-mode");
+    syncToggleState();
 
     document.dispatchEvent(new CustomEvent("themeChange", { detail: isLightMode }));
 
     // Save preference to local storage
-    if(body.classList.contains("light-mode")) {
-        localStorage.setItem("theme", "light");
-    } 
-    else {
-        localStorage.setItem("theme", "dark");
-    }
+    try { localStorage.setItem("theme", isLightMode ? "light" : "dark"); } catch (e) {}
 
     // global to pass to WebGL
     window.isLightMode = isLightMode;

@@ -7,7 +7,8 @@
   --k-surface2: #242424;
   --k-line: rgba(255, 255, 255, 0.14);
   --k-muted: #9a9a9a;
-  --k-accent: #c3540a;
+  --k-accent: #d9661a;        /* text and lines */
+  --k-accent-fill: #c3540a;   /* behind white text */
   --k-accent-ink: #ea7e35;
   --k-accent-soft: rgba(195, 84, 10, 0.16);
   --k-good: #4bab6c;
@@ -24,14 +25,15 @@ body.light-mode {
   --k-surface2: #f1f1f1;
   --k-line: rgba(0, 0, 0, 0.14);
   --k-muted: #666666;
-  --k-accent: #3f9142;
-  --k-accent-ink: #267f29;
-  --k-accent-soft: rgba(76, 175, 80, 0.16);
+  --k-accent: #2b7a2f;
+  --k-accent-fill: #2b7a2f;
+  --k-accent-ink: #1f6a23;
+  --k-accent-soft: rgba(43, 122, 47, 0.14);
   --k-good: #2e9e57;
   --k-good-soft: rgba(46, 158, 87, 0.14);
-  --k-bad: #cc3f34;
+  --k-bad: #b8352b;
   --k-bad-soft: rgba(204, 63, 52, 0.12);
-  --k-hi: #3f9142;
+  --k-hi: #2b7a2f;
   --k-lo: #b0b0b0;
   --k-pitch: #d23a2e;
 }
@@ -110,7 +112,7 @@ body.light-mode {
   border: 2.5px solid var(--text-color); background: transparent; transform: translateY(-50%);
   box-sizing: border-box; transition: left 0.15s ease;
 }
-.kyotsu-quiz .sw-in:checked + .sw { background: var(--k-accent); border-color: var(--k-accent); }
+.kyotsu-quiz .sw-in:checked + .sw { background: var(--k-accent-fill); border-color: var(--k-accent-fill); }
 .kyotsu-quiz .sw-in:checked + .sw::after { left: 20px; border-color: #fff; }
 .kyotsu-quiz .sw-in:focus-visible + .sw { outline: 3px solid var(--k-accent-soft); outline-offset: 2px; }
 
@@ -127,11 +129,14 @@ body.light-mode {
   color: var(--k-accent-ink); font-size: 12px; font-weight: 500;
 }
 .kyotsu-quiz .voicechip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--k-accent); }
+/* a pair that's fine: a plain outlined chip, so flagged pairs (tinted) stand out */
+.kyotsu-quiz .voicechip.ok { background: none; box-shadow: inset 0 0 0 1px var(--k-line); color: var(--k-muted); }
+.kyotsu-quiz .voicechip.ok .dot { background: var(--k-muted); }
 
 .kyotsu-quiz .play { display: flex; justify-content: center; margin: 22px 0 6px; }
 .kyotsu-quiz .playbtn {
   display: inline-flex; align-items: center; gap: 10px; border: 0; cursor: pointer;
-  background: var(--k-accent); color: #fff; font-family: inherit; font-weight: 500; font-size: 15px;
+  background: var(--k-accent-fill); color: #fff; font-family: inherit; font-weight: 500; font-size: 15px;
   padding: 12px 24px; border-radius: 999px; transition: transform 0.12s ease, filter 0.12s ease;
 }
 .kyotsu-quiz .playbtn:hover { filter: brightness(1.08); }
@@ -144,7 +149,7 @@ body.light-mode {
   font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--k-muted);
   text-align: center; margin: 24px 0 12px;
 }
-.kyotsu-quiz .options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.kyotsu-quiz .options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 /* three-word sets (Tokyo mode) side by side; stacked on phones (the kotu layout's rows win below) */
 .kyotsu-quiz .options.n3 { grid-template-columns: repeat(3, 1fr); }
 @media (max-width: 560px) { .kyotsu-quiz .options.n3 { grid-template-columns: 1fr; } }
@@ -166,7 +171,7 @@ body.light-mode {
 .kyotsu-quiz .opt svg { display: block; }
 .kyotsu-quiz .opt .playicon {
   position: absolute; top: 9px; right: 9px; width: 26px; height: 26px; border-radius: 50%;
-  display: none; align-items: center; justify-content: center; background: var(--k-accent); color: #fff;
+  display: none; align-items: center; justify-content: center; background: var(--k-accent-fill); color: #fff;
 }
 .kyotsu-quiz .opt .playicon svg { width: 12px; height: 12px; fill: currentColor; margin-left: 1px; }
 .kyotsu-quiz .opt.answered .playicon { display: flex; }
@@ -327,7 +332,7 @@ body.light-mode {
 .kyotsu-quiz.kotu .opt.pressed.ok .badge { color: var(--k-good); }
 .kyotsu-quiz.kotu .opt.pressed.bad .badge { color: var(--k-bad); }
 
-.kyotsu-note { text-align: center; color: var(--k-muted); font-size: 11.5px; line-height: 1.6; margin-top: 22px; }
+.kyotsu-note { text-align: center; color: var(--k-muted); font-size: 14px; line-height: 1.6; max-width: 80ch; margin: 22px auto 0; }
 
 @media (max-width: 380px) { .kyotsu-quiz .opt .surface { font-size: 24px; } }
 @media (prefers-reduced-motion: reduce) { .kyotsu-quiz * { transition: none !important; } }
@@ -385,7 +390,9 @@ body.light-mode {
 .kyotsu-quiz .kt-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
 .kyotsu-quiz .kt-row .kt-time { font-size: 15px; min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
 .kyotsu-quiz .kt-state { color: var(--k-muted); font-size: 12px; }
-.kyotsu-quiz .kt-row.paused .kt-time, .kyotsu-quiz .kt-foot.paused { opacity: 0.55; }
+.kyotsu-quiz .kt-row.paused .kt-time { color: var(--k-muted); }
+/* paused says so in words: fading it out failed contrast, and the footer is already grey */
+.kyotsu-quiz .kt-row.paused .kt-time::after, .kyotsu-quiz .kt-foot.paused .kt-time::after { content: " paused"; }
 .kyotsu-quiz .kt-foot .kt-time { font-variant-numeric: tabular-nums; }
 
 /* "End session" (logged-in users) at the foot of the Statistics panel */
@@ -396,7 +403,7 @@ body.light-mode {
   background: var(--k-accent-soft); color: var(--k-accent-ink);
   transition: var(--theme-fade), transform 0.12s ease;
 }
-.kyotsu-quiz .endbtn:hover:not(:disabled) { background: var(--k-accent); color: #fff; }
+.kyotsu-quiz .endbtn:hover:not(:disabled) { background: var(--k-accent-fill); color: #fff; }
 .kyotsu-quiz .endbtn:active:not(:disabled) { transform: scale(0.98); }
 .kyotsu-quiz .endbtn:disabled { opacity: 0.4; cursor: default; }
 .kyotsu-quiz .end-note { color: var(--k-muted); font-size: 12px; line-height: 1.5; margin-top: 8px; }
@@ -425,7 +432,7 @@ body.light-mode {
   cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700; padding: 7px 14px; border-radius: 999px;
   border: 1px solid var(--k-accent); background: var(--k-accent-soft); color: var(--k-accent-ink);
 }
-.kyotsu-quiz .lr-send:hover:not(:disabled) { background: var(--k-accent); color: #fff; }
+.kyotsu-quiz .lr-send:hover:not(:disabled) { background: var(--k-accent-fill); color: #fff; }
 .kyotsu-quiz .lr-send:disabled { opacity: 0.4; cursor: default; }
 
 /* Sequential Clip Review: speaker + go-to-pair card, and the gap above the lower cards */
@@ -528,7 +535,7 @@ body.light-mode {
 .kyotsu-quiz .ed-lbl { font-weight: 600; }
 .kyotsu-quiz .ed-scope { display: inline-flex; border: 1.5px solid var(--k-line); border-radius: 999px; overflow: hidden; }
 .kyotsu-quiz .ed-scope button { padding: 6px 12px; border: 0; background: transparent; color: var(--text-color); font: inherit; cursor: pointer; }
-.kyotsu-quiz .ed-scope button[aria-pressed="true"] { background: var(--k-accent); color: #fff; }
+.kyotsu-quiz .ed-scope button[aria-pressed="true"] { background: var(--k-accent-fill); color: #fff; }
 .kyotsu-quiz .ed-state { color: var(--k-muted); font-size: 12.5px; }
 .kyotsu-quiz #edBlBtn.flagged { border-color: var(--k-bad); color: var(--k-bad); }
 .kyotsu-quiz .ed-tag { color: var(--k-accent-ink, var(--k-accent)); letter-spacing: 0; white-space: nowrap; }

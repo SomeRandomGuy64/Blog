@@ -6,7 +6,9 @@
 // For page scripts, wide only:
 //   FazonWide.active()                 is wide on right now?
 //   document "fz-layout" event         fired when wide goes on or off; re-render from state
-//   FazonWide.key("j", "Next row", fn) a shortcut, ignored while typing, listed on the ? sheet
+//   FazonWide.key("j", "Next row", fn) a shortcut, ignored while typing, listed on the ? sheet.
+//                                      Single-character ones (and ?, g-sequences) can be turned off
+//                                      on the sheet (WCAG 2.1.4); Ctrl+/ opens the sheet either way
 //   FazonWide.tools()                  the page bar's tools box (#wBarTools)
 //   data-tip="text" on any element     a tooltip on hover and keyboard focus
 (function () {
@@ -47,7 +49,9 @@
     });
 
     // ---- shortcuts ----
-    var keys = {}, gPending = null;
+    var keys = {}, gPending = null, charKeysOff = false;
+    try { charKeysOff = localStorage.getItem("fz-keys") === "off"; } catch (e) { /* storage blocked */ }
+    function charKey(k) { return k.length === 1 && k !== " "; }
     var GO = { h: ["/", "Home"], a: ["/articles/", "Articles"], k: ["/kyotsu/", "Kyōtsu"], t: ["/track/", "Track"], o: ["/tools/", "Tools"] };
     function typing(n) { return !!n && !!n.closest && !!n.closest("input, textarea, select, [contenteditable]"); }
     function go(path) {
@@ -60,19 +64,31 @@
         d.className = "w-keys"; d.id = "wKeys"; d.setAttribute("aria-label", "Keyboard shortcuts");
         Object.keys(keys).forEach(function (k) { rows.push([k, keys[k].label]); });
         Object.keys(GO).forEach(function (k) { rows.push(["g " + k, GO[k][1]]); });
-        rows.push(["?", "This list"]);
+        rows.push(["?", "This list (Ctrl+/ always works)"]);
         rows.forEach(function (r) {
             var row = document.createElement("div"), kbd = document.createElement("kbd"), t = document.createElement("span");
             row.className = "w-keys-row"; kbd.textContent = r[0] === " " ? "Space" : r[0]; t.textContent = r[1];
             row.append(kbd, t); d.append(row);
         });
+        // the off switch: letters, symbols, ? and g-sequences stop; Space, Enter and Ctrl+/ still work
+        var lab = document.createElement("label"), box = document.createElement("input");
+        lab.className = "w-keys-off"; box.type = "checkbox"; box.checked = charKeysOff;
+        box.addEventListener("change", function () {
+            charKeysOff = box.checked;
+            try { localStorage.setItem("fz-keys", charKeysOff ? "off" : "on"); } catch (err) { /* ignore */ }
+        });
+        lab.append(box, document.createTextNode(" Turn off single-key shortcuts"));
+        d.append(lab);
         d.addEventListener("close", function () { d.remove(); });
         d.addEventListener("click", function (e) { if (e.target === d) d.close(); });
         document.body.append(d);
         d.showModal();
     }
     document.addEventListener("keydown", function (e) {
-        if (!active() || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || typing(e.target)) return;
+        if (!active() || e.defaultPrevented || typing(e.target)) return;
+        if (e.ctrlKey && !e.metaKey && !e.altKey && (e.key === "/" || e.key === "?")) { e.preventDefault(); keySheet(); return; }
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (charKeysOff && charKey(e.key)) return;
         if (gPending) {
             clearTimeout(gPending); gPending = null;
             if (GO[e.key]) { e.preventDefault(); go(GO[e.key][0]); }

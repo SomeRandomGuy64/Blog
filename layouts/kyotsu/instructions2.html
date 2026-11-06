@@ -4,7 +4,7 @@
   <h1>{{ .Title }}</h1>
 
   <div class="instructions w-panes ins-panes">
-    <div class="ins-rules w-pane">
+    <div class="ins-rules w-pane" tabindex="0" role="region" aria-label="Instructions">
     <p class="ins-meta">追加 209 ペア（418 語）・使用漢字 計 777 字</p>
 
     <div class="ins-lead">
@@ -39,7 +39,7 @@
     </ol>
 
     </div>
-    <div class="ins-words w-pane">
+    <div class="ins-words w-pane" tabindex="0" role="region" aria-label="Word list">
     <h2>語彙リスト（追加 209 ペア）</h2>
     {{ partial "instructions_list_2.html" . }}
     </div>

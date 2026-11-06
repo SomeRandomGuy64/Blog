@@ -1,7 +1,7 @@
 /* Token Coverage tool — accent follows the site theme (orange dark / green light);
    chart series reuse the Track palette steps (blue = learned, orange = mature). */
 :root {
-  --tc-accent: #c3540a; --tc-accent-hover: #ea7e35;
+  --tc-accent: #d9661a; --tc-accent-fill: #c3540a; --tc-accent-hover: #b4490a;   /* accent for text, fill (+hover) behind white text */
   --tc-line: rgba(127,127,127,0.35); --tc-line-soft: rgba(127,127,127,0.15);
   --tc-surface: #1a1a1a; --tc-muted: #9a9a9a; --tc-bad: #e2564a;
   --tc-learned: #3987e5; --tc-mature: #d95926; --tc-i0: #199e70; --tc-i1: #c98500; --tc-i2: rgba(127,127,127,0.45);
@@ -9,8 +9,8 @@
   --tc-unk-bg: rgba(226,86,74,0.22); --tc-young-bg: rgba(57,135,229,0.20);
 }
 .light-mode {
-  --tc-accent: #4caf50; --tc-accent-hover: #5cbf60;
-  --tc-surface: #ffffff; --tc-muted: #666; --tc-bad: #cc3f34;
+  --tc-accent: #2b7a2f; --tc-accent-fill: #2b7a2f; --tc-accent-hover: #23692a;
+  --tc-surface: #ffffff; --tc-muted: #666; --tc-bad: #b8352b;
   --tc-learned: #2a78d6; --tc-mature: #eb6834; --tc-i0: #1baf7a; --tc-i1: #eda100;
   --tc-grid: #e1e0d9; --tc-axis: #b8b8b2; --tc-tip-bg: #fff;
   --tc-unk-bg: rgba(204,63,52,0.16); --tc-young-bg: rgba(42,120,214,0.14);
@@ -22,7 +22,7 @@
 .tc-h3 { text-align: left; font-size: 1.05rem; margin: 0; }
 .tc-num {
   display: inline-flex; align-items: center; justify-content: center; width: 1.7em; height: 1.7em;
-  border-radius: 50%; background: var(--tc-accent); color: #fff; font-size: 0.85rem; flex: none;
+  border-radius: 50%; background: var(--tc-accent-fill); color: #fff; font-size: 0.85rem; flex: none;
 }
 .tc-note { margin: 6px 0 12px; opacity: 0.75; font-size: 0.85rem; line-height: 1.5; }
 .tc-opt { opacity: 0.6; font-weight: 400; font-size: 0.8rem; }
@@ -37,14 +37,15 @@
   border: 1px solid rgba(127,127,127,0.45); border-radius: 6px;
 }
 .tc select option { background: var(--bg-color); color: var(--text-color); }
-.tc input:focus, .tc select:focus { outline: none; border-color: var(--tc-accent); }
+.tc input:focus, .tc select:focus { border-color: var(--tc-accent); }
+.tc input:focus-visible, .tc select:focus-visible { outline: 2px solid var(--tc-accent); outline-offset: 1px; }
 .tc input[type=file] { font-family: inherit; font-size: 0.85rem; font-weight: 400; max-width: 100%; }
 .tc-checks { gap: 6px 22px; font-size: 0.88rem; }
 .tc-checks label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
 
 .tc-btn {
   padding: 8px 16px; font-family: inherit; font-size: 0.95rem; cursor: pointer;
-  color: #fff; background: var(--tc-accent); border: 1px solid var(--tc-accent); border-radius: 6px;
+  color: #fff; background: var(--tc-accent-fill); border: 1px solid var(--tc-accent-fill); border-radius: 6px;
 }
 .tc-btn:hover { background: var(--tc-accent-hover); border-color: var(--tc-accent-hover); }
 .tc-btn:disabled { opacity: 0.45; cursor: default; }
@@ -62,8 +63,8 @@
 .tc-status.tc-err { color: var(--tc-bad); }
 .tc-status .tc-dim { opacity: 0.7; }
 
-.tc-help { margin: 0 0 14px; font-size: 0.88rem; line-height: 1.55; }
-.tc-help summary { cursor: pointer; opacity: 0.85; }
+.tc-help { margin: 0 0 14px; font-size: 1rem; line-height: 1.55; }
+.tc-help summary { cursor: pointer; color: var(--tc-muted); }
 .tc-help ul { margin: 8px 0 0; padding-left: 20px; }
 .tc-help li { margin: 4px 0; }
 .tc-adv { margin-top: 10px; }

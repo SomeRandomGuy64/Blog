@@ -230,7 +230,7 @@
 .layout-wide .lb-cats li { height: var(--w-row); border-bottom: 1px solid var(--fz-line); }
 .layout-wide .lb-sum-h { font-size: var(--w-fs-sm); }
 .layout-wide .sm-text { font-size: var(--w-fs); margin-top: 4px; }
-.layout-wide .lb-graph h3 { margin: 0 0 4px; font-size: var(--w-fs-sm); font-weight: 400; color: var(--fz-muted); }
+.layout-wide .lb-graph h2 { margin: 0 0 4px; font-size: var(--w-fs-sm); font-weight: 400; color: var(--fz-muted); }
 .layout-wide .lb-graph + .lb-graph { margin-top: 16px; }
 .layout-wide .lb-goals-intro { font-size: var(--w-fs-sm); }
 .layout-wide .lb-tier h3 { font-size: var(--w-fs-sm); }
