@@ -520,3 +520,29 @@ body.light-mode {
 .kyotsu-quiz .ks-more[hidden] { display: none; }
 .kyotsu-quiz .ks-other { margin: 12px 0 0; text-align: center; font-size: 12.5px; }
 .kyotsu-quiz .ks-other a { color: var(--k-accent-ink); }
+
+/* Sequential Clip Review: search hits + admin edits (pitch editor, apply-to scope, blacklist) */
+.kyotsu-quiz .kt-hits { font-size: 12px; color: var(--k-muted); min-width: 3ch; }
+.kyotsu-quiz .ed-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--k-line); font-size: 13.5px; }
+.kyotsu-quiz .ed-bar[hidden] { display: none; }
+.kyotsu-quiz .ed-lbl { font-weight: 600; }
+.kyotsu-quiz .ed-scope { display: inline-flex; border: 1.5px solid var(--k-line); border-radius: 999px; overflow: hidden; }
+.kyotsu-quiz .ed-scope button { padding: 6px 12px; border: 0; background: transparent; color: var(--text-color); font: inherit; cursor: pointer; }
+.kyotsu-quiz .ed-scope button[aria-pressed="true"] { background: var(--k-accent); color: #fff; }
+.kyotsu-quiz .ed-state { color: var(--k-muted); font-size: 12.5px; }
+.kyotsu-quiz #edBlBtn.flagged { border-color: var(--k-bad); color: var(--k-bad); }
+.kyotsu-quiz .ed-tag { color: var(--k-accent-ink, var(--k-accent)); letter-spacing: 0; white-space: nowrap; }
+.kyotsu-quiz .ed-x { margin-left: 4px; padding: 0 4px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; opacity: 0.7; }
+.kyotsu-quiz .ed-x:hover { opacity: 1; color: var(--k-bad); }
+.kyotsu-quiz .kword.ed .m { cursor: pointer; border-radius: 4px; }
+.kyotsu-quiz .kword.ed .m:hover { background: var(--k-accent-soft); }
+.kyotsu-quiz .kword.ed .m.ghost { opacity: 0.35; }
+.kyotsu-quiz .kword.ed .m.ghost:hover { opacity: 0.7; }
+.kyotsu-quiz .kword.ed .m.ghost.off { cursor: default; background: none; opacity: 0.2; }
+.kyotsu-quiz .kword.ed.bad .m { color: var(--k-bad); }
+.kyotsu-quiz .ed-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.kyotsu-quiz .ed-row .nextbtn:disabled { opacity: 0.45; cursor: default; }
+.kyotsu-quiz .ed-msg { font-size: 12.5px; color: var(--k-muted); line-height: 1.45; }
+.kyotsu-quiz .ed-msg:empty { display: none; }
+.kyotsu-quiz .ed-msg.err { color: var(--k-bad); }
+.kyotsu-quiz .ed-msg.warn { color: var(--k-accent-ink, var(--k-accent)); }

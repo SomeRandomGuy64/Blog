@@ -10,9 +10,10 @@
       <select id="speakerSel" class="nextbtn w-input"></select>
       <span id="speakerMeta" class="mono"></span>
       <span class="kt-jump">
-        <label for="jumpInput">Go to pair</label>
-        <input id="jumpInput" class="w-input" type="number" min="1" inputmode="numeric" placeholder="#" />
+        <label for="jumpInput">Go to</label>
+        <input id="jumpInput" class="w-input" type="text" autocomplete="off" spellcheck="false" placeholder="# or reading" />
         <button class="nextbtn w-btn" id="jumpBtn">Go</button>
+        <span id="jumpHits" class="mono kt-hits"></span>
       </span>
       <label id="checkerWrap" style="display:none;align-items:center;gap:6px;width:100%;font-size:.9rem;">
         <input type="checkbox" id="checkerOnly" /> Only pairs the pitch checker flagged
@@ -30,6 +31,17 @@
       </div>
 
       <div class="options" id="options" style="margin-top:14px;"></div>
+
+      <!-- admins: where a pitch edit or blacklist applies, and the pair's blacklist -->
+      <div class="ed-bar" id="edBar" hidden>
+        <span class="ed-lbl">Apply to</span>
+        <span class="ed-scope" role="group" aria-label="Apply edits to">
+          <button type="button" data-scope="spk" id="edScopeSpk">This speaker</button>
+          <button type="button" data-scope="all">All speakers</button>
+        </span>
+        <button type="button" class="nextbtn" id="edBlBtn">Blacklist pair</button>
+        <span id="edState" class="ed-state"></span>
+      </div>
 
       <div class="next" style="display:flex;gap:10px;justify-content:space-between;margin-top:16px;">
         <button class="nextbtn" id="prevBtn">← Prev<kbd class="w-only">[</kbd></button>
@@ -60,6 +72,12 @@
         <label class="rp-filter"><input type="checkbox" id="rpResolved" /> Show resolved</label>
       </div>
       <div id="rpList"></div>
+    </div>
+
+    <!-- admin edits (pitch patterns, blacklists) on top of the static data; admins only -->
+    <div class="card kt-gap" id="editsCard" style="display:none;">
+      <div class="q">Edits <span id="edCount" class="mono" style="opacity:.65;font-weight:400;"></span></div>
+      <div id="edList"></div>
     </div>
 
     <!-- wide: the review as panes; the cards above move in (see arrange()). The third pane folds
@@ -101,8 +119,8 @@
     const SPEAKERS=[
       {id:"yura", label:"彩森遊楽 (Kobe)",  region:"native Kobe",              base:AUDIO_BASE,
         // her own Kobe pitch where it differs from the stored base (user ear-check 2026-10-03)
-        personal:new Set(["058A","067A","097A","081A","152A","077A","075A"]),
-        overrides:{"058A":"HHL","067A":"HL","097A":"HHL","081A":"LHHL","152A":"HLL","077A":"LLLH","075A":"LLH"}},
+        personal:new Set(["058A","067A","097A","081A","152A","152B","077A","075A"]),
+        overrides:{"058A":"HHL","067A":"HL","097A":"HHL","081A":"LHHL","152A":"HHH","152B":"HLL","077A":"LLLH","075A":"LLH"}},
       {id:"nagi", label:"月野ナギ (Kyoto)", region:"Osaka-raised, Kyoto pitch", base:AUDIO_BASE+"nagi/", forceOk:true,
         // these are truly speaker-specific (her own reported pitch); the rest are
         // dictionary Kyoto values, not personal to her.
@@ -127,23 +145,25 @@
       {id:"atsuzaki", label:"厚崎ゆうま (Shiga/Osaka)", region:"Shiga-born, Osaka-based, Kyoto pitch", base:AUDIO_BASE+"atsuzaki/", forceOk:true, upto:517,
         // blacklist = ear-check part 1 (2026-10-08, Keihan/atsuzaki/review_part1.json) + his own merged-pair list
         // (Keihan/atsuzaki/self_report.json) + his part-3 skips 359/360/501 + ear-check 2026-10-16
-        // (Keihan/atsuzaki/review_2026-10-16.json). Must be excluded for him when he joins the trainer.
-        blacklist:new Set(["006", "007", "010", "011", "031", "032", "040", "044", "045", "055", "057", "061", "062", "063", "065", "067", "068", "070", "078", "080", "092", "094", "095", "097", "101", "102", "104", "109", "114", "121", "127", "130", "131", "132", "135", "141", "142", "148", "158", "159", "166", "167", "168", "173", "174", "175", "178", "180", "185", "189", "190", "191", "192", "195", "198", "200", "201", "205", "217", "221", "226", "237", "241", "243", "245", "255", "263", "264", "265", "268", "274", "280", "281", "283", "284", "290", "291", "292", "294", "296", "298", "299", "300", "301", "302", "306", "310", "312", "313", "315", "316", "324", "327", "335", "337", "338", "339", "340", "345", "346", "352", "359", "360", "367", "368", "370", "372", "376", "378", "379", "383", "385", "386", "387", "388", "389", "393", "394", "403", "406", "409", "410", "415", "417", "421", "431", "432", "450", "452", "454", "455", "458", "462", "479", "485", "486", "495", "501", "503", "506", "510", "516"]),
+        // (Keihan/atsuzaki/review_2026-10-16.json) + trainer label reports 2026-11-06 (391, 416). Must be excluded for him when he joins the trainer.
+        blacklist:new Set(["006", "007", "010", "011", "031", "032", "040", "044", "045", "055", "057", "061", "062", "063", "065", "067", "068", "070", "078", "080", "092", "094", "095", "097", "101", "102", "104", "109", "114", "121", "127", "130", "131", "132", "135", "141", "142", "148", "158", "159", "166", "167", "168", "173", "174", "175", "178", "180", "185", "189", "190", "191", "192", "195", "198", "200", "201", "205", "217", "221", "226", "237", "241", "243", "245", "255", "263", "264", "265", "268", "274", "280", "281", "283", "284", "290", "291", "292", "294", "296", "298", "299", "300", "301", "302", "306", "310", "312", "313", "315", "316", "324", "327", "335", "337", "338", "339", "340", "345", "346", "352", "359", "360", "367", "368", "370", "372", "376", "378", "379", "383", "385", "386", "387", "388", "389", "391", "393", "394", "403", "406", "409", "410", "415", "416", "417", "421", "431", "432", "450", "452", "454", "455", "458", "462", "479", "485", "486", "495", "501", "503", "506", "510", "516"]),
         // pairs he says merge for him: both clips show ONE pitch, picked by the F0 checker
         // (Keihan/pitch_check/atsuzaki_merge_pitch.py → Keihan/atsuzaki/merge_pitch.json)
         merged:new Set(["006", "031", "040", "044", "045", "055", "057", "061", "062", "063", "065", "067", "068", "070", "078", "080", "092", "094", "095", "097", "101", "102", "104", "109", "114", "121", "127", "130", "131", "132", "135", "141", "142", "148", "158", "159", "166", "167", "168", "173", "174", "175", "178", "180", "185", "189", "190", "191", "192", "195", "198", "200", "201", "205", "221", "226", "237", "241", "243", "245", "255", "263", "264", "265", "268", "274", "280", "281", "283", "284", "291", "292", "294", "299", "300", "301", "302", "306", "310", "312", "313", "315", "316", "324", "327", "335", "337", "338", "339", "340", "345", "346", "352", "367", "368", "370", "372", "376", "378", "379", "383", "385", "386", "387", "388", "389", "393", "394", "403", "406", "415", "417", "421", "431", "432", "450", "454", "455", "458", "479", "485", "486", "495", "503", "506", "510"]),
-        personal:new Set(["060A", "077A", "082B", "089A", "093A", "097A", "097B", "105B", "113B", "145A", "152B", "164B", "165B", "182A", "184B", "222A", "227A", "230A", "230B", "236A", "236B", "248A", "266A", "278B", "290B", "296A", "305B", "357B", "380B", "382A", "214B", "400A", "407A", "407B", "418A", "466B"]),
+        personal:new Set(["060A", "077A", "082B", "089A", "093A", "097A", "097B", "105B", "113B", "145A", "152B", "164B", "165B", "182A", "184B", "222A", "227A", "230A", "230B", "236A", "236B", "248A", "266A", "278B", "290B", "296A", "305B", "357B", "380B", "382A", "214B", "400A", "407A", "407B", "418A", "466B", "357A", "402A", "402B", "438B"]),
         overrides:{
         // the Kobe-divergent (hyogo) base pairs restored to Kyoto pitch (84k Kinki dict)
         "009A":"HHH","021A":"LHL","103A":"LLH","157A":"HLL","221B":"LH↘",
         // his own pitch (ear-check 2026-10-08)
         "060A":"HLLL","082B":"LH","093A":"HLL","105B":"LH","145A":"LH","152B":"HLL","165B":"LHL",
         // his own pitch (ear-check 2026-10-16)
-        "077A":"HHHL","089A":"HHHL","113B":"HHLL","164B":"HH","182A":"HHLL","184B":"HL","222A":"LHL","227A":"LLH","230A":"HLL","230B":"LHL","236A":"HHL","236B":"LLH","248A":"HHL","266A":"HL","278B":"HL","290B":"HL","296A":"HL","305B":"HH","357B":"HHLL","380B":"LHH","382A":"LLLH","407A":"LLLH","407B":"HHHL","418A":"HHLL",
+        "077A":"HHHL","089A":"HHHL","113B":"HHLL","164B":"HH","182A":"HHLL","184B":"HL","222A":"LHL","227A":"LLH","230A":"HLL","230B":"LHL","236A":"HHL","236B":"LLH","248A":"HHL","266A":"HL","278B":"HL","290B":"HL","296A":"HL","305B":"HH","380B":"LHH","382A":"LLLH","407A":"LLLH","407B":"HHHL","418A":"HHLL",
         // his own pitch (user ear-check 2026-10-18)
         "400A":"LHLL",
         // his own pitch (trainer label reports 2026-10-21: 染料, 町政)
         "214B":"HLLL","466B":"LHLL",
+        // his own pitch (trainer label reports 2026-11-06: 太陽/大洋 swapped, 陰性/院生, 三升)
+        "357A":"HHLL","357B":"LHLL","402A":"HHHH","402B":"LHLL","438B":"HHHL",
         // merged pairs (checker pitch, same for A and B)
         "006A":"HL","006B":"HL","031A":"HH","031B":"HH","040A":"HHHH","040B":"HHHH","044A":"LLH","044B":"LLH","045A":"LLH","045B":"LLH","055A":"HL","055B":"HL","057A":"HLL","057B":"HLL","061A":"HLL","061B":"HLL","062A":"HHHH","062B":"HHHH","063A":"LH","063B":"LH","065A":"LH","065B":"LH","067A":"HL","067B":"HL","068A":"HL","068B":"HL","070A":"HL","070B":"HL","078A":"LHL","078B":"LHL","080A":"HHHH","080B":"HHHH","092A":"HHHH","092B":"HHHH","094A":"HHHH","094B":"HHHH","095A":"HHHH","095B":"HHHH","097A":"LHL","097B":"LHL","101A":"LH","101B":"LH","102A":"HL","102B":"HL","104A":"HLL","104B":"HLL","109A":"HH","109B":"HH","114A":"HL","114B":"HL","121A":"LLH","121B":"LLH","127A":"LLH","127B":"LLH","130A":"HL","130B":"HL","131A":"HHH","131B":"HHH","132A":"HHH","132B":"HHH","135A":"HLLL","135B":"HLLL","141A":"HHHH","141B":"HHHH","142A":"HHHH","142B":"HHHH","148A":"LLH","148B":"LLH","158A":"HH","158B":"HH","159A":"HLL","159B":"HLL","166A":"HHHH","166B":"HHHH","167A":"HHHH","167B":"HHHH","168A":"HHHH","168B":"HHHH","173A":"HHHH","173B":"HHHH","174A":"LHL","174B":"LHL","175A":"HL","175B":"HL","178A":"HHHH","178B":"HHHH","180A":"HHHH","180B":"HHHH","185A":"HL","185B":"HL","189A":"HL","189B":"HL","190A":"HHHH","190B":"HHHH","191A":"HLL","191B":"HLL","192A":"HLL","192B":"HLL","195A":"HHHH","195B":"HHHH","198A":"HL","198B":"HL","200A":"LH","200B":"LH","201A":"LLLH","201B":"LLLH","205A":"HHHH","205B":"HHHH","221A":"HH","221B":"HH","226A":"HHHH","226B":"HHHH","237A":"HHHH","237B":"HHHH","241A":"LLLH","241B":"LLLH","243A":"HL","243B":"HL","245A":"LLLH","245B":"LLLH","255A":"LLLH","255B":"LLLH","263A":"HHHH","263B":"HHHH","264A":"HHHH","264B":"HHHH","265A":"HL","265B":"HL","268A":"HLL","268B":"HLL","274A":"LLH","274B":"LLH","280A":"LLH","280B":"LLH","281A":"HLL","281B":"HLL","283A":"LLH","283B":"LLH","284A":"HL","284B":"HL","291A":"HL","291B":"HL","292A":"HL","292B":"HL","294A":"HLL","294B":"HLL","299A":"HHHH","299B":"HHHH","300A":"LLH","300B":"LLH","301A":"LLH","301B":"LLH","302A":"HL","302B":"HL","306A":"HHLL","306B":"HHLL","310A":"HLL","310B":"HLL","312A":"HLL","312B":"HLL","313A":"HHLL","313B":"HHLL","315A":"HLLL","315B":"HLLL","316A":"HHHLLL","316B":"HHHLLL","324A":"LLLLH","324B":"LLLLH","327A":"HLL","327B":"HLL","335A":"HHHH","335B":"HHHH","337A":"HHHH","337B":"HHHH","338A":"HHHH","338B":"HHHH","339A":"HHHH","339B":"HHHH","340A":"HHHH","340B":"HHHH","345A":"LHLL","345B":"LHLL","346A":"HLLL","346B":"HLLL","352A":"HHHH","352B":"HHHH","367A":"HHHH","367B":"HHHH","368A":"HLLL","368B":"HLLL","370A":"HHHH","370B":"HHHH","372A":"HHHH","372B":"HHHH","376A":"HLLL","376B":"HLLL","378A":"HHHLL","378B":"HHHLL","379A":"HHHLL","379B":"HHHLL","383A":"HHL","383B":"HHL","385A":"LLLH","385B":"LLLH","386A":"HLLL","386B":"HLLL","387A":"HHHH","387B":"HHHH","388A":"HLLL","388B":"HLLL","389A":"HHHH","389B":"HHHH","393A":"HLL","393B":"HLL","394A":"HHHH","394B":"HHHH","403A":"LLLH","403B":"LLLH","406A":"HHHH","406B":"HHHH","415A":"HHHH","415B":"HHHH","417A":"HLLL","417B":"HLLL","421A":"HHHH","421B":"HHHH","431A":"HLLL","431B":"HLLL","432A":"HHHH","432B":"HHHH","450A":"HHHH","450B":"HHHH","454A":"HHHH","454B":"HHHH","455A":"HHHH","455B":"HHHH","458A":"HHHH","458B":"HHHH","479A":"HHHH","479B":"HHHH","485A":"HHHH","485B":"HHHH","486A":"LLLH","486B":"LLLH","495A":"HHHH","495B":"HHHH","503A":"HLLL","503B":"HLLL","506A":"HHHH","506B":"HHHH","510A":"HHHH","510B":"HHHH"}},
     ];
@@ -155,7 +175,16 @@
     let spk=SPEAKERS.find(s=>s.id===localStorage.getItem(SPK_STORE))||SPEAKERS[0];
     let flags=new Set(JSON.parse(localStorage.getItem(flagStore(spk))||"[]"));
     const wide=()=>!!(window.FazonWide&&FazonWide.active());
-    const patternFor=m=>spk.overrides[m.audio]||m.pattern;
+    // Admin edits (GET /v1/kyotsu/edits), applied on top of the data above, here and in the trainer:
+    // pat["<speaker>|<clip>"] / pat["|<clip>"] (every speaker), bl = blacklisted "<speaker>|<pair>" / "|<pair>".
+    // A speaker's own edit beats an every-speaker one, which beats the static overrides.
+    const EDITS={pat:{},bl:new Set(),list:[]};
+    let admin=false, scope="spk", drafts={};   // scope: where edits go; drafts: clip → unsaved clicked pattern
+    const scopeId=()=>scope==="all"?"":spk.id;
+    const patternOf=(s,m)=>EDITS.pat[s.id+"|"+m.audio]||EDITS.pat["|"+m.audio]||s.overrides[m.audio]||m.pattern;
+    const patternFor=m=>patternOf(spk,m);
+    const patEdit=m=>EDITS.pat[spk.id+"|"+m.audio]?"spk":EDITS.pat["|"+m.audio]?"all":"";
+    const blEdit=p=>EDITS.bl.has(spk.id+"|"+p.n)?"spk":EDITS.bl.has("|"+p.n)?"all":"";
     // F0 checker shortlist for the current speaker: clip → [heard, margin, both-clips-flagged]
     const pflags=()=>(typeof PITCH_FLAGS!=="undefined"&&PITCH_FLAGS[spk.id])||null;
     const pairFlagged=p=>{const f=pflags();return !!f&&p.members.some(m=>f[m.audio]);};
@@ -170,7 +199,7 @@
       renderPairs();
     };
     // wide: the pair list. Status comes from the same place as the chip on the stage.
-    const statusOf=p=>(spk.blacklist&&spk.blacklist.has(p.n))?"blacklist":(spk.forceOk?"ok":p.status);
+    const statusOf=p=>(blEdit(p)||(spk.blacklist&&spk.blacklist.has(p.n)))?"blacklist":(spk.forceOk?"ok":p.status);
     function renderPairs(){
       if(!wide()) return;
       $("#twRows").innerHTML=rows.map((p,k)=>`<tr data-k="${k}"><td class="num mono">${p.n}</td><td class="jp">${hira(p.reading)}</td><td class="tw-st"></td><td class="tw-fl"></td></tr>`).join("");
@@ -181,7 +210,8 @@
       if(!wide()) return;
       [...$("#twRows").children].forEach(tr=>{
         const k=+tr.dataset.k, p=rows[k], st=statusOf(p), on=k===i;
-        const mark=p.members.filter(m=>flags.has(m.audio)).map(m=>m.audio.slice(-1)).join(" ")+(pairFlagged(p)?" ⚠":"");
+        const mark=p.members.filter(m=>flags.has(m.audio)).map(m=>m.audio.slice(-1)).join(" ")+(pairFlagged(p)?" ⚠":"")+
+          (admin&&(blEdit(p)||p.members.some(patEdit))?" ✎":"");
         tr.children[2].textContent=st; tr.children[2].classList.toggle("off",st==="ok");
         tr.children[3].textContent=mark;
         if(on!==(tr.getAttribute("aria-selected")==="true")){ tr.setAttribute("aria-selected",on); if(on) tr.scrollIntoView({block:"nearest"}); }
@@ -217,7 +247,7 @@
     function pickClip(k){ clip=k; document.querySelectorAll("#options .opt").forEach((o,mi)=>o.classList.toggle("cur",mi===k)); }
     function show(quiet){
       const p=rows[i];
-      if(p.n!==clipPair){ clip=0; clipPair=p.n; }
+      if(p.n!==clipPair){ clip=0; clipPair=p.n; scope="spk"; drafts={}; }
       $("#idx").textContent=`Pair ${p.n} · ${i+1}/${rows.length}`;
       $("#reading").textContent=hira(p.reading);
       const st=statusOf(p);
@@ -229,11 +259,15 @@
         const flagged=flags.has(m.audio);
         const el=document.createElement("div");
         el.className="opt answered"+(mi===clip?" cur":"");el.style.cursor="default";
-        const pat=patternFor(m);
+        const draft=admin&&drafts[m.audio], pat=draft||patternFor(m), ed=patEdit(m), chk=draft&&checkPattern(p,mi,draft);
         el.innerHTML=
           `<div class="surface jp" style="font-size:1.3rem">${"AB"[mi]}: ${m.surface}</div>`+
-          `<div class="krow">${overline(p.reading,pat)}</div>`+
-          `<div class="pat">${pat}${(spk.merged&&spk.merged.has(p.n))?' <span style="opacity:.6">(merges for him · checker pitch)</span>':(spk.personal&&spk.personal.has(m.audio))?' <span style="opacity:.6">(speaker-specific)</span>':''}</div>`+
+          `<div class="krow">${admin?clickWord(p.reading,pat,mi,chk&&chk.err):overline(p.reading,pat)}</div>`+
+          `<div class="pat">${pat}${(spk.merged&&spk.merged.has(p.n))?' <span style="opacity:.6">(merges for him · checker pitch)</span>':(spk.personal&&spk.personal.has(m.audio))?' <span style="opacity:.6">(speaker-specific)</span>':''}`+
+          `${admin&&!draft?editTags(m):""}</div>`+
+          (draft?`<div class="ed-msg${chk.err?" err":chk.warn?" warn":""}">${chk.err||chk.warn||""}</div>`+
+            `<div class="ed-row"><button class="nextbtn ed-save" data-i="${mi}"${chk.err?" disabled":""}>Save for ${scopeName(scope)}</button>`+
+            `<button class="nextbtn ed-reset" data-i="${mi}">Reset</button></div>`:"")+
           checkerNote(m.audio)+
           `<div style="display:flex;gap:8px;margin-top:8px;">
              <button class="nextbtn playone" data-a="${m.audio}" data-i="${mi}">▶ Play<kbd class="w-only">${"ab"[mi]}</kbd></button>
@@ -247,18 +281,34 @@
         pickClip(+b.dataset.i);
         const a=b.dataset.a; if(flags.has(a))flags.delete(a);else flags.add(a); renderFlags(); show(true);
       });
+      paintEdBar(p);
       paintPairs();
-      if(!(quiet&&wide())) playBoth(p);   // wide: flagging a clip doesn't replay the pair
+      // wide: flagging a clip doesn't replay the pair; editing never does
+      if(!(quiet==="edit"||(quiet&&wide()))) playBoth(p);
     }
     $("#prevBtn").onclick=()=>{if(i>0){i--;show();}};
     $("#nextBtn").onclick=()=>{if(i<rows.length-1){i++;show();}};
     $("#replayBtn").onclick=()=>playBoth(rows[i]);
+    // Search by reading: katakana/hiragana alike, and ー spelled out the way it's typed (センソー = せんそう).
+    const VOW=[["あ","あかさたなはまやらわがざだばぱぁゃゎ"],["い","いきしちにひみりぎじぢびぴぃ"],["う","うくすつぬふむゆるぐずづぶぷぅゅ"],
+      ["い","えけせてねへめれげぜでべぺぇ"],["う","おこそとのほもよろをごぞどぼぽぉょ"]];
+    const norm=r=>{ let o=""; for(const c of hira(String(r).replace(/\s+/g,""))){
+        const v=c==="ー"&&o&&VOW.find(x=>x[1].includes(o.slice(-1))); o+=v?v[0]:c; } return o; };
     function jumpTo(v){
-      const num=parseInt(v,10); if(!num) return;
-      const n=String(num).padStart(3,"0");
-      const idx=rows.findIndex(p=>p.n===n);
-      if(idx>=0){ i=idx; show(); }
-      else { const j=$("#jumpInput"); j.value=""; j.placeholder="no "+num; }
+      const q=String(v).trim(), j=$("#jumpInput"), hits=$("#jumpHits"); hits.textContent="";
+      if(!q) return;
+      if(/^\d+$/.test(q)){
+        const n=String(+q).padStart(3,"0"), idx=rows.findIndex(p=>p.n===n);
+        if(idx>=0){ i=idx; show(); } else { j.value=""; j.placeholder="no "+(+q); }
+        return;
+      }
+      // exact reading first, else readings starting with it or words containing it; Enter again = next match
+      const k=norm(q), exact=p=>norm(p.reading)===k, near=p=>norm(p.reading).startsWith(k)||p.members.some(m=>m.surface.includes(q));
+      const test=rows.some(exact)?exact:near, found=rows.map((p,x)=>test(p)?x:-1).filter(x=>x>=0);
+      if(!found.length){ j.value=""; j.placeholder=TEST.some(near)?"not in this list":"no match"; return; }
+      const next=found.find(x=>x>i)??found[0];
+      i=next; show();
+      if(found.length>1) hits.textContent=`${found.indexOf(next)+1}/${found.length}`;
     }
     $("#checkerOnly").onchange=()=>{buildRows();refreshSpeakerMeta();show();};
     $("#flaggedOnly").onchange=e=>{
@@ -268,6 +318,7 @@
     };
     $("#jumpBtn").onclick=()=>jumpTo($("#jumpInput").value);
     $("#jumpInput").addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault();jumpTo(e.target.value);} });
+    $("#jumpInput").addEventListener("input",()=>{ $("#jumpHits").textContent=""; });
     $("#copyBtn").onclick=()=>{const t=[...flags].sort().join(", ");navigator.clipboard&&navigator.clipboard.writeText(t);$("#copyBtn").textContent="Copied!";setTimeout(()=>$("#copyBtn").textContent="Copy flagged list",1200);};
     $("#clearBtn").onclick=()=>{if(confirm("Clear all flags?")){flags.clear();$("#flaggedOnly").checked=false;buildRows();refreshSpeakerMeta();renderFlags();show();}};
     document.addEventListener("keydown",e=>{
@@ -288,6 +339,7 @@
         spk=SPEAKERS.find(s=>s.id===sel.value)||SPEAKERS[0];
         localStorage.setItem(SPK_STORE,spk.id);
         flags=new Set(JSON.parse(localStorage.getItem(flagStore(spk))||"[]"));
+        drafts={}; scope="spk";
         buildRows();refreshSpeakerMeta();renderFlags();show();
       };
     }
@@ -308,7 +360,7 @@
         moveTo($("#twFilter"),$("#checkerWrap"));
         moveTo(FazonWide.tools(),$("#twCtl"));
         moveTo($("#twMain"),$("#twStage"),$("#twNote"));
-        moveTo($("#twAside"),$("#twFlags"),$("#reportsCard"));
+        moveTo($("#twAside"),$("#twFlags"),$("#editsCard"),$("#reportsCard"));
         renderPairs();
       }else{
         homes.forEach((m,n)=>m.after(n));
@@ -330,6 +382,111 @@
       if(wide()) arrange(true);
     }
 
+    // ---- admin edits: pitch patterns + blacklists, per speaker (default) or for every speaker ----
+    // Saved to the API, so the trainer picks them up too. Only admins see any of this, and the API
+    // refuses everyone else.
+    // Click a mora to flip it (as in the Kaede TTS app); the faint が after the word toggles the final
+    // drop (↘), which only follows a final high mora. Unsaved changes are drafts until Save.
+    // checkPattern: Keihan shape (an optional low run, a high run, a low run: it can't rise again after
+    // falling). Returns {err} or {warn} or {}.
+    function checkPattern(p,mi,pat){
+      const hl=pat.replace(/↘/g,"");
+      if(!/^L*H*L*$/.test(hl)) return {err:"The pitch can't rise again after it falls."};
+      const other=patternFor(p.members[1-mi]);
+      if(other===pat) return {warn:`Same as ${"AB"[1-mi]} (${other}): no contrast left in this pair.`};
+      if(other.replace(/↘/g,"")===hl) return {warn:`Only the final drop differs from ${"AB"[1-mi]} (${other}): near-identical in isolation.`};
+      return {};
+    }
+    const scopeName=sc=>sc==="all"?"all speakers":spk.label.replace(/\s*\(.*\)$/,"");
+    // the overline word with each mora clickable, plus a faint particle carrying the final drop
+    function clickWord(reading,pattern,mi,bad){
+      const ms=moras(reading), hs=[...pattern.replace(/↘/g,"")].map(c=>c==="H"), fall=pattern.endsWith("↘"), last=hs.length-1;
+      const cell=(k,txt,hi,dn,cls,tip)=>`<span class="m${hi?" hi":""}${dn?" dn":""} ${cls}" data-mi="${mi}" data-k="${k}" title="${tip}">${txt}</span>`;
+      return `<span class="kword jp ed${bad?" bad":""}">`+
+        ms.map((m,k)=>cell(k,m,hs[k],hs[k]&&(k<last?!hs[k+1]:fall),"","Flip high/low")).join("")+
+        cell("drop","が",hs[last]&&!fall,false,"ghost"+(hs[last]?"":" off"),hs[last]?"Final drop on/off":"No drop after a low mora")+`</span>`;
+    }
+    function flip(pattern,k){
+      const hs=[...pattern.replace(/↘/g,"")]; let fall=pattern.endsWith("↘");
+      if(k==="drop"){ if(hs[hs.length-1]!=="H") return pattern; fall=!fall; }
+      else hs[+k]=hs[+k]==="H"?"L":"H";
+      if(hs[hs.length-1]!=="H") fall=false;
+      return hs.join("")+(fall?"↘":"");
+    }
+    // "edited" tags with an ✕ to remove that edit (either level that exists for this clip)
+    function editTags(m){
+      return [[spk.id,"this speaker"],["","all speakers"]].filter(([id])=>EDITS.pat[id+"|"+m.audio])
+        .map(([id,name])=>` <span class="ed-tag">edited · ${name}<button type="button" class="ed-x" data-a="${m.audio}" data-s="${id}" title="Remove this edit" aria-label="Remove the ${name} edit">✕</button></span>`).join("");
+    }
+    $("#options").addEventListener("click",e=>{
+      if(!admin) return;
+      const c=e.target.closest(".kword.ed [data-k]"), sv=e.target.closest(".ed-save"), rs=e.target.closest(".ed-reset"), x=e.target.closest(".ed-x");
+      const p=rows[i];
+      if(c){
+        const mi=+c.dataset.mi, m=p.members[mi], np=flip(drafts[m.audio]||patternFor(m),c.dataset.k);
+        if(np===patternFor(m)) delete drafts[m.audio]; else drafts[m.audio]=np;
+        pickClip(mi); show("edit");
+      }else if(sv){
+        const m=p.members[+sv.dataset.i];
+        sendEdit(sv,"/v1/kyotsu/edits",{kind:"pattern",speaker:scopeId(),item:m.audio,pattern:drafts[m.audio]});
+      }else if(rs){ delete drafts[p.members[+rs.dataset.i].audio]; show("edit"); }
+      else if(x){ sendEdit(x,"/v1/kyotsu/edits/delete",{kind:"pattern",speaker:x.dataset.s,item:x.dataset.a}); }
+    });
+    function setScope(sc){ scope=sc; show("edit"); }
+    function paintEdBar(p){
+      const bar=$("#edBar"); bar.hidden=!admin; if(!admin) return;
+      $("#edScopeSpk").textContent=spk.label.replace(/\s*\(.*\)$/,"");
+      bar.querySelectorAll("[data-scope]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.scope===scope)));
+      const on=EDITS.bl.has(scopeId()+"|"+p.n), be=blEdit(p), fixed=(spk.blacklist&&spk.blacklist.has(p.n))||(!spk.forceOk&&p.status==="blacklist");
+      $("#edBlBtn").textContent=on?"Un-blacklist":"Blacklist pair";
+      $("#edBlBtn").classList.toggle("flagged",on);
+      $("#edState").textContent=be?`Blacklisted for ${be==="all"?"all speakers":"this speaker"} (edit).`:
+        fixed?"Blacklisted in the site data (can't be undone here).":"";
+    }
+    function applyEdits(list){
+      EDITS.list=list||[]; EDITS.pat={}; EDITS.bl=new Set();
+      EDITS.list.forEach(e=>{ const k=e.speaker+"|"+e.item; if(e.kind==="pattern") EDITS.pat[k]=e.pattern; else EDITS.bl.add(k); });
+    }
+    function sendEdit(btn,path,body){
+      btn.disabled=true;
+      F.api(path,{method:"POST",body}).then(d=>{
+        applyEdits(d&&d.edits); if(body.kind==="pattern") delete drafts[body.item];
+        show("edit"); renderEdits();
+      },e=>{ btn.disabled=false; alert("Couldn't save that: "+e.message); });
+    }
+    function openEdit(e){
+      const sel=$("#speakerSel");
+      if(e.speaker&&sel.value!==e.speaker){ sel.value=e.speaker; sel.onchange(); }
+      if($("#checkerOnly").checked||$("#flaggedOnly").checked){ $("#checkerOnly").checked=$("#flaggedOnly").checked=false; buildRows(); refreshSpeakerMeta(); }
+      jumpTo(e.item.slice(0,3));
+      if(e.speaker==="") setScope("all");
+      if(!wide()) $("#idx").scrollIntoView({behavior:"smooth",block:"center"});
+    }
+    function renderEdits(){
+      const list=$("#edList"); list.textContent="";
+      $("#edCount").textContent=EDITS.list.length?`(${EDITS.list.length})`:"";
+      if(!EDITS.list.length){ list.appendChild(F.el("div",{class:"rp-msg",text:"No edits yet. Click a mora to change a pitch, or blacklist a pair."})); return; }
+      EDITS.list.forEach(e=>{
+        const p=TEST.find(q=>q.n===e.item.slice(0,3)), m=p&&p.members.find(x=>x.audio===e.item);
+        const who=e.speaker?((SPEAKERS.find(s=>s.id===e.speaker)||{}).label||e.speaker):"All speakers";
+        const openBtn=F.el("button",{type:"button",text:"Open"}), delBtn=F.el("button",{type:"button",text:"Remove"});
+        openBtn.onclick=()=>openEdit(e);
+        delBtn.onclick=()=>sendEdit(delBtn,"/v1/kyotsu/edits/delete",{kind:e.kind,speaker:e.speaker,item:e.item});
+        list.appendChild(F.el("div",{class:"rp-item ed-item"},
+          F.el("div",{class:"rp-meta"},F.el("b",{text:who}),F.timeEl(e.updated)),
+          F.el("div",{class:"rp-pair"},
+            F.el("span",{class:"mono",text:(e.kind==="pattern"?e.item:"pair "+e.item)+" "}),
+            F.el("span",{class:"jp",text:p?(m?m.surface:p.members.map(x=>x.surface).join(" / "))+" · "+hira(p.reading):""}),
+            F.el("span",{class:"mono",text:e.kind==="pattern"?" → "+e.pattern:" · blacklisted"})),
+          F.el("div",{class:"rp-acts"},openBtn,delBtn)));
+      });
+    }
+    $("#edScopeSpk").parentElement.addEventListener("click",e=>{ const b=e.target.closest("[data-scope]"); if(b) setScope(b.dataset.scope); });
+    $("#edBlBtn").onclick=()=>{
+      const p=rows[i], id=scopeId(), on=EDITS.bl.has(id+"|"+p.n);
+      sendEdit($("#edBlBtn"),on?"/v1/kyotsu/edits/delete":"/v1/kyotsu/edits",{kind:"blacklist",speaker:id,item:p.n});
+    };
+
     // ---- label reports (trainer → API; moderators/admins see them here) ----
     // A report carries the pattern the trainer showed at the time; "now" is today's pattern for
     // that speaker, so a fixed override shows up as changed. Report text is user input: text nodes only.
@@ -339,7 +496,7 @@
     function nowPattern(sid,audio){
       const s=SPEAKERS.find(x=>x.id===sid), p=typeof TEST!=="undefined"&&TEST.find(q=>q.n===audio.slice(0,3));
       const m=p&&p.members.find(x=>x.audio===audio);
-      return m?((s&&s.overrides[audio])||m.pattern):null;
+      return m?(s?patternOf(s,m):m.pattern):null;
     }
     function clipLine(label,c,sid,cls){
       const now=nowPattern(sid,c.audio);
@@ -394,10 +551,21 @@
       const n=document.getElementById("report-"+hlId); if(n) n.scrollIntoView({behavior:"smooth",block:"center"});
     }
     $("#rpResolved").onchange=renderReports;
+    if(F&&typeof TEST!=="undefined") F.api("/v1/kyotsu/edits").then(d=>{ applyEdits(d&&d.edits); buildRows(); show("edit"); if(admin) renderEdits(); },()=>{});
     if(F) F.me().then(m=>{
+      const u=m.user;
+      if(u&&(u.role==="admin"||(!u.role&&u.admin))&&typeof TEST!=="undefined"){
+        admin=true;
+        $("#editsCard").style.display="";
+        renderEdits(); show("edit");
+        if(window.FazonWide){
+          FazonWide.key("x","Blacklist / un-blacklist the pair",()=>$("#edBlBtn").click());
+          FazonWide.key("s","Switch edits between this speaker and all speakers",()=>setScope(scope==="all"?"spk":"all"));
+        }
+      }
       if(!F.isStaff(m.user)) return;
       $("#reportsCard").style.display="";
-      $("#twAsideName").textContent="Flags + reports";
+      $("#twAsideName").textContent=admin?"Flags, edits + reports":"Flags + reports";
       loadReports().then(focusReport);
       window.addEventListener("hashchange",()=>{ if(reportMatch()) loadReports().then(focusReport); });
     });

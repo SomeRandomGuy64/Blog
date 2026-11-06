@@ -23,7 +23,7 @@
 // Yura speaker-specific overrides (section.html/test.html): 058A 競技=HHL, 067A 熊=HL, 097A 交尾=HHL,
 //   081A 今度=LHHL (low-onset w/ kernel; cf. early Osaka rakugo コンド LHL — Kansai, not Tokyo HLL).
 // Tier 3: 006 (石 sounds HL) 114 145 235 (235A cut short, 235B is HL) 243.
-//   Overrides: 152A 自動=HLL, 077A 原料=LLLH, 075A 源氏=LLH.
+//   Overrides: 152A 自動=HLL (→ swapped 2026-11-06: 自動=HHH, 児童=HLL), 077A 原料=LLLH, 075A 源氏=LLH.
 // Nagi ear-check 2026-10-03 (pitch-checker shortlist): 174 (also Yura) and 243 (also Yura) now
 //   Otowa-only; 219 (テツ 鉄/轍) Yura+Otowa only. 060A 強大 heard HHLH = phrasing (強+大), not a
 //   lexical pattern → kept HHHH. (test_data.js status is shared + Nagi is forceOk, so no per-Nagi chip.)
@@ -35,6 +35,9 @@
 //   "atsuzaki" added to `voices` where his clip passed review. 2026-10-16: all 3 parts (001–517) minus his
 //   blacklist; 072 re-added for him only (his 剣 is LH); round-2 pairs 309–517 are his alone (`voices:["atsuzaki"]`).
 // Hyogo pairs 009,021,103,221,248 store Kobe pitch; the Kyoto speaker overrides them in section.html.
+// Trainer label reports 2026-11-06: 121 (シセン), 180 (センソー), 253 (ノリ) blacklisted for 彩森遊楽 (Kobe)
+//   (`voices` + test_data.js status); 391 (フカク 深く/不覚), 416 (キューセイ 急性/旧姓) removed — 厚崎-only pairs
+//   that sound identical in his delivery. Overrides for 152 (Yura), 357/402/438B (厚崎) in section.html/test.html.
 const QUIZ = [
   {"reading": "アイショー", "members": [{"surface": "相性", "pattern": "HLLL", "audio": "001A"}, {"surface": "愛称", "pattern": "HHHH", "audio": "001B"}]},
   {"reading": "アメ", "members": [{"surface": "雨", "pattern": "LH↘", "audio": "003A"}, {"surface": "飴", "pattern": "HH", "audio": "003B"}]},
@@ -151,7 +154,7 @@ const QUIZ = [
   {"reading": "シサン", "members": [{"surface": "資産", "pattern": "HLL", "audio": "118A"}, {"surface": "試算", "pattern": "LLH", "audio": "118B"}]},
   {"reading": "シショー", "members": [{"surface": "師匠", "pattern": "HLL", "audio": "119A"}, {"surface": "支障", "pattern": "HHH", "audio": "119B"}]},
   {"reading": "シジョー", "members": [{"surface": "市場", "pattern": "LLH", "audio": "120A"}, {"surface": "四条", "pattern": "HHH", "audio": "120B"}]},
-  {"reading": "シセン", "members": [{"surface": "死戦", "pattern": "LLH", "audio": "121A"}, {"surface": "視線", "pattern": "HHH", "audio": "121B"}]},
+  {"reading": "シセン", "voices": ["nagi", "otowa"], "members": [{"surface": "死戦", "pattern": "LLH", "audio": "121A"}, {"surface": "視線", "pattern": "HHH", "audio": "121B"}]},
   {"reading": "シチョー", "members": [{"surface": "視聴", "pattern": "LLH", "audio": "122A"}, {"surface": "市長", "pattern": "HLL", "audio": "122B"}]},
   {"reading": "シツリョー", "members": [{"surface": "室料", "pattern": "HHHH", "audio": "123A"}, {"surface": "質量", "pattern": "HLLL", "audio": "123B"}]},
   {"reading": "シハン", "members": [{"surface": "市販", "pattern": "LLH", "audio": "124A"}, {"surface": "師範", "pattern": "HLL", "audio": "124B"}]},
@@ -209,7 +212,7 @@ const QUIZ = [
   {"reading": "センカン", "members": [{"surface": "戦艦", "pattern": "HHHH", "audio": "177A"}, {"surface": "選管", "pattern": "LLLH", "audio": "177B"}]},
   {"reading": "センゴク", "members": [{"surface": "千石", "pattern": "LHLL", "audio": "178A"}, {"surface": "戦国", "pattern": "HHHH", "audio": "178B"}]},
   {"reading": "センシャ", "members": [{"surface": "戦車", "pattern": "HLL", "audio": "179A"}, {"surface": "洗車", "pattern": "LLH", "audio": "179B"}]},
-  {"reading": "センソー", "members": [{"surface": "戦争", "pattern": "HHHH", "audio": "180A"}, {"surface": "千双", "pattern": "LLLH", "audio": "180B"}]},
+  {"reading": "センソー", "voices": ["nagi", "otowa"], "members": [{"surface": "戦争", "pattern": "HHHH", "audio": "180A"}, {"surface": "千双", "pattern": "LLLH", "audio": "180B"}]},
   {"reading": "センゾク", "members": [{"surface": "千束", "pattern": "LHLL", "audio": "181A"}, {"surface": "専属", "pattern": "HHHH", "audio": "181B"}]},
   {"reading": "センダイ", "members": [{"surface": "千台", "pattern": "LLLH", "audio": "182A"}, {"surface": "仙台", "pattern": "HLLL", "audio": "182B"}]},
   {"reading": "セントー", "members": [{"surface": "戦闘", "pattern": "HHHH", "audio": "183A"}, {"surface": "銭湯", "pattern": "HLLL", "audio": "183B"}]},
@@ -281,7 +284,7 @@ const QUIZ = [
   {"reading": "ニワ", "members": [{"surface": "二把", "pattern": "LH", "audio": "250A"}, {"surface": "丹羽", "pattern": "HL", "audio": "250B"}]},
   {"reading": "ニンギョ", "members": [{"surface": "人形", "pattern": "LLH", "audio": "251A"}, {"surface": "人魚", "pattern": "HLL", "audio": "251B"}]},
   {"reading": "ネン", "members": [{"surface": "年", "pattern": "HL", "audio": "252A"}, {"surface": "念", "pattern": "LH", "audio": "252B"}]},
-  {"reading": "ノリ", "members": [{"surface": "海苔", "pattern": "HL", "audio": "253A"}, {"surface": "糊", "pattern": "HH", "audio": "253B"}]},
+  {"reading": "ノリ", "voices": ["nagi", "otowa", "atsuzaki"], "members": [{"surface": "海苔", "pattern": "HL", "audio": "253A"}, {"surface": "糊", "pattern": "HH", "audio": "253B"}]},
   {"reading": "ノー", "members": [{"surface": "脳", "pattern": "HL", "audio": "254A"}, {"surface": "野", "pattern": "LH", "audio": "254B"}]},
   {"reading": "ノーエン", "members": [{"surface": "農園", "pattern": "LLLH", "audio": "255A"}, {"surface": "濃艶", "pattern": "HHHH", "audio": "255B"}]},
   {"reading": "ノーフ", "members": [{"surface": "農婦", "pattern": "HLL", "audio": "256A"}, {"surface": "納付", "pattern": "LLH", "audio": "256B"}]},
@@ -388,7 +391,6 @@ const QUIZ = [
   {"reading": "ナンネン", "voices": ["atsuzaki"], "members": [{"surface": "何年", "pattern": "LHHL", "audio": "382A"}, {"surface": "難燃", "pattern": "HHHH", "audio": "382B"}]},
   {"reading": "ニンプ", "voices": ["atsuzaki"], "members": [{"surface": "人夫", "pattern": "LHL", "audio": "384A"}, {"surface": "妊婦", "pattern": "HLL", "audio": "384B"}]},
   {"reading": "ビンゴ", "voices": ["atsuzaki"], "members": [{"surface": "備後", "pattern": "LHL", "audio": "390A"}, {"surface": "ビンゴ", "pattern": "HLL", "audio": "390B"}]},
-  {"reading": "フカク", "voices": ["atsuzaki"], "members": [{"surface": "深く", "pattern": "LHL", "audio": "391A"}, {"surface": "不覚", "pattern": "LLH", "audio": "391B"}]},
   {"reading": "マイタラ", "voices": ["atsuzaki"], "members": [{"surface": "蒔いたら", "pattern": "LHHL", "audio": "392A"}, {"surface": "巻いたら", "pattern": "HLLL", "audio": "392B"}]},
   {"reading": "ライシュー", "voices": ["atsuzaki"], "members": [{"surface": "来週", "pattern": "LHLL", "audio": "395A"}, {"surface": "来襲", "pattern": "HHHH", "audio": "395B"}]},
   {"reading": "ロクセン", "voices": ["atsuzaki"], "members": [{"surface": "六千", "pattern": "LHHL", "audio": "396A"}, {"surface": "六銭", "pattern": "HHLL", "audio": "396B"}]},
@@ -406,7 +408,6 @@ const QUIZ = [
   {"reading": "カンガイ", "voices": ["atsuzaki"], "members": [{"surface": "館外", "pattern": "HLLL", "audio": "412A"}, {"surface": "感慨", "pattern": "HHHH", "audio": "412B"}]},
   {"reading": "カントー", "voices": ["atsuzaki"], "members": [{"surface": "関東", "pattern": "HLLL", "audio": "413A"}, {"surface": "竿灯", "pattern": "HHHH", "audio": "413B"}]},
   {"reading": "ガッサン", "voices": ["atsuzaki"], "members": [{"surface": "合算", "pattern": "HHHH", "audio": "414A"}, {"surface": "月山", "pattern": "HLLL", "audio": "414B"}]},
-  {"reading": "キューセイ", "voices": ["atsuzaki"], "members": [{"surface": "急性", "pattern": "HHHH", "audio": "416A"}, {"surface": "旧姓", "pattern": "LLLH", "audio": "416B"}]},
   {"reading": "キンカイ", "voices": ["atsuzaki"], "members": [{"surface": "近海", "pattern": "LLLH", "audio": "418A"}, {"surface": "金塊", "pattern": "HHHH", "audio": "418B"}]},
   {"reading": "ケイホー", "voices": ["atsuzaki"], "members": [{"surface": "警報", "pattern": "HHHH", "audio": "419A"}, {"surface": "刑法", "pattern": "HLLL", "audio": "419B"}]},
   {"reading": "ケイリン", "voices": ["atsuzaki"], "members": [{"surface": "桂林", "pattern": "HLLL", "audio": "420A"}, {"surface": "競輪", "pattern": "HHHH", "audio": "420B"}]},
