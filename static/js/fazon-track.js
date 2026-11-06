@@ -1477,7 +1477,7 @@
     var note = el("p", { class: "lb-note" });
     var tableBox = el("div", { class: "lb-table-wrap" });
     var g1 = el("div"), g2 = el("div"), g2note = el("p", { class: "fz-muted tk-small", hidden: true });
-    var g1h = el("h3"), g2h = el("h3");
+    var g1h = el("h2"), g2h = el("h2");
     var graphs = el("section", { class: "tk-card", "aria-label": "Graphs" },
       el("div", { class: "lb-graph" }, g1h, g1), el("div", { class: "lb-graph" }, g2h, g2note, g2));
     var goalsIntro = el("p", { class: "fz-muted tk-small lb-goals-intro" }), goalsBody = el("div");

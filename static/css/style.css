@@ -26,12 +26,15 @@
     position: relative;
     width: 60px;
     height: 30px;
-    background-color: #c3540a;
+    background-color: var(--fz-accent-fill);
     border-radius: 30px;
     transition: background-color 0.3s ease;
     cursor: pointer;
     overflow: hidden;
 }
+/* the header's toggle is a <button>: drop the browser's button look */
+button.toggle-button { display: block; flex: none; margin: 0; padding: 0; border: 0; font: inherit; }
+button.toggle-button:focus-visible { outline: 2px solid var(--text-color); outline-offset: 3px; }
 
 .toggle-button img {
     position: absolute;
@@ -66,7 +69,7 @@
 }
 
 .light-mode .toggle-button {
-    background-color: #4caf50;
+    background-color: var(--fz-accent-fill);
 }
 
 .light-mode .toggle-button::before {
@@ -87,16 +90,16 @@
 }
 
 .light-mode a {
-    color:#4caf50;
+    color:#2b7a2f;
     text-decoration: none;
 }
 
 .light-mode a:active {
-    color:#267f29;
+    color:#1f6a23;
 }
 
 .light-mode a:visited {
-    color:#491283;
+    color:#7b45b8;
 }
 
 /* dark mode styling */
@@ -108,8 +111,10 @@
     opacity: 0;
 }
 
+/* link colours clear 4.5:1 on the page and 3:1 against the body text, so a link inside a
+   paragraph stands out without an underline (WCAG 1.4.3, 1.4.1) */
 a {
-    color:#c3540a;
+    color:#d9661a;
     text-decoration: none;
 }
 
@@ -118,7 +123,7 @@ a:active {
 }
 
 a:visited {
-    color:#8643ce;
+    color:#a46ce0;
 }
 
 @font-face {
@@ -150,6 +155,7 @@ h1 {
     margin: 30px 0 0;
     text-align: center;
     font-size: 1.6em;
+    font-weight: 700;
     letter-spacing: 0.02em;
 }
 .site-title a,
@@ -163,6 +169,10 @@ h1 {
 h2 {
     text-align: center;
 }
+
+/* running text stops at 80 characters a line (JetBrains Mono: 1ch is one character). Only
+   paragraphs and plain or prose lists, not rows of a list-styled component */
+main :where(p, ul:not([class]) > li, ol:not([class]) > li, .ins-list > li) { max-width: 80ch; }
 
 canvas {
     display: block;
@@ -257,8 +267,10 @@ rt {
     padding-top: 16px;
     border-top: 1px solid rgba(127, 127, 127, 0.3);
     font-size: 0.8em;
-    opacity: 0.75;
+    color: var(--fz-muted);
 }
+/* links inside muted text are too close to it in colour, so they're underlined */
+.site-footer .footer-text a, .fz-muted a, .tk-small a { text-decoration: underline; text-underline-offset: 2px; }
 /* footer: text on the left, the Ko-fi mug link on the right (footer.html) */
 .site-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .site-footer .footer-text { min-width: 0; }
@@ -292,7 +304,10 @@ figcaption {
 
 /* ---- accounts, comments, notifications (js/fazon-api.js, js/fazon-comments.js) ---- */
 :root {
-    --fz-accent: #c3540a;
+    /* --fz-accent is for text and lines; --fz-accent-fill sits behind white text. In dark they
+       differ: orange bright enough to read on #111 is too bright for white text on it */
+    --fz-accent: #d9661a;
+    --fz-accent-fill: #c3540a;
     --fz-accent-soft: rgba(195, 84, 10, 0.16);
     --fz-surface: #1a1a1a;
     --fz-line: rgba(255, 255, 255, 0.14);
@@ -300,12 +315,13 @@ figcaption {
     --fz-bad: #e2564a;
 }
 .light-mode {
-    --fz-accent: #4caf50;
-    --fz-accent-soft: rgba(76, 175, 80, 0.16);
+    --fz-accent: #2b7a2f;
+    --fz-accent-fill: #2b7a2f;
+    --fz-accent-soft: rgba(43, 122, 47, 0.14);
     --fz-surface: #ffffff;
     --fz-line: rgba(0, 0, 0, 0.14);
     --fz-muted: #666666;
-    --fz-bad: #cc3f34;
+    --fz-bad: #b8352b;
 }
 
 /* top-right group (header.html): the theme toggle stays where it always was; under it, right-
@@ -367,11 +383,11 @@ figcaption {
     color: var(--fz-accent); font-size: 0.85rem; font-weight: 700; line-height: 1.4; white-space: nowrap;
     text-decoration: none; background: transparent;
 }
-.fz-login-pill:hover, .light-mode .fz-login-pill:hover { background: var(--fz-accent); color: #fff; }
+.fz-login-pill:hover, .light-mode .fz-login-pill:hover { background: var(--fz-accent-fill); color: #fff; }
 /* logged out: [Sign up] (filled) [Log in]. Portrait phones narrower than 385px keep only
    "Log in" (its page links to sign-up), so the one-row header never overflows. */
 .fz-signup-pill, .fz-signup-pill:visited, .light-mode .fz-signup-pill, .light-mode .fz-signup-pill:visited {
-    background: var(--fz-accent); color: #fff; margin-right: 8px;
+    background: var(--fz-accent-fill); color: #fff; margin-right: 8px;
 }
 .fz-signup-pill:hover, .light-mode .fz-signup-pill:hover { filter: brightness(1.12); }
 @media (max-aspect-ratio: 1/1) {
@@ -394,7 +410,7 @@ figcaption {
     display: flex; align-items: center; justify-content: center;
     background: var(--fz-surface); color: #fff; font-weight: 700; user-select: none;
 }
-.fz-av-pic.fz-av-initial { background: var(--fz-accent); }
+.fz-av-pic.fz-av-initial { background: var(--fz-accent-fill); }
 .fz-av-none .fz-av-pic { inset: 0; background: rgba(127, 127, 127, 0.25); }
 .fz-av-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .fz-av-ring { position: absolute; inset: 0; display: block; }
@@ -403,7 +419,7 @@ figcaption {
 .fz-av-badge {
     position: absolute; right: -3px; bottom: -3px; box-sizing: border-box; padding: 0 3px;
     border-radius: 999px; text-align: center; font-weight: 700; font-family: 'JetBrains Mono', monospace;
-    background: var(--fz-accent); color: #fff; border: 1px solid var(--bg-color);
+    background: var(--fz-accent-fill); color: #fff; border: 1px solid var(--bg-color);
 }
 
 /* dropdown panels (bell + account) */
@@ -466,7 +482,7 @@ figcaption {
     color: var(--text-color); background: transparent; border: 1px solid var(--fz-line);
 }
 .fz-btn:hover:not(:disabled) { border-color: var(--fz-accent); }
-.fz-btn.primary { background: var(--fz-accent); border-color: var(--fz-accent); color: #fff; }
+.fz-btn.primary { background: var(--fz-accent-fill); border-color: var(--fz-accent-fill); color: #fff; }
 .fz-btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
 .fz-btn:disabled { opacity: 0.45; cursor: default; }
 .fz-linkbtn {

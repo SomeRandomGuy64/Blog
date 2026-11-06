@@ -118,9 +118,9 @@ a:hover .fc-lbl, a:focus .fc-lbl { fill: var(--fz-accent); }
     color: var(--text-color); background: transparent; border: 1px solid var(--fz-line);
 }
 .tk-seg button:hover { border-color: var(--fz-accent); }
-.tk-seg button[aria-pressed="true"] { background: var(--fz-accent); border-color: var(--fz-accent); color: #fff; }
+.tk-seg button[aria-pressed="true"] { background: var(--fz-accent-fill); border-color: var(--fz-accent-fill); color: #fff; }
 .tk-seg button:focus-visible { outline: 2px solid var(--fz-accent); outline-offset: 2px; }
-.tk-initial { display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 50%; background: var(--fz-accent); color: #fff; font-size: 0.8em; }
+.tk-initial { display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 50%; background: var(--fz-accent-fill); color: #fff; font-size: 0.8em; }
 .tk-dotc { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
 .tk-small { font-size: 0.8em; }
 .tk-input-sm { width: auto; padding: 0.3em 0.5em; font-size: 0.85em; }
@@ -338,7 +338,9 @@ a:hover .fc-lbl, a:focus .fc-lbl { fill: var(--fz-accent); }
 }
 .lb-user span { overflow-wrap: anywhere; }
 .lb-user:hover span { color: var(--fz-accent); }
-.lb-graph h3 { font-size: 0.9em; margin: 0 0 8px; }
+/* h2, not h3: they come straight under the page's h1. Empty until the data loads, so hidden till then */
+.lb-graph h2 { font-size: 0.9em; margin: 0 0 8px; text-align: left; }
+.lb-graph h2:empty { display: none; }
 .lb-graph + .lb-graph { margin-top: 22px; }
 
 /* ---- summaries (leaderboard feed + profile list) ---- */
@@ -494,7 +496,7 @@ a:hover .fc-lbl, a:focus .fc-lbl { fill: var(--fz-accent); }
 .lb-gd-v b { color: var(--text-color); }
 .lb-gd-m { flex: none; font-weight: 700; }
 .lb-gd li.met .lb-gd-m { color: #4caf50; }
-.light-mode .lb-gd li.met .lb-gd-m { color: #2e7d32; }
+.light-mode .lb-gd li.met .lb-gd-m { color: #2b7a2f; }
 .lb-gd li.miss .lb-gd-m { color: var(--fz-bad); }
 
 @media (max-width: 480px) {

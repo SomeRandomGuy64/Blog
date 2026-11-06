@@ -1,6 +1,6 @@
 /* accent follows the site theme: orange in dark, green in light mode */
-:root { --nd-accent: #c3540a; --nd-accent-hover: #ea7e35; }
-.light-mode { --nd-accent: #4caf50; --nd-accent-hover: #5cbf60; }
+:root { --nd-accent: #d9661a; --nd-accent-fill: #c3540a; --nd-accent-hover: #b4490a; }   /* fill (+hover) behind white text */
+.light-mode { --nd-accent: #2b7a2f; --nd-accent-fill: #2b7a2f; --nd-accent-hover: #23692a; }
 
 .nendai { margin-top: 28px; }
 
@@ -17,7 +17,7 @@
 .nd-form input:focus { outline: none; border-color: var(--nd-accent); }
 .nd-form button {
   padding: 8px 16px; font-family: inherit; font-size: 1rem; cursor: pointer;
-  color: #fff; background: var(--nd-accent); border: none; border-radius: 6px;
+  color: #fff; background: var(--nd-accent-fill); border: none; border-radius: 6px;
 }
 .nd-form button:hover { background: var(--nd-accent-hover); }
 

@@ -21,7 +21,7 @@
     color: var(--text-color); background: transparent; border: 1px solid var(--fz-line);
 }
 .fz-layout-seg button:hover { border-color: var(--fz-accent); }
-.fz-layout-seg button[aria-pressed="true"] { background: var(--fz-accent); border-color: var(--fz-accent); color: #fff; }
+.fz-layout-seg button[aria-pressed="true"] { background: var(--fz-accent-fill); border-color: var(--fz-accent-fill); color: #fff; }
 .fz-layout-seg button:focus-visible { outline: 2px solid var(--fz-accent); outline-offset: 2px; }
 .site-layout { position: absolute; top: -8px; left: calc((100% - 100vw) / 2 + 30px); }
 @media (max-width: 1199.98px), (max-aspect-ratio: 1/1) { .site-layout { display: none; } }
@@ -35,6 +35,7 @@
     --w-fs-sm: 12px;      /* secondary text, table heads */
     --w-fs: 13px;         /* controls, tables */
     --w-fs-body: 14px;    /* running text */
+    --w-fs-read: 16px;    /* a reading page's text: 16px keeps the 760px column under 80 characters */
     --w-fs-h: 16px;       /* the page's name, reading subheads */
     --w-fs-fig: 20px;     /* figures in a stat strip */
     --w-fs-title: 24px;   /* a reading page's h1 */
@@ -185,7 +186,7 @@
 .layout-wide .w-btn { color: var(--text-color); background: transparent; border: 1px solid var(--fz-line); }
 .layout-wide .w-btn:hover:not(:disabled) { border-color: var(--fz-accent); }
 .layout-wide .w-btn:disabled { opacity: 0.45; cursor: default; }
-.layout-wide .w-btn.primary { background: var(--fz-accent); border-color: var(--fz-accent); color: #fff; }
+.layout-wide .w-btn.primary { background: var(--fz-accent-fill); border-color: var(--fz-accent-fill); color: #fff; }
 .layout-wide .w-btn.sm, .layout-wide .fz-btn.sm { height: var(--w-ctl-sm); padding: 0 8px; font-size: var(--w-fs-sm); }
 .layout-wide .fz-input, .layout-wide .w-input {
     box-sizing: border-box; height: var(--w-ctl); padding: 0 8px; border-radius: var(--w-r); font: inherit; font-size: var(--w-fs);
@@ -261,6 +262,7 @@
 .w-keys::backdrop { background: rgba(0, 0, 0, 0.35); }
 .w-keys-row { display: flex; align-items: center; gap: 12px; height: 26px; }
 .w-keys-row kbd { min-width: 34px; }
+.w-keys-off { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--fz-line); cursor: pointer; }
 
 /* =====================================================================================
    Reading pages: home, articles, article and tag lists, About, Privacy. One column at the reading
@@ -269,6 +271,7 @@
    ===================================================================================== */
 .layout-wide.layout-reading main {
     max-width: calc(var(--w-measure) + 2 * var(--w-gutter)); padding-top: 32px; padding-bottom: 32px; line-height: 1.7;
+    font-size: var(--w-fs-read);
 }
 .layout-wide.layout-reading main h1 { margin: 0 0 4px; font-size: var(--w-fs-title); line-height: 1.3; }
 .layout-wide.layout-reading main h2 { margin: 32px 0 8px; font-size: var(--w-fs-h); }

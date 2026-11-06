@@ -1,7 +1,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="X-UA-Compatible" content="ie=edge">
-<title>{{ if .IsHome }}{{ site.Title }}{{ else }}{{ .Title }} · {{ site.Title }}{{ end }}</title>
+{{/* tag and category pages can share a name ("AI"), so their titles say which they are */}}
+<title>{{ if .IsHome }}{{ site.Title }}{{ else if eq .Kind "term" }}{{ .Title }} · {{ .Data.Singular | humanize }} · {{ site.Title }}{{ else }}{{ .Title }} · {{ site.Title }}{{ end }}</title>
 <meta name="description" content="{{ with .Description }}{{ . }}{{ else }}{{ site.Params.description }}{{ end }}">
 {{ if .Params.private }}<meta name="robots" content="noindex, nofollow">{{ end }}
 

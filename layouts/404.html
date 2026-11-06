@@ -1,0 +1,10 @@
+{{ define "main" }}
+  <h1>Page not found</h1>
+  <p>There's nothing at <code id="nfPath"></code>. It may have moved, or the link has a typo.</p>
+  <ul>
+    <li><a href="{{ relURL "" }}">Home</a></li>
+    <li><a href="{{ relURL "articles/" }}">Articles</a></li>
+    <li><a href="{{ relURL "tools/" }}">Tools</a></li>
+  </ul>
+  <script>document.getElementById("nfPath").textContent = location.pathname;</script>
+{{ end }}

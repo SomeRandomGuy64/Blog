@@ -151,7 +151,7 @@ Every week endpoint returns weeks in this shape (pretty-printed here):
 }
 ```
 
-| Field | |
+| Field | Meaning |
 |---|---|
 | `week`, `start`, `end` | the week's key and its exact start and end |
 | `current` | `true` for the week running now |
@@ -186,7 +186,7 @@ the site), `"auto"` (the Kyōtsu trainer: its Tokyo mode for Kotu, its Keihan mo
 
 Your weeks in a range, **oldest first, every week of the range** whether logged or not.
 
-| Query | |
+| Query | Meaning |
 |---|---|
 | `from` | first week key (default: 11 weeks before `to`, so 12 weeks in all) |
 | `to` | last week key (default: the current week) |
@@ -255,7 +255,7 @@ targets one row and either **sets** it or **adds** to it:
 ]}
 ```
 
-| Entry field | |
+| Entry field | Meaning |
 |---|---|
 | `category` | required: one of the category ids |
 | `subcat` | a sub-category **name**: matched against that category's *active* (non-archived) sub-categories, ignoring case |
@@ -305,7 +305,7 @@ text and sanitise any HTML you render from them.
 {"summary": "Finished my first show without subtitles.", "private": false}
 ```
 
-| Field | |
+| Field | Meaning |
 |---|---|
 | `summary` | required; Markdown (GitHub-flavoured), up to 10,000 characters (trimmed; `""` clears it) |
 | `private` | optional; `true` hides the summary from everyone else. Leave it out to keep the current setting (new weeks start public) |

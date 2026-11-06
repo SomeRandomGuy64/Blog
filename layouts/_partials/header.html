@@ -4,10 +4,11 @@
      theme switch is hidden from the row there and shown as the nav's last item instead (style.css). */}}
 <header class="site-header">
 <div class="theme-toggle-wrapper">
-  <div id="themeToggle" class="toggle-button">
-    <img class="dark" src="{{ relURL "assets/images/full-moon.png" }}" alt="Dark Mode Icon"/>
-    <img class="light" src="{{ relURL "assets/images/sunny.png" }}" alt="Light Mode Icon"/>
-  </div>
+  {{/* a real button, so Tab reaches it; aria-pressed (button.js) says whether light mode is on */}}
+  <button type="button" id="themeToggle" class="toggle-button" aria-label="Light mode" aria-pressed="false">
+    <img class="dark" src="{{ relURL "assets/images/full-moon.png" }}" alt=""/>
+    <img class="light" src="{{ relURL "assets/images/sunny.png" }}" alt=""/>
+  </button>
   {{/* top-right group: theme toggle on top, and under it [bell (logged in)] [Log in pill | account button].
        The row is filled in by js/fazon-api.js once /v1/me answers (stays hidden if the API is down). */}}
   <div class="fz-cluster-row" id="fzClusterRow" hidden>
@@ -26,10 +27,11 @@
   <button type="button" data-layout="standard" aria-pressed="true" title="Centred column">Standard</button>
   <button type="button" data-layout="wide" aria-pressed="false" title="Use the window's width (up to 21:9)">Wide</button>
 </span>
-<h1 class="site-title"><a href="{{ relURL "" }}">Fazon Nexus</a></h1>
-<input type="checkbox" id="navToggle" class="nav-toggle">
+{{/* the masthead is the page's h1 only on the home page; elsewhere the page's own title is */}}
+{{ if .IsHome }}<h1 class="site-title"><a href="{{ relURL "" }}">Fazon Nexus</a></h1>{{ else }}<p class="site-title"><a href="{{ relURL "" }}">Fazon Nexus</a></p>{{ end }}
+<input type="checkbox" id="navToggle" class="nav-toggle" aria-label="Menu">
 <label for="navToggle" class="nav-burger" aria-label="Menu" tabindex="0">☰</label>
-<nav class="site-nav">
+<nav class="site-nav" aria-label="Site">
   <a href="{{ relURL "" }}">Home</a>
   {{ range site.Menus.main }}
   <a href="{{ .URL }}"{{ if .Params.authOnly }} data-fz-auth hidden{{ end }}{{ if .Params.ownerOnly }} data-fz-owner hidden{{ end }}>{{ .Name }}</a>

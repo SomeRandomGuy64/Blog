@@ -45,6 +45,7 @@
 .layout-wide .kyotsu-quiz.kotu .prompt .hint, .layout-wide .kyotsu-quiz .prompt .hint { margin-top: 8px; font-size: var(--w-fs); }
 .layout-wide .kyotsu-quiz .voicechip { margin-top: 4px; padding: 0; background: none; color: var(--fz-muted); font-size: var(--w-fs-sm); font-weight: 400; }
 .layout-wide .kyotsu-quiz .voicechip .dot { display: none; }
+.layout-wide .kyotsu-quiz .voicechip.ok { box-shadow: none; }
 .layout-wide .kyotsu-quiz.kotu .play, .layout-wide .kyotsu-quiz .play { margin: 12px 0 16px; }
 .layout-wide .kyotsu-quiz.kotu .playbtn, .layout-wide .kyotsu-quiz .playbtn {
     gap: 6px; height: var(--w-ctl); padding: 0 10px; border: 1px solid var(--fz-line); border-radius: var(--w-r);
@@ -88,11 +89,11 @@
 .layout-wide .kyotsu-quiz .kq-main .next, .layout-wide .kyotsu-quiz.kotu .kq-main .next { min-height: var(--w-ctl); margin-top: 8px; }
 .layout-wide .kyotsu-quiz .kq-main .nextbtn {
     display: inline-flex; align-items: center; gap: 8px; height: var(--w-ctl); padding: 0 12px; border-radius: var(--w-r);
-    font-size: var(--w-fs); color: #fff; background: var(--fz-accent); transform: none;
+    font-size: var(--w-fs); color: #fff; background: var(--fz-accent-fill); transform: none;
 }
 .layout-wide .kyotsu-quiz .kq-main .nextbtn[hidden] { display: none; }
 .layout-wide .kyotsu-quiz .nextbtn kbd { color: inherit; border-color: currentColor; opacity: 0.8; }
-.layout-wide .kyotsu-quiz .kq-main > .kyotsu-note { flex: none; max-width: calc(var(--w-measure) + 2 * var(--w-gutter)); width: 100%; margin: 0 auto; padding: 8px var(--w-gutter); font-size: var(--w-fs-sm); line-height: 1.5; }
+.layout-wide .kyotsu-quiz .kq-main > .kyotsu-note { flex: none; box-sizing: content-box; max-width: 80ch; width: 100%; margin: 0 auto; padding: 8px var(--w-gutter); font-size: var(--w-fs-body); line-height: 1.5; }
 
 /* the inspector: figures, then Pattern Stats, then history taking what's left, End session at the foot.
    The panels are flattened into one grid, so nothing here is a box. */
@@ -253,6 +254,7 @@
 .layout-wide .kyotsu-quiz .tw-table th:first-child, .layout-wide .kyotsu-quiz .tw-table td:first-child { width: 44px; }
 .layout-wide .kyotsu-quiz .tw-table .tw-st { color: var(--fz-bad); }
 .layout-wide .kyotsu-quiz .tw-table .tw-st.off { color: var(--fz-muted); }
+.layout-wide .light-mode .kyotsu-quiz .tw-table .tw-st.off { color: #555; }   /* #666 is 4.1:1 on the selected row's tint */
 .layout-wide .kyotsu-quiz .tw-table .tw-fl { width: 72px; color: var(--fz-bad); white-space: nowrap; }
 
 .layout-wide .kyotsu-quiz .tw-stage { display: flex; flex-direction: column; padding: 0; }
@@ -271,7 +273,7 @@
 }
 .layout-wide .kyotsu-quiz .tw-stage .nextbtn:hover, .layout-wide .kyotsu-quiz .tw-aside .nextbtn:hover { border-color: var(--fz-accent); }
 .layout-wide .kyotsu-quiz .tw-stage .nextbtn.flagged { border-color: var(--fz-bad); }
-.layout-wide .kyotsu-quiz .tw-stage > .kyotsu-note { flex: none; max-width: calc(var(--w-measure) + 2 * var(--w-gutter)); width: 100%; margin: 0 auto; padding: 8px var(--w-gutter); font-size: var(--w-fs-sm); line-height: 1.5; }
+.layout-wide .kyotsu-quiz .tw-stage > .kyotsu-note { flex: none; box-sizing: content-box; max-width: 80ch; width: 100%; margin: 0 auto; padding: 8px var(--w-gutter); font-size: var(--w-fs-body); line-height: 1.5; }
 
 .layout-wide .kyotsu-quiz .tw-aside .card { margin: 0 0 16px; padding: 0; background: none; border: 0; border-radius: 0; }
 .layout-wide .kyotsu-quiz .tw-aside .q { min-height: var(--w-ctl); margin: 0 0 8px; border-bottom: 1px solid var(--fz-line); font-size: var(--w-fs); font-weight: 700; line-height: var(--w-ctl); letter-spacing: 0; text-align: left; text-transform: none; color: var(--text-color); }
@@ -325,7 +327,7 @@
 .layout-wide .kyotsu-quiz .tw-stage .ed-bar { gap: 6px 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--fz-line); font-size: var(--w-fs); }
 .layout-wide .kyotsu-quiz .ed-scope { height: var(--w-ctl-sm); border: 1px solid var(--fz-line); border-radius: var(--w-r); }
 .layout-wide .kyotsu-quiz .ed-scope button { padding: 0 10px; font-size: var(--w-fs-sm); }
-.layout-wide .kyotsu-quiz .ed-scope button[aria-pressed="true"] { background: var(--fz-accent); }
+.layout-wide .kyotsu-quiz .ed-scope button[aria-pressed="true"] { background: var(--fz-accent-fill); }
 .layout-wide .kyotsu-quiz .ed-state { color: var(--fz-muted); font-size: var(--w-fs-sm); }
 .layout-wide .kyotsu-quiz #edBlBtn.flagged { border-color: var(--fz-bad); color: var(--fz-bad); }
 .layout-wide .kyotsu-quiz .ed-tag { color: var(--fz-accent); }
