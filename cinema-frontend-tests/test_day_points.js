@@ -178,6 +178,14 @@ const nh = s => s.replace(/solved in [\d.]+ s/, '');
   const t = page({ shows: late, picks: [{ k: 'a' }], set: { pts: { [D1s]: { e: LATE } } } }), h = await t.plan();
   ok(/Seeing 0 of 1/.test(h) && /too late to get to where you’re finishing by your “Home by” time/.test(h) && /with travel from and to each day’s start and end/.test(h), 'home by: a far end point rules the showing out and the note says so');
   const u = page({ shows: late, picks: [{ k: 'a' }], set: { dates: { [D1s]: { on: true, e: '18:00', l: '00:00' } }, pts: { [D1s]: { s: LATE } } } }), hu = await u.plan(); ok(/Seeing 0 of 1/.test(hu) && !/too late to reach/.test(hu), 'leave from: a far start rules it out at the other end'); }
+// a day's film hours: films must start from fs and finish by fe (blank = any; an fe before fs or 05:00 is the next morning)
+{ const sh = [{ k: 'a', c: 0, t: D1s + 'T13:00:00', e: D1s + 'T15:00:00', d: 110, x: [] }, { k: 'a', c: 0, t: D1s + 'T19:00:00', e: D1s + 'T21:00:00', d: 110, x: [] }];
+  const day = h => ({ dates: { [D1s]: { on: true, e: '10:00', l: '03:00', ...h } } });
+  const any = await page({ shows: sh, picks: [{ k: 'a' }], set: day({}) }).plan(); ok(/Seeing 1 of 1/.test(any) && /13:00–15:00/.test(any), 'film hours: none set, the earlier showing');
+  const late = await page({ shows: sh, picks: [{ k: 'a' }], set: day({ fs: '17:00' }) }).plan(); ok(/19:00–21:00/.test(late) && !/13:00–15:00/.test(late), 'film hours: start from 17:00 skips the 13:00 showing');
+  const early = await page({ shows: sh, picks: [{ k: 'a' }], set: day({ fe: '16:00' }) }).plan(); ok(/13:00–15:00/.test(early), 'film hours: finished by 16:00 keeps the 13:00 one');
+  const none = await page({ shows: sh, picks: [{ k: 'a' }], set: day({ fs: '14:00', fe: '20:00' }) }).plan(); ok(/Seeing 0 of 1/.test(none) && /fit your available times/.test(none), 'film hours: nothing inside 14:00–20:00');
+  const nm = await page({ shows: sh, picks: [{ k: 'a' }], set: day({ fs: '17:00', fe: '01:00' }) }).plan(); ok(/19:00–21:00/.test(nm), 'film hours: 01:00 is the next morning'); }
 // no-home mode: set sides are honoured, the other stays the first / last cinema
 { const a = page({ set: { noHome: true, pc: '', geo: null } }), ha = await a.plan(); ok(!/Leave home|Home by|out \d/.test(ha) && !('ds' in a.P), 'no-home: unchanged without points');
   const s = page({ set: { noHome: true, pc: '', geo: null, pts: { [D1s]: { s: WORK } } } }), hs = await s.plan();
