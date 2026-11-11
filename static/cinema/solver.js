@@ -7,7 +7,8 @@
 //   They need the same closure: ds[d][c] <= ds[d][k] + T[k][c] and de[d][c] <= T[c][k] + de[d][k] for the cinemas k, c with showings on day d.
 //   lh?: late journeys home, {a:[Int32Array(nc*n)|null per day], from, step, n, p, u}. Leaving a cinema at minute m, with from < m <= from+n*step, the
 //   day's last leg is a[d][c*n+band], band = ceil((m-from)/step)-1: minutes, or -1 = no way home at that time, which stays the fixed last leg
-//   but costs p more, or -2 = not looked up, likewise but costing u more. Any other time, or a null day, is the fixed last leg.
+//   but costs p more (x: true instead makes it no way home at all, so no day can end there then), or -2 = not looked up, likewise but costing u more.
+//   Any other time, or a null day, is the fixed last leg.
 //   Absent = the fixed last legs alone. These times aren't closed: a route via another cinema can't be trusted at night, so a film can fit "Home by" only
 //   thanks to a later film at a cinema nearer home. The search assumes adding a film never helps a day fit, so it may miss that one case.}
 //   Film sets are plain JS numbers used as bit sets (film f = 2**f), exact up to 2**53, so up to 47 films are supported
@@ -36,7 +37,7 @@ function run(P){
   const DS=Array.from({length:ND},(_,d)=>(P.ds&&P.ds[d])||hTo),DE=Array.from({length:ND},(_,d)=>(P.de&&P.de[d])||hFr);   // each day's first and last legs by cinema
   const LH=P.lh||null,LP=LH?LH.p||0:0,LU=LH?LH.u||0:0,band=m=>{const k=Math.ceil((m-LH.from)/LH.step)-1;return k>=0&&k<LH.n?k:-1};
   const lv=(d,c,en)=>{if(!LH||!LH.a[d])return -3;const k=band(en+buf);return k<0?-3:LH.a[d][c*LH.n+k]};   // late time for leaving after a film ending at en
-  const hT=(d,c,en)=>{const v=lv(d,c,en);return v>=0?v:DE[d][c]},hP=(d,c,en)=>{const v=lv(d,c,en);return v===-1?LP:v===-2?LU:0};
+  const LX=!!(LH&&LH.x),hT=(d,c,en)=>{const v=lv(d,c,en);return v>=0?v:LX&&v===-1?-1:DE[d][c]},hP=(d,c,en)=>{const v=lv(d,c,en);return v===-1?LP:v===-2?LU:0};
   // a last leg no end time can beat, closed like T: mth has to stay monotone as films are added, and one end time's leg needn't be
   const LB=DE.map((row,d)=>{if(!LH||!LH.a[d])return row;const A=LH.a[d],m=Int32Array.from(row),r=Int32Array.from(row);
     for(let c=0;c<P.nc;c++)for(let k=0;k<LH.n;k++){const v=A[c*LH.n+k];if(v>=0&&(m[c]<0||v<m[c]))m[c]=v}

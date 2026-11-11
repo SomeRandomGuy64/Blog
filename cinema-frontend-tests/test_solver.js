@@ -383,33 +383,37 @@ for (const mode of ['most', 'strict']) {
   DX = { from: d0, to: d1, films: { a: 'Film A', b: 'Film B' }, cinemas: [{ name: 'One', chain: 'X', lat: 53.48, lng: -2.24 }, { name: 'Two', chain: 'X', lat: 53.60, lng: -2.24 }],
     shows: [{ k: 'a', c: 0, t: iso(sun, '21:00'), e: iso(sun, '23:00'), d: 110, x: [] }, { k: 'b', c: 1, t: iso(mon, '21:40'), e: iso(mon, '23:40'), d: 110, x: [] }] };
   const days = {}; for (let w = 0; w < 7; w++) days[w] = { on: true, e: '10:00', l: '03:00' };
-  const fresh = () => { LS.delete('fazon-cinema-gtimes'); LS.set('fazon-cinema-gkey', 'TESTKEY'); LS.set('fazon-cinema-planner', JSON.stringify({ picks: [{ k: 'a' }, { k: 'b' }], set: { pc: 'M1 1AE', geo: { pc: 'M1 1AE', lat: 53.47, lng: -2.24 }, days, start: d0, len: 2 } })); lateCalls = []; lateStatus = 200; };
+  const fresh = (x = {}) => { LS.delete('fazon-cinema-gtimes'); LS.set('fazon-cinema-gkey', 'TESTKEY'); LS.set('fazon-cinema-planner', JSON.stringify({ picks: [{ k: 'a' }, { k: 'b' }], set: { pc: 'M1 1AE', geo: { pc: 'M1 1AE', lat: 53.47, lng: -2.24 }, days, start: d0, len: 2, ...x } })); lateCalls = []; lateStatus = 200; };
   const train = (mins, wait = 5) => b => { const t = Date.parse(b.departureTime) + wait * 6e4;
     return { routes: [{ duration: mins * 60 + 's', legs: [{ steps: [{}, { transitDetails: { stopDetails: { departureTime: new Date(t).toISOString(), arrivalTime: new Date(t + (mins - 10) * 6e4).toISOString() } } }, {}] }] }] }; };
   fresh(); $ = boot(); lateFn = train(45); await plan();
   const lk = () => keys().filter(k => k.includes('@')).map(k => k.split('|')[0]).sort().join();
-  ok(lateCalls.length === 2 && lk() === 'T@2330u,T@2400w', 'late: only the plan\'s own two legs home are looked up, in half-hour bands by timetable ' + lk());
+  ok(lateCalls.length === 2 && lk() === 'T@2310.0,T@2350.1', 'late: only the plan\'s own two legs home are looked up, at the time you leave, by weekday ' + lk());
   ok(keys().some(k => k.startsWith('T|')), 'late: daytime legs stay under T|');
   ok(lateCalls.every(c => !c.u.includes('?') && !c.u.includes('53.') && c.o.headers['X-Goog-Api-Key'] === 'TESTKEY' && c.b.transitPreferences.allowedTravelModes.join() === 'BUS,LIGHT_RAIL,RAIL'), 'late: key and coordinates stay out of the URL');
   const asked = lateCalls.map(c => new Date(c.b.departureTime)).sort((a, b) => a - b);
-  ok(asked[0].getDay() === 0 && asked[0].getHours() === 23 && asked[0].getMinutes() === 30 && asked[1].getDay() === 2 && asked[1].getHours() === 0, 'late: leaving Mon 23:50 asks about Tuesday 00:00, on the right date');
+  ok(asked[0].getDay() === 0 && asked[0].getHours() === 23 && asked[0].getMinutes() === 10 && asked[1].getDay() === 1 && asked[1].getHours() === 23 && asked[1].getMinutes() === 50, 'late: leaving Mon 23:50 asks about Monday 23:50 exactly, on the right date');
   ok(/Leave 23:10 · 45 min home/.test($('pout').innerHTML) && /Leave 23:50 · 45 min home/.test($('pout').innerHTML) && !/No public transport/.test($('pout').innerHTML), 'late: the itinerary shows the time the solver used');
   $ = boot(); lateCalls = []; await plan();
   ok(lateCalls.length === 0, 'late: answers are cached, nothing re-billed');
-  fresh(); $ = boot(); lateFn = () => ({}); await plan();
-  ok(lateCalls.length === 2 && /One journey|2 journeys/.test($('pout').innerHTML) && /No public transport home at this time/.test($('pout').innerHTML) && /~20 min home/.test($('pout').innerHTML), 'late: no route keeps the showing, warned, with its time marked ~');
+  fresh({ noWayOK: true }); $ = boot(); lateFn = () => ({}); await plan();
+  ok(lateCalls.length === 2 && /One journey|2 journeys/.test($('pout').innerHTML) && /No public transport home at this time/.test($('pout').innerHTML) && /~20 min home/.test($('pout').innerHTML), 'late: allowed, no route keeps the showing, warned, with its time marked ~');
   ok(/Seeing 2 of 2/.test($('pout').innerHTML) && JSON.parse(LS.get('fazon-cinema-gtimes'))[keys().find(k => k.includes('@'))][0] === null, 'late: no route is cached as null and never becomes an estimate');
-  fresh(); $ = boot(); lateFn = train(45, 360); await plan();
+  // the default: a showing with nothing running home after it never ends a day, and the results say which were left out
+  fresh(); $ = boot(); lateFn = () => ({}); await plan();
+  ok(/Seeing 1 of 2/.test($('pout').innerHTML) && !/No public transport home at this time/.test($('pout').innerHTML) && /1 showing of the films not scheduled was left out/.test($('pout').innerHTML) && /Allow a last film with no public transport home/.test($('pout').innerHTML), 'late: by default no way home leaves the showing out, and says so (Film A walks home)');
+  ok(/Film B<\/b><span class="meta">No public transport runs home after its only showing that fits/.test($('pout').innerHTML), 'late: the unscheduled film says why');
+  fresh({ noWayOK: true }); $ = boot(); lateFn = train(45, 360); await plan();
   ok(/No public transport home/.test($('pout').innerHTML), 'late: waiting for the first morning train counts as no way home');
-  fresh(); $ = boot(); lateFn = train(400); await plan();
+  fresh({ noWayOK: true }); $ = boot(); lateFn = train(400); await plan();
   ok(/No public transport home/.test($('pout').innerHTML), 'late: a time far beyond the 17:00 one counts as no way home');
   fresh(); $ = boot(); lateStatus = 403; lateFn = () => ({ error: { message: 'nope' } }); await plan();
   ok(/~20 min home/.test($('pout').innerHTML) && !/No public transport/.test($('pout').innerHTML) && /couldn’t be checked/.test($('pbanner').innerHTML) && !keys().some(k => k.includes('@')), 'late: a failed lookup is not "no route": marked ~ and not cached');
   ok(/Not checked for this time of night/.test($('pout').innerHTML) && /2 late journeys home in this plan couldn’t be checked/.test($('pout').innerHTML), 'late: an unchecked leg is warned about, not passed off as a way home');
   // an early-evening leg home (leaving 19:00) is looked up too: rural and Sunday services can stop before 20:00
   const s0 = DX.shows[0]; DX.shows[0] = { ...s0, t: iso(sun, '17:00'), e: iso(sun, '18:50') };
-  fresh(); $ = boot(); lateFn = () => ({}); await plan();
-  ok(keys().some(k => k.startsWith('T@1900u')) && /No public transport home/.test($('pout').innerHTML), 'late: a 19:00 leg home' + $('pout').innerHTML.match(/Leave 19[^<]*/) + '  is checked, and no service there is warned ' + keys().filter(k => k.includes('@')));
+  fresh({ noWayOK: true }); $ = boot(); lateFn = () => ({}); await plan();
+  ok(keys().some(k => k.startsWith('T@1900.0')) && /No public transport home/.test($('pout').innerHTML), 'late: a 19:00 leg home' + $('pout').innerHTML.match(/Leave 19[^<]*/) + '  is checked, and no service there is warned ' + keys().filter(k => k.includes('@')));
   DX.shows[0] = s0;
   // a choice of late showings: a checked leg isn't given up for an unchecked one that only looks shorter
   DX.shows.push({ k: 'a', c: 1, t: iso(sun, '21:30'), e: iso(sun, '23:30'), d: 110, x: [] }, { k: 'a', c: 0, t: iso(sun, '21:20'), e: iso(sun, '23:20'), d: 110, x: [] }, { k: 'b', c: 0, t: iso(mon, '21:50'), e: iso(mon, '23:50'), d: 110, x: [] });
@@ -437,6 +441,8 @@ for (const mode of ['most', 'strict']) {
   ok(solve({ ...base1, lh: lh([null]) }).days[0].cost === c0, 'solver late: a day without late times = the old last leg');
   ok(solve({ ...base1, win: [W('10:00', '22:00')], lh: lh([cell(2, 4, r => { r[2] = 100; })]) }).chosen.length === 0, 'solver late: Home by uses the late time');
   ok(solve({ ...base1, lh: lh([cell(2, 4, r => { r[2] = -1; })]) }).chosen.length === 1, 'solver late: no way home keeps the showing');
+  ok(solve({ ...base1, lh: { ...lh([cell(2, 4, r => { r[2] = -1; })]), x: true } }).chosen.length === 0, 'solver late: with x, no way home rules the showing out as a day\'s last film');
+  ok(solve({ ...base1, lh: { ...lh([cell(2, 4, r => { r[2] = -2; })]), x: true } }).chosen.length === 1, 'solver late: with x, an unchecked leg still counts');
   // same film at two times: the later one has no way home, so the earlier wins even though it waits no less
   const f2 = { days: [[{ i: 0, c: 0, st: hh('18:00'), en: hh('20:15') }, { i: 1, c: 0, st: hh('19:30'), en: hh('21:00') }]] };
   const r2 = solve({ ...base1, films: [f2], lh: lh([cell(2, 4, r => { r[1] = 15; r[2] = -1; })]) });

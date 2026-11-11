@@ -37,6 +37,18 @@ title = "Check late journeys home properly"
 done = true
 notes = "With a Google key, a public transport journey home after 20:00 is now looked up for roughly when you leave, on the right night, and the plan is built around it. If nothing runs by then, the showing stays in the plan with a warning that you may need a taxi or a lift. Journeys between cinemas still use 17:00 times."
 
+
+[[task]]
+priority = "high"
+title = "Night buses and exact leaving times"
+done = true
+notes = "Late journeys home are now looked up for the time you leave the film, to the next five minutes, instead of a half-hour slot. Each night of the week is checked on its own, so Thursday's night buses are no longer mixed up with Monday to Wednesday. A film with nothing running home after it is no longer put at the end of a day, unless you tick the setting that allows it."
+
+[[task]]
+priority = "medium"
+title = "Only see films between certain times on a day"
+done = true
+notes = "Each day's Places & hours button now has a time films must start after and a time they must finish by."
 [[task]]
 priority = "medium"
 title = "Choose the advert and trailer time for each cinema yourself"

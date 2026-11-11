@@ -41,6 +41,10 @@ const SH=D.shows.map((s,i)=>{const day=s.t.slice(0,10),st=toMin(s.t,day);
 const EARLY=300;
 // A day's "Home by" in minutes from that day's midnight: past the leave time, or in those same small hours, it's the next morning.
 const homeBy=w=>{const e=parseHM(w.e)??0,l=parseHM(w.l)??1440;return l<=e||l<EARLY?l+1440:l};
+// A day's own film hours (optional): films start no earlier than fs and end no later than fe, the same way round as "Home by"
+// (an end before the start, or before 05:00, is the next morning). Either can be blank. -> {fs,fe} in minutes, null = no limit.
+const filmHrs=w=>{const a=parseHM(w.fs),b=parseHM(w.fe);return {fs:a,fe:b==null?null:b<=(a??0)||b<EARLY?b+1440:b}};
+const hrsLbl=w=>w.fs||w.fe?(w.fs||'')+'–'+(w.fe||''):'';
 let DAYS=[],FI={},FILMS=[];
 function setWindow(){const s=PS.set;s.start=DT.nearest(SOPT,s.start)||TD;
   s.len=Math.min(MAXLEN,Math.max(1,Math.round(+s.len)||7));
@@ -104,12 +108,13 @@ function gSave(){const ks=Object.keys(GCACHE);
     const ks2=Object.keys(GCACHE).sort((a,b)=>GCACHE[a][1]-GCACHE[b][1]);ks2.slice(0,Math.ceil(ks2.length/2)).forEach(k=>delete GCACHE[k])}}
 const HLL=ht=>ht&&!ht.none&&typeof ht.lat==='number'?{lat:ht.lat,lng:ht.lng}:null;
 // Late journeys home (public transport only): every time above is for 17:00, so a leg home leaving after 18:00 gets its own
-// lookup, once a plan actually uses it. Times come in half-hour bands, rounded up from the time you leave, each with its own
-// key, e.g. "T@2330f|…" (2430 = 00:30 the next morning; the letter is the plan day's timetable: w Mon–Thu, f Fri, a Sat, u Sun).
+// lookup, once a plan actually uses it. Times come in five-minute steps, rounded up from the time you leave (so the journey
+// asked about never starts before you're out), each with its own key, e.g. "T@2335.4|…" (2435 = 00:35 the next morning;
+// the digit is the plan day's weekday, 0 Sun … 6 Sat, so Thursday's night buses aren't Monday's).
 // A cached null, or a time far longer than the 17:00 one, means nothing runs then, which isn't the same as not having looked (-2).
-const LATE={from:1080,step:30,n:22,p:180},LATE_UNSEEN=60,LATE_MORE=120,LATE_AHEAD=28,LATE_ROUNDS=4,LATE_MAX=16;
+const LATE={from:1080,step:5,n:132,p:180},LATE_UNSEEN=60,LATE_MORE=120,LATE_AHEAD=28,LATE_ROUNDS=4,LATE_MAX=16;
 const lateOn=()=>!!gkey&&tp[0]==='T';
-const lateK=(day,k)=>tp+'@'+pad(Math.floor((LATE.from+(k+1)*LATE.step)/60))+pad((LATE.from+(k+1)*LATE.step)%60)+'uwwwwfa'[wdOf(day)];
+const lateK=(day,k)=>tp+'@'+pad(Math.floor((LATE.from+(k+1)*LATE.step)/60))+pad((LATE.from+(k+1)*LATE.step)%60)+'.'+wdOf(day);
 const lateBand=m=>{const k=Math.ceil((m-LATE.from)/LATE.step)-1;return k>=0&&k<LATE.n?k:-1};
 // the moment band k of a plan day means: the real date when timetables should exist for it, else the same weekday sooner
 function lateTime(day,k){let x=day;while(dnum(x)>dnum(TD)+LATE_AHEAD)x=dadd(x,-7);
@@ -130,7 +135,7 @@ function rawTravel(ht){const T=new Int32Array(NC1*NC1).fill(-1),E=new Uint8Array
 
 // ---------- persisted state ----------
 // availability: set.days[0..6] = per-weekday template, set.dates["YYYY-MM-DD"] = a date the user edited (wins)
-const DEF={days:{},dates:{},start:'',len:7,buf:10,late:0,maxDay:'',maxLeg:'',obj:'most',pc:'',geo:null,gc:{},noHome:false,cin:[],ch:[],st:[],ads:{},travel:'T',noTram:false,noTrain:false,pts:{},rank:[]};
+const DEF={days:{},dates:{},start:'',len:7,buf:10,late:0,maxDay:'',maxLeg:'',obj:'most',pc:'',geo:null,gc:{},noHome:false,cin:[],ch:[],st:[],ads:{},travel:'T',noTram:false,noTrain:false,noWayOK:false,pts:{},rank:[]};
 for(let w=0;w<7;w++)DEF.days[w]={on:true,e:'10:00',l:'00:00'};
 const saved=store.get(LSK)||{};
 const PS={picks:[],set:Object.assign({},DEF,saved.set||{})};
@@ -357,10 +362,13 @@ function winChange(){setWindow();dateNote();renderDays();renderGC();renderPicks(
 $('pstart').onchange=()=>{PS.set.start=$('pstart').value;winChange()};
 $('plen').onchange=()=>{PS.set.len=+$('plen').value;winChange()};
 // availability per date (an untouched date follows its weekday's template)
+const feNote=(day,x)=>{const f=filmHrs(x);return x.fe&&f.fe>=1440&&parseHM(x.fe)>0?'next day, '+dshort(dadd(day,1)):''};
 const hbNote=(day,x)=>x.on&&parseHM(x.l)>0&&homeBy(x)>=1440?'next day, '+dshort(dadd(day,1)):'';   // midnight itself needs no note
 // a day's own start and end postcodes open in a row under it ("Start/end" button)
 const PTO=new Set(),ptBusy=new WeakSet(),PTK=[['s','Start'],['e','End']];
-const ptB=day=>{const a=ptOf(day,'s'),b=ptOf(day,'e');return a&&b?'Own both':a?'Own start':b?'Own end':'Start/end'};
+const ptB=day=>{const a=ptOf(day,'s'),b=ptOf(day,'e'),h=hrsLbl(avail(day)),p=a&&b?'Own both':a?'Own start':b?'Own end':'';
+  return p&&h?p+' · films '+h:p||(h?'Films '+h:'Places & hours')};
+const ptOn=day=>!!PS.set.pts[day]||!!hrsLbl(avail(day));
 function ptStat(day,k){const p=ptOf(day,k);if(!p)return ['',''];
   if(ptBusy.has(p))return ['','Looking up '+fmtPC(p.pc)+'…'];
   if(hasLL(p))return ['ok',ptSame(p)?'✓ Same as home':'✓ '+fmtPC(p.pc)+(p.area?' · '+p.area:'')];
@@ -370,13 +378,15 @@ const ptField=(day,[k,lb],noHome)=>{const p=ptOf(day,k),[c,m]=ptStat(day,k);
   return `<label>${lb}<input type="text" data-pt="${k}" value="${esc(p?p.pc:'')}" placeholder="${noHome?(k==='s'?'First cinema':'Last cinema'):'Home'}" maxlength="12" autocomplete="off" spellcheck="false" aria-label="${lb} postcode on ${esc(dayLbl(day))}"><span class="pcst ${c}" data-ps="${k}">${esc(m)}</span></label>`};
 // repaint one day's status lines only: a lookup can finish while the next box is being typed in
 function ptRow(day){const T=$('pdays'),r=T.querySelector(`tr[data-pd="${day}"]`),b=T.querySelector(`tr[data-d="${day}"] .ptb`);
-  if(b){b.textContent=ptB(day);b.classList.toggle('on',!!PS.set.pts[day])}
+  if(b){b.textContent=ptB(day);b.classList.toggle('on',ptOn(day))}
   if(r)for(const [k] of PTK){const [c,m]=ptStat(day,k),el=r.querySelector(`[data-ps="${k}"]`),i=r.querySelector(`[data-pt="${k}"]`),p=ptOf(day,k);el.className='pcst '+c;el.textContent=m;if(p&&i!==document.activeElement)i.value=p.pc}}
 function renderDays(){const noHome=!!PS.set.noHome;
   $('pdays').innerHTML='<tr><th></th><th>Day</th><th>Leave from</th><th>Home by</th></tr>'+DAYS.map(day=>{const x=avail(day),open=x.on&&(PTO.has(day)||ptBad(day));
-    return `<tr class="${x.on?'':'off'}" data-d="${day}"><td><input type="checkbox" data-f="on"${x.on?' checked':''} aria-label="Free on ${esc(dayLbl(day))}"></td><td class="dn">${esc(dayLbl(day))}${x.on?`<button type="button" class="ptb${PS.set.pts[day]?' on':''}" aria-expanded="${open}" title="Start or finish this day somewhere else">${esc(ptB(day))}</button>`:''}</td>
+    return `<tr class="${x.on?'':'off'}" data-d="${day}"><td><input type="checkbox" data-f="on"${x.on?' checked':''} aria-label="Free on ${esc(dayLbl(day))}"></td><td class="dn">${esc(dayLbl(day))}${x.on?`<button type="button" class="ptb${ptOn(day)?' on':''}" aria-expanded="${open}" title="Start or finish this day somewhere else, or only see films between certain times">${esc(ptB(day))}</button>`:''}</td>
      <td><input type="time" data-f="e" value="${esc(x.e)}"${x.on?'':' disabled'}></td><td><input type="time" data-f="l" value="${esc(x.l)}"${x.on?'':' disabled'} title="Earlier than the leave time, or before 05:00, means the next morning"><span class="hbn">${esc(hbNote(day,x))}</span></td></tr>
-     <tr class="ptr" data-pd="${day}"${open?'':' hidden'}><td colspan="4"><div class="ptg">${PTK.map(K=>ptField(day,K,noHome)).join('')}</div><div class="pth">Empty = ${noHome?'the first or last cinema':'home'}. “Leave from” is then when you can leave the start, “Home by” when you must reach the end.</div></td></tr>`}).join('')+
+     <tr class="ptr" data-pd="${day}"${open?'':' hidden'}><td colspan="4"><div class="ptg">${PTK.map(K=>ptField(day,K,noHome)).join('')}</div><div class="pth">Empty = ${noHome?'the first or last cinema':'home'}. “Leave from” is then when you can leave the start, “Home by” when you must reach the end.</div>
+      <div class="ptg"><label>Films starting from<input type="time" data-fh="fs" value="${esc(x.fs||'')}" aria-label="Earliest film start on ${esc(dayLbl(day))}"></label><label>Films finished by<input type="time" data-fh="fe" value="${esc(x.fe||'')}" aria-label="Latest film end on ${esc(dayLbl(day))}"><span class="hbn" data-fhn>${esc(feNote(day,x))}</span></label></div>
+      <div class="pth">Only plan films that start and finish between these times (empty = any). Travel can still fall outside them, within “Leave from” and “Home by”.</div></td></tr>`}).join('')+
    (DAYS.length>1?'<tr><td></td><td colspan="3"><button class="ib" id="pcopy">Copy first day’s times to all</button></td></tr>':'')}
 // cinemas for all films (Settings): sorted by distance from home when known, else grouped by chain
 // (cinemas whose chain the Settings cinema types rule out are greyed; counts honour the Settings screen types)
@@ -472,10 +482,13 @@ $('prkclr').onclick=()=>{PS.set.rank=[];renderRank();changed()};
 const own=d=>PS.set.dates[d]||(PS.set.dates[d]=Object.assign({},avail(d)));
 $('pdays').addEventListener('change',e=>{const t=e.target,tr=t.closest('tr[data-d]');if(!tr)return;const x=own(tr.dataset.d);
   if(t.dataset.f==='on'){x.on=t.checked;renderDays()}else if(t.value){x[t.dataset.f]=t.value;tr.querySelector('.hbn').textContent=hbNote(tr.dataset.d,x)}changed()});
+$('pdays').addEventListener('change',e=>{const t=e.target,f=t.dataset.fh;if(!f)return;const day=t.closest('tr[data-pd]').dataset.pd,x=own(day);
+  if(t.value)x[f]=t.value;else delete x[f];const n=t.closest('tr').querySelector('[data-fhn]');if(n)n.textContent=feNote(day,x);ptRow(day);changed()});
 $('pdays').addEventListener('click',e=>{const pb=e.target.closest('.ptb');
   if(pb){const day=pb.closest('tr[data-d]').dataset.d,r=$('pdays').querySelector(`tr[data-pd="${day}"]`);r.hidden=!r.hidden;pb.setAttribute('aria-expanded',!r.hidden);if(r.hidden)PTO.delete(day);else PTO.add(day);return}
   if(e.target.id!=='pcopy')return;const f=Object.assign({},avail(DAYS[0]));
-  for(const d of DAYS){const x=own(d);x.e=f.e;x.l=f.l}for(let w=0;w<7;w++){PS.set.days[w].e=f.e;PS.set.days[w].l=f.l}renderDays();changed()});
+  const cp=x=>{x.e=f.e;x.l=f.l;for(const k of ['fs','fe'])if(f[k])x[k]=f[k];else delete x[k]};
+  for(const d of DAYS)cp(own(d));for(let w=0;w<7;w++)cp(PS.set.days[w]);renderDays();changed()});
 async function ptSet(day,k,raw){const n=normPC(raw),S=PS.set,c=ptOf(day,k);if(!n&&!c)return;const o=S.pts[day]||(S.pts[day]={});
   if(!n){delete o[k];if(!o.s&&!o.e)delete S.pts[day];ptRow(day);changed();return}
   if(c&&normPC(c.pc)===n&&(hasLL(c)||ptBusy.has(c)))return;
@@ -540,7 +553,7 @@ $('pkeyforget').onclick=()=>{$('pkey').value='';GCACHE={};lsSet(GC,null);gkey='x
 function tmUI(){const s=PS.set,on=gkey?s.travel:'T',el=$('ptmst');
   $('ptm').querySelectorAll('input').forEach(r=>{r.disabled=r.value!=='T'&&!gkey;r.checked=r.value===on;r.parentNode.classList.toggle('off',r.disabled)});
   $('ptav').hidden=on!=='T';
-  for(const [id,k] of [['pnotram','noTram'],['pnotrain','noTrain']]){$(id).disabled=!gkey;$(id).checked=!!gkey&&s[k];$(id).parentNode.classList.toggle('off',!gkey)}
+  for(const [id,k] of [['pnotram','noTram'],['pnotrain','noTrain'],['pnoway','noWayOK']]){$(id).disabled=!gkey;$(id).checked=!!gkey&&s[k];$(id).parentNode.classList.toggle('off',!gkey)}
   el.textContent=!gkey?'Cycling, driving and avoiding trams or trains need a Google Maps key (below): the built-in estimates are public transport only and can’t tell trams from trains.'
     :tp==='D'?'Driving times don’t include traffic or parking, so allow for those in your buffer.'
     :tp==='T'||tp==='B'?'':`Google treats this as a preference, so a journey can still use ${tAvoid(tp)} when there’s no practical alternative, and “route” links in Google Maps may suggest them.`;
@@ -548,18 +561,20 @@ function tmUI(){const s=PS.set,on=gkey?s.travel:'T',el=$('ptmst');
 function tmChanged(){gErr=null;tmSync();tmUI();emptyOut();changed();renderGC();renderPicks();banner()}
 $('ptm').onchange=e=>{PS.set.travel=e.target.value;tmChanged()};
 for(const [id,k] of [['pnotram','noTram'],['pnotrain','noTrain']])$(id).onchange=e=>{PS.set[k]=e.target.checked;tmChanged()};
+$('pnoway').onchange=e=>{PS.set.noWayOK=e.target.checked;changed()};
 
 // ---------- solver plumbing ----------
 let running=false,worker=null,noWorker=false;
 // showings each pick allows that could fit their day's window (travel aside), and the cinemas they use
 function candidates(){const s=PS.set,buf=+s.buf||0,late=+s.late||0;
   const win=DAYS.map(day=>{const w=avail(day);if(!w||!w.on)return null;return {e:parseHM(w.e)??0,l:homeBy(w)}});
+  const hrs=DAYS.map(day=>filmHrs(avail(day)));
   const used=new Set(),info=[],per=[],N=limit();
   PS.picks.forEach((p,pi)=>{const F=FI[p.k],r={pi,p,match:0,win:0,homeBy:0,hb:[],reason:null,si:-1},L=[];info.push(r);per.push(L);
     if(pi>=N){r.reason='limit';return}   // past the pick limit for this plan length: not planned
     if(!F){r.reason='gone';return}const cs=cinSet(p);
     for(const h of F.shows){if(!allows(p,D.shows[h.i].x,h.c,h.day,cs))continue;r.match++;
-      const w=win[h.di];if(!w||w.e>h.st+late)continue;if(h.en+buf>w.l){r.homeBy++;r.hb.push(h);continue}L.push(h);used.add(h.c)}});
+      const w=win[h.di],fh=hrs[h.di];if(!w||w.e>h.st+late||fh.fs!=null&&h.st<fh.fs||fh.fe!=null&&h.en>fh.fe)continue;if(h.en+buf>w.l){r.homeBy++;r.hb.push(h);continue}L.push(h);used.add(h.c)}});
   return {win,used,info,per,buf,late}}
 // solver time limit: 2.5 s up to 28 films, then +0.625 s per film (14.4 s at 47) since bigger searches need longer to finish
 const budgetFor=n=>n>28?2500+(n-28)*625:2500;
@@ -585,17 +600,19 @@ function buildProblem(unseen=LATE_UNSEEN){const s=PS.set,maxLeg=+s.maxLeg||0,ht=
   const dayTo=(d,c)=>dl[d].a?dl[d].a[c]:T[H*NC1+c],dayFr=(d,c)=>dl[d].b?dl[d].b[c]:T[c*NC1+H];
   // lh: what's known of each day's late legs home for the solver. Taken before the closure can touch them, and never closed,
   // so a 17:00 time can't get back in through a route via another cinema. A failed lookup stays -2: only a real answer is -1.
-  const dayEnd=d=>dl[d].e||HLL(ht),lh=lateOn()?{...LATE,u:unseen,a:DAYS.map((day,d)=>{const q=dayEnd(d);if(!q)return null;const a=new Int32Array(NC*LATE.n).fill(-2);
-    for(const c of dayC[d]){const C=CLL[c];if(C)for(let k=0;k<LATE.n;k++)a[c*LATE.n+k]=lateGet(day,k,C,q,dayFr(d,c))}return a})}:null;
+  // Only the bands a candidate showing there can end in are filled in: the solver asks about nothing else.
+  const dayK=DAYS.map(()=>new Map());for(const L of per)for(const h of L){const k=lateBand(h.en+buf);if(k<0)continue;const M=dayK[h.di];(M.get(h.c)||M.set(h.c,new Set()).get(h.c)).add(k)}
+  const dayEnd=d=>dl[d].e||HLL(ht),lh=lateOn()?{...LATE,u:unseen,x:!s.noWayOK,a:DAYS.map((day,d)=>{const q=dayEnd(d);if(!q)return null;const a=new Int32Array(NC*LATE.n).fill(-2);
+    for(const [c,ks] of dayK[d]){const C=CLL[c];if(C)for(const k of ks)a[c*LATE.n+k]=lateGet(day,k,C,q,dayFr(d,c))}return a})}:null;
   const lateAt=(d,c,m)=>{const k=lateBand(m);return lh&&lh.a[d]&&k>=0?lh.a[d][c*LATE.n+k]:-2};   // late time for leaving at minute m
   if(maxLeg>0)for(let a=0;a<NC1;a++)for(let b=0;b<NC1;b++)if(a!==b&&T[a*NC1+b]>maxLeg)T[a*NC1+b]=-1;
   const films=[];
   info.forEach((r,pi)=>{if(r.reason)return;const days=DAYS.map(()=>[]);
-    for(const h of per[pi]){const w=win[h.di],a=dayTo(h.di,h.c),b0=dayFr(h.di,h.c),v=lateAt(h.di,h.c,h.en+buf),b=v>=0?v:b0;if(a<0||b0<0||maxLeg>0&&b>maxLeg)continue;
-      if(w.e+a>h.st+late)continue;if(h.en+buf+b>w.l){r.homeBy++;r.hb.push(h);continue}r.win++;const o={i:h.i,c:h.c,st:h.st,en:h.en},q=pen&&pen(h.i);if(q)o.p=q;days[h.di].push(o)}
+    r.nw=[];for(const h of per[pi]){const w=win[h.di],a=dayTo(h.di,h.c),b0=dayFr(h.di,h.c),v=lateAt(h.di,h.c,h.en+buf),b=v>=0?v:b0;if(a<0||b0<0||maxLeg>0&&b>maxLeg)continue;
+      if(w.e+a>h.st+late)continue;if(h.en+buf+b>w.l){r.homeBy++;r.hb.push(h);continue}r.win++;if(v===-1)r.nw.push(h);const o={i:h.i,c:h.c,st:h.st,en:h.en},q=pen&&pen(h.i);if(q)o.p=q;days[h.di].push(o)}
     if(!r.match)r.reason='constraints';else if(!r.win)r.reason='window';else{r.si=films.length;films.push({days})}});
   const own=ends.some(x=>x.s||x.e)?{ds:dl.map(x=>x.a),de:dl.map(x=>x.b)}:{};
-  return {P:{films,win,T,nc:NC,buf,late,maxDay:+s.maxDay||0,mode:s.obj,budget:budgetFor(films.length),...own,...(lh?{lh}:{})},info,ht,win,T,E,dl,lateAt,lateOn:!!lh,dayEnd,buf,late,mode:s.obj,days:DAYS,lim:limit(),tp,pen}}
+  return {P:{films,win,T,nc:NC,buf,late,maxDay:+s.maxDay||0,mode:s.obj,budget:budgetFor(films.length),...own,...(lh?{lh}:{})},info,ht,win,T,E,dl,lateAt,lateOn:!!lh,lateX:!!(lh&&lh.x),dayEnd,buf,late,mode:s.obj,days:DAYS,lim:limit(),tp,pen}}
 // fetch Google times (plus walking, for transit) for every leg the plan can use that isn't cached yet: between cinemas with
 // candidate showings, each day's own start / end with that day's cinemas, and home with all of them if some day still uses
 // it (the closure in buildProblem routes home's legs via every candidate cinema). Never between home and a point, or two points.
@@ -694,6 +711,7 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
     if(x.reason==='constraints')return kn(p.cin).length||p.st.length||p.req.length||p.exc.length||ddIn(p).length||kn(s.cin).length||knch(s.ch).length||s.st.length?'No upcoming showings match your cinema / screen type / tag / day choices.':'No upcoming showings.';
     if(x.reason==='window')return `None of its ${x.match} matching showing${x.match>1?'s':''}${p.st.length?' ('+p.st.join(' / ')+')':''} fit your available times${anyPt?' with travel from and to each day’s start and end':noHome?'':' with travel from and back home'}${+PS.set.maxLeg?' and journey limit':''}`+
       (!x.homeBy?'':(x.homeBy===x.match?(x.match>1?' (all of them end':' (it ends'):` (${x.homeBy} of them ${x.homeBy>1?'end':'ends'}`)+' too late for your “Home by” time)')+'.';
+    if(ctx.lateX&&x.nw&&x.nw.length===x.win)return `No public transport runs ${anyEnd?'on':'home'} after ${x.win>1?'any of its showings that fit':'its only showing that fits'}, so it can’t end a day. You can allow that in Settings.`;
     const u=r.unfit[x.si];if(!u)return '';
     if(ctx.mode==='strict'||!u.higher)return 'Clashes with your higher-priority picks.';
     return 'Only fits by dropping other picks. Leaving it out lets you see more films (or higher-ranked ones).'};
@@ -711,7 +729,13 @@ function renderResult(){const {r,ctx}=lastRes,out=$('pout');
       x.hb.slice().sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:a.st-b.st).map(h=>`<div>${esc(dayLbl(h.day))} ${hm(h.st)}–${hm(h.en)} · ${esc(D.cinemas[h.c].name)}</div>`).join('')).join('')}</div></details></div>`:'';
   const nw=nNoWay?`<div class="banner">${nNoWay===1?'One journey':nNoWay+' journeys'} in this plan ${nNoWay===1?'has':'have'} no public transport at the time you’d leave. You may need a taxi or a lift. Each is marked below.</div>`:'';
   const nu=nUnk?`<div class="banner">${nUnk===1?'One late journey':nUnk+' late journeys'} home in this plan couldn’t be checked against the night timetable, so ${nUnk===1?'it':'they'} may not run. Each is marked below. Pressing Plan again checks more.</div>`:'';
-  html=head+nw+nu+hb+(days.length?html:'<div class="pempty">Nothing could be scheduled. See below.</div>');
+  // with no-way-home showings left out (the default): the unscheduled picks' showings that only had nothing running home after them
+  const NWL=ctx.lateX?miss.filter(x=>x.nw&&x.nw.length):[],nNW=NWL.reduce((n,x)=>n+x.nw.length,0);
+  const nwx=nNW?`<div class="banner">${nNW} showing${nNW>1?'s':''} of the films not scheduled ${nNW>1?'were':'was'} left out of the end of a day because no public transport runs ${anyEnd?'to where you’re finishing':'home'} after ${nNW>1?'them':'it'}.
+    To plan ${nNW>1?'them':'it'} anyway and get home by taxi or a lift, tick <b>Allow a last film with no public transport home</b> under <b>How you travel</b> in Settings.
+    <details class="hbl"><summary>Show ${nNW>1?'which showings':'which showing'}</summary><div class="hbw">${NWL.map(x=>`<b>${esc(FI[x.p.k]?title(x.p.k):x.p.t)}</b>`+
+      x.nw.slice().sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:a.st-b.st).map(h=>`<div>${esc(dayLbl(h.day))} ${hm(h.st)}–${hm(h.en)} · ${esc(D.cinemas[h.c].name)}</div>`).join('')).join('')}</div></details></div>`:'';
+  html=head+nw+nu+nwx+hb+(days.length?html:'<div class="pempty">Nothing could be scheduled. See below.</div>');
   if(miss.length)html+=`<div class="unf"><h3>Not scheduled (${miss.length})</h3>${miss.map(x=>`<div><b>${x.pi+1}. ${esc(FI[x.p.k]?title(x.p.k):x.p.t)}</b><span class="meta">${esc(why(x))}</span></div>`).join('')}</div>`;
   out.innerHTML=`<div class="res">${html}</div>`;banner()}
 
