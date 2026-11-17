@@ -166,8 +166,50 @@ func loadToken() (string, error) {
 	return "", errors.New("token file is empty")
 }
 
-// upload POSTs the results (gzipped), retrying transient failures.
+// maxBatchBytes caps one upload's uncompressed JSON, well under cinemad's
+// default 16 MiB ingest limit (which applies after decompression).
+const maxBatchBytes = 8 << 20
+
+// upload sends the results in batches that each stay under maxBatchBytes, so
+// a run where every relay cinema is due (all regions hot) still gets through.
+// A failed batch doesn't stop the others; the first error is returned.
 func upload(ctx context.Context, server, token string, results []scrape.Result, anyCinema bool) error {
+	var first error
+	for _, b := range batches(results, maxBatchBytes) {
+		if err := uploadBatch(ctx, server, token, b, anyCinema); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
+}
+
+// batches splits results greedily by encoded size; a single result larger
+// than limit still goes in a batch of its own.
+func batches(results []scrape.Result, limit int) [][]scrape.Result {
+	var out [][]scrape.Result
+	var cur []scrape.Result
+	size := 0
+	for _, r := range results {
+		b, err := json.Marshal(r)
+		n := len(b)
+		if err != nil {
+			n = 0 // the real encode will report it
+		}
+		if len(cur) > 0 && size+n > limit {
+			out = append(out, cur)
+			cur, size = nil, 0
+		}
+		cur = append(cur, r)
+		size += n + 1
+	}
+	if len(cur) > 0 {
+		out = append(out, cur)
+	}
+	return out
+}
+
+// uploadBatch POSTs one batch (gzipped), retrying transient failures.
+func uploadBatch(ctx context.Context, server, token string, results []scrape.Result, anyCinema bool) error {
 	var buf bytes.Buffer
 	zw := gzip.NewWriter(&buf)
 	if err := json.NewEncoder(zw).Encode(map[string]any{"results": results}); err != nil {

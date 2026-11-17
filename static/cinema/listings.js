@@ -31,6 +31,8 @@ function staleNote(c){const C=D.cinemas[c];if(!C||!C.stale)return '';const u=iso
   return `<span class="stl" title="${u?'Listings last refreshed '+esc(full(u)):'Listings could not be refreshed recently'}">${u?'last updated '+esc(ago(u)):'not recently updated'}</span>`}
 const gen=isoDate(D.generated)||D.cinemas.map(c=>isoDate(c.updated)).filter(Boolean).sort((a,b)=>b-a)[0]||null;
 const nStale=D.cinemas.filter(c=>c.stale).length;
+// a whole chain (or a big share of cinemas) not updating = something broken: say so at the top of every tab
+if(typeof CINEMA_OUTAGE==='function'){const o=CINEMA_OUTAGE(D);if(o&&$('outage')){$('outage').textContent=CINEMA_OUTAGE_TEXT(o);$('outage').hidden=false}}
 $('sub').innerHTML=esc(`${dayLong(D.from)} – ${dayLong(D.to)} · ${D.shows.length.toLocaleString()} showings · `+
   `${Object.keys(D.films).length} films · ${D.cinemas.filter(c=>!c.error).length}/${D.cinemas.length} cinemas · `)+
   (gen?`<span title="${esc(full(gen))}">updated ${esc(when(gen))}</span>`:D.generated?'updated '+esc(D.generated):'');

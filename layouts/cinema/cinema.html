@@ -7,6 +7,7 @@
     <div class="cstatus" id="cstatus"><div class="cload" role="status"><span class="spin" aria-hidden="true"></span>Loading listings…</div></div>
     <noscript><div class="cerr"><b>The cinema planner needs JavaScript.</b></div></noscript>
     <div id="cbody" hidden>
+    <div class="outage" id="outage" role="status" hidden></div>
     <div class="chead">
       <div class="hinfo">
        <div class="rgn" id="rgn" hidden><button type="button" class="rgnb" id="rgnb" aria-expanded="false" aria-controls="rgnp" aria-haspopup="dialog"><span class="rgk">Region</span> <b id="rgnv"></b></button>
@@ -134,7 +135,7 @@
     </section>
   </div>
 
-  {{ range slice "screentypes" "dates" "solver" "routes" "same" "listings" "planner" "feedback" "regions" "app" -}}
+  {{ range slice "screentypes" "dates" "solver" "routes" "same" "outage" "listings" "planner" "feedback" "regions" "app" -}}
   <script src="{{ printf "cinema/%s.js" . | relURL }}?v={{ substr (readFile (printf "static/cinema/%s.js" .) | md5) 0 10 }}" defer></script>
   {{ end -}}
 {{ end }}
