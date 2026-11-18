@@ -36,10 +36,11 @@ type rawFilm struct {
 	shows   int
 	decided bool // merged by the owner, or kept apart
 	talk    bool // a Q&A runs on after the film, so its runtime proves nothing
+	event   bool // theatre, ballet or opera, where cinemas differ on counting the interval
 }
 
 func (r *rawFilm) runtime() int { // 0 = unknown
-	if r.talk {
+	if r.talk || r.event {
 		return 0
 	}
 	var real []float64
@@ -116,6 +117,7 @@ func scanFilms(cinemas []scrape.Cinema, entries map[string]Entry, from, to time.
 		var tags []string
 		r.match, r.base, tags = matchKey(r.title)
 		r.talk = slices.Contains(tags, "Q&A")
+		r.event = films.Event(r.title)
 	}
 	return raws
 }
