@@ -177,3 +177,19 @@ func TestSequelsStayApart(t *testing.T) {
 		t.Errorf("films %v notes %v", l.Films, l.Notes)
 	}
 }
+
+func TestEventCinemaMergesAcrossNamesAndRuntimes(t *testing.T) {
+	l := matched(t, emptyMatches(),
+		[3]any{"A", "National Theatre Live: Golden Boy", 180}, [3]any{"A", "National Theatre Live: Golden Boy", 180},
+		[3]any{"B", "NT Live: Golden Boy", 157}, [3]any{"C", "National Theatre - Golden Boy", 180},
+		[3]any{"D", "On Screen - NT Live: Golden Boy (Cert 12A)", 120}, [3]any{"E", "Golden Boy", 99})
+	if got := filmKeys(l); !slices.Equal(got, []string{"goldenboy", "ntlivegoldenboy"}) {
+		t.Fatalf("films %v", got)
+	}
+	if n := l.Notes["ntlivegoldenboy"]; len(n.Names) != 4 || !n.U {
+		t.Errorf("note %+v", n)
+	}
+	if l.Aliases["nationaltheatrelivegoldenboy"] != "ntlivegoldenboy" {
+		t.Errorf("old key not forwarded: %v", l.Aliases)
+	}
+}

@@ -173,3 +173,55 @@ func TestTMDB(t *testing.T) {
 		t.Errorf("error must not hold the key: %v", err)
 	}
 }
+
+func TestEventBrandsMerge(t *testing.T) {
+	groups := map[string][]string{
+		"ntlivegoldenboy": {"NT Live: Golden Boy", "National Theatre Live: Golden Boy", "National Theatre - Golden Boy",
+			"On Screen - NT Live: Golden Boy (Cert 12A)", "NTLive: Golden Boy"},
+		"royalballetandoperathenutcracker": {"RBO: The Nutcracker", "RBO 2026-27 Cinema Season: The Nutcracker",
+			"RBO 2026-27: The Royal Ballet - The Nutcracker", "Royal Ballet & Opera 2026/27: The Nutcracker",
+			"RBO Encore 2026-27: The Nutcracker (2025 Encore)", "Christmas 26 - RBO: The Nutcracker",
+			"THE NUTCRACKER The Royal ballet", "The Royal Ballet: The Nutcracker (12A TBC)"},
+		"metoperasamsonetdalila": {"Met Opera: Samson et Dalila", "Met Opera Live 2026-27: Samson et Dalila",
+			"Met Opera Encore 2026-27: Samson et Dalila", "Samson et Dalila - Met Opera 26/27",
+			"The Metropolitan Opera: Samson et Dalila", "The Met: Live in HD: Samson et Dalila"},
+	}
+	for want, titles := range groups {
+		for _, title := range titles {
+			if b, _ := Base(title); Key(b) != want {
+				t.Errorf("%q: base %q, key %q, want %q", title, b, Key(b), want)
+			}
+		}
+	}
+}
+
+func TestEventBrandsKeepApart(t *testing.T) {
+	apart := [][2]string{
+		{"NT Live: Golden Boy", "Golden Boy"},                      // the 1939 film
+		{"RBO: The Nutcracker", "Bolshoi Ballet: The Nutcracker"},  // another company
+		{"RBO: The Nutcracker", "The Nutcracker"},                  // a film of it
+		{"Met Opera: Carmen", "RBO Cinema Season 2026-27: Carmen"}, // two productions
+		{"NT Live: Hay Fever", "NT Live: The Misanthrope"},
+	}
+	for _, p := range apart {
+		a, _ := Base(p[0])
+		b, _ := Base(p[1])
+		if Key(a) == Key(b) {
+			t.Errorf("%q and %q merged", p[0], p[1])
+		}
+	}
+	for _, title := range []string{"Meet the Met", "Pulp: What Do You For an Encore? Best of 2026", "Rbonanza: The Movie", "Brothers - Live"} {
+		if _, _, ok := eventShow(title); ok {
+			t.Errorf("%q read as event cinema", title)
+		}
+	}
+}
+
+func TestEventMetShort(t *testing.T) {
+	if b, _ := Base("MET: Samson et Dalila"); Key(b) != "metoperasamsonetdalila" {
+		t.Errorf("MET: Samson et Dalila: %q", b)
+	}
+	if !Event("National Theatre Live: Golden Boy") || Event("Golden Boy") {
+		t.Error("Event")
+	}
+}

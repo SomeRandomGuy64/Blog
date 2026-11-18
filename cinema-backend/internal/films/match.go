@@ -54,6 +54,10 @@ func Base(title string) (string, []string) {
 		}
 	}
 	s := strings.TrimSpace(spaceColon.ReplaceAllString(title, ":"))
+	brand, show, event := eventShow(s)
+	if event {
+		s = show
+	}
 	if t := prefixThrowback.ReplaceAllString(s, ""); t != s {
 		add("Classic")
 		s = t
@@ -83,6 +87,9 @@ func Base(title string) (string, []string) {
 	s = strings.Join(strings.Fields(trailingPunct.ReplaceAllString(s, "")), " ")
 	if s == "" {
 		return strings.TrimSpace(title), nil
+	}
+	if event {
+		s = brand + ": " + s
 	}
 	return s, tags
 }
