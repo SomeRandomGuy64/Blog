@@ -10,7 +10,8 @@ summary = "Connect your Anki (AnkiConnect + AnkiMorphs), drop in a subtitle file
 How much of a video will you actually understand? This tool reads the words you've learned
 straight out of your Anki collection, then measures your **token coverage** for any subtitle
 file: the share of the *content words* spoken in it that you already know. Give it the
-YouTube link too and it follows along with the video, showing your coverage at every point.
+YouTube link too, or the video file itself if it's on your computer, and it follows along with the
+video, showing your coverage at every point.
 
 With the video loaded you can also turn on **primed listening**. As each line starts, the video
 pauses just long enough for you to read it, then plays it so you hear it straight after. The
