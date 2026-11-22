@@ -780,7 +780,32 @@
     return ytP;
   }
 
+  // A local video file plays in FzPlayer (js/fz-player.js) instead of YouTube's iframe. Its `yt`
+  // object answers the same IFrame API calls, so primed listening, the live readout and the watch
+  // time work unchanged; the keys stay primed listening's, full screen takes the whole video box.
+  var localFile = null, fz = null;
+  function setupLocal() {
+    var wrap = $("tcVideo");
+    $("tcPlayerWrap").hidden = false;
+    if (fz && fz.file === localFile) return;
+    teardownPlayer();
+    $("tcPlayerWrap").hidden = false;
+    var holder = $("tcPlayer");
+    fz = FzPlayer.create(holder, {
+      keys: false, fullscreenEl: wrap,
+      onState: function (s) { if (prim) prim.state(s); watch.state(s); },
+      onError: function (m) { status($("tcMediaStatus"), "✗ " + m + " — try an .mp4 (H.264/AAC) or .webm copy.", "err"); }
+    });
+    fz.file = localFile;
+    fz.url = URL.createObjectURL(localFile);
+    fz.load(fz.url, { autoplay: false });
+    player = fz.yt; playerVid = null;
+    if (prim) prim.attach(player);
+    watch.attach(player, null);
+    startPoll(); renderUnknown(); drawChart();
+  }
   function setupVideo() {
+    if (localFile) { setupLocal(); return; }
     var raw = $("tcYt").value.trim(), id = ytId(raw), st = $("tcMediaStatus");
     if (!raw) { teardownPlayer(); return; }
     if (!id) { status(st, "✗ that doesn't look like a YouTube link — showing the chart without the video.", "err"); teardownPlayer(); return; }
@@ -804,7 +829,8 @@
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     watch.detach();   // before prim lets go of the player: it still asks prim whether it's stopped
     if (prim) prim.detach();
-    if (player) { try { player.destroy(); } catch (e) { /* already gone */ } player = null; playerVid = null;
+    if (fz) { URL.revokeObjectURL(fz.url); }
+    if (player) { try { player.destroy(); } catch (e) { /* already gone */ } player = null; playerVid = null; fz = null;
       // put a fresh placeholder back for the next player, keeping the primed-listening layers
       var wrap = $("tcVideo"), old = wrap.querySelectorAll("iframe, #tcPlayer"), d = el("div");
       for (var i = 0; i < old.length; i++) old[i].remove();
@@ -1075,7 +1101,21 @@
   });
   $("tcTrack").addEventListener("change", function (e) { track = e.target.value; applyTrack(); });
   $("tcAnalyze").addEventListener("click", analyze);
-  $("tcYt").addEventListener("change", function () { if (media) setupVideo(); });
+  $("tcYt").addEventListener("change", function () {
+    if ($("tcYt").value.trim() && localFile) { localFile = null; $("tcFile").value = ""; $("tcFileClear").hidden = true; teardownPlayer(); }
+    if (media) setupVideo();
+  });
+  $("tcFile").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    localFile = f; $("tcFileClear").hidden = false;
+    if ($("tcYt").value) { $("tcYt").value = ""; teardownPlayer(); }
+    if (media) setupVideo();
+  });
+  $("tcFileClear").addEventListener("click", function () {
+    localFile = null; $("tcFile").value = ""; $("tcFileClear").hidden = true;
+    teardownPlayer();
+  });
   $("tcExNames").addEventListener("change", function (e) { S.exNames = e.target.checked; save(); reclassify(); });
   $("tcExLoan").addEventListener("change", function (e) { S.exLoan = e.target.checked; save(); reclassify(); });
   document.querySelectorAll(".tc-edit").forEach(function (b) {

@@ -1,0 +1,73 @@
+{{ define "main" }}
+  <h1>{{ .Title }}</h1>
+  {{ with .Content }}<div class="w-hide ep-intro">{{ . }}</div>{{ end }}
+
+  <div class="ep" id="ep">
+    <!-- where the videos come from -->
+    <div class="ep-bar" id="epBar">
+      <button type="button" class="ep-btn" id="epOpen" hidden>Open folder…</button>
+      <button type="button" class="ep-btn" id="epReopen" hidden></button>
+      <button type="button" class="ep-btn ep-btn-ghost" id="epAdd">＋ Add video</button>
+      <span class="ep-folder" id="epFolder"></span>
+      <input type="search" class="ep-search" id="epSearch" placeholder="Search" autocomplete="off" hidden>
+    </div>
+    <p class="ep-msg" id="epMsg" role="status"></p>
+
+    <!-- library -->
+    <div class="ep-lib" id="epLib">
+      <div class="ep-grid" id="epGrid"></div>
+      <p class="ep-empty" id="epEmpty"></p>
+    </div>
+
+    <!-- watching -->
+    <div class="ep-watch" id="epWatch" hidden>
+      <button type="button" class="ep-back" id="epBack">← All videos</button>
+      <div class="ep-stage" id="epStage"></div>
+      <div class="ep-under">
+        <div class="ep-main">
+          <h2 class="ep-title" id="epTitle"></h2>
+          <p class="ep-meta" id="epMeta"></p>
+          <!-- watch time → Track (logged in), or a log-in nudge -->
+          <p class="ep-track" id="epTrack" hidden>
+            <label class="ep-track-on" id="epTrackOnWrap" hidden><input type="checkbox" id="epTrackOn"> Track watch time</label>
+            <span id="epTrackMsg" role="status"></span>
+            <span class="ep-track-note" id="epTrackNote" role="status" hidden></span>
+          </p>
+          <details class="ep-keys">
+            <summary>Keyboard shortcuts</summary>
+            <dl class="ep-keylist" id="epKeys"></dl>
+          </details>
+        </div>
+        <aside class="ep-side" id="epSide">
+          <h3 class="ep-side-h">Up next</h3>
+          <div id="epSideList"></div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <!-- add a video by hand -->
+  <div class="ep-dlg" id="epDlg" hidden>
+    <div class="ep-dlg-card" id="epDlgCard" role="dialog" aria-modal="true" aria-labelledby="epDlgH">
+      <div class="ep-dlg-head"><h2 id="epDlgH">Add a video</h2><button type="button" class="ep-x" id="epDlgX" aria-label="Close">✕</button></div>
+      <p class="ep-dlg-hint">Choose the files, or drop them here. The pack doesn't have to sit next to the video.</p>
+      <label class="ep-row"><span class="ep-k">🎬 Video</span><span class="ep-name" id="epDlgVideoN"></span>
+        <span class="ep-pick">Choose…</span><input type="file" id="epDlgVideo" accept="video/*,.mkv,.mp4,.webm,.m4v,.mov" hidden></label>
+      <label class="ep-row"><span class="ep-k">📦 Pack <small>web.json</small></span><span class="ep-name" id="epDlgPackN"></span>
+        <span class="ep-pick">Choose…</span><input type="file" id="epDlgPack" accept=".json,application/json" hidden></label>
+      <label class="ep-row"><span class="ep-k">💬 Subtitles <small>optional .srt / .vtt</small></span><span class="ep-name" id="epDlgSubsN"></span>
+        <span class="ep-pick">Choose…</span><input type="file" id="epDlgSubs" accept=".srt,.vtt" hidden></label>
+      <div class="ep-dlg-btns"><button type="button" class="ep-btn ep-btn-ghost" id="epDlgCancel">Cancel</button>
+        <button type="button" class="ep-btn" id="epDlgGo" disabled>Play</button></div>
+    </div>
+  </div>
+
+  <p class="w-hide" style="text-align:center;margin-top:40px;">
+    <a href="{{ relURL "tools" }}">← Back to Tools</a>
+  </p>
+
+  <link rel="stylesheet" href="{{ relURL "css/fz-player.css" }}">
+  <link rel="stylesheet" href="{{ relURL "css/emoji-prime.css" }}">
+  <script src="{{ relURL "js/fz-player.js" }}" defer></script>
+  <script src="{{ relURL "js/emoji-prime.js" }}" defer></script>
+{{ end }}

@@ -94,6 +94,12 @@
           <input id="tcYt" type="url" placeholder="https://www.youtube.com/watch?v=…" spellcheck="false">
         </label>
       </div>
+      <div class="tc-row">
+        <label class="tc-field tc-field-wide"><span>…or a video file on your computer <span class="tc-opt">(optional — instead of YouTube: .mp4, .mkv, .webm; it isn't uploaded anywhere)</span></span>
+          <input id="tcFile" type="file" accept="video/*,.mkv,.mp4,.webm,.m4v,.mov">
+        </label>
+        <button type="button" class="tc-x" id="tcFileClear" title="Remove the video file" aria-label="Remove the video file" hidden>×</button>
+      </div>
       <div class="tc-row tc-checks">
         <label><input type="checkbox" id="tcExNames" checked> Ignore proper nouns (names, places)</label>
         <label><input type="checkbox" id="tcExLoan" checked> Ignore transparent katakana loanwords</label>
@@ -211,8 +217,10 @@
     <a href="{{ relURL "tools" }}">← Back to Tools</a>
   </p>
 
+  <link rel="stylesheet" href="{{ relURL "css/fz-player.css" }}">
   <link rel="stylesheet" href="{{ relURL "css/token-coverage.css" }}">
   <script src="https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js" defer></script>
+  <script src="{{ relURL "js/fz-player.js" }}" defer></script>
   <script src="{{ relURL "js/primed-listening.js" }}" defer></script>
   <script src="{{ relURL "js/token-coverage.js" }}" defer></script>
 {{ end }}

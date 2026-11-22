@@ -1,0 +1,134 @@
+/* FzPlayer (js/fz-player.js): a YouTube-style player for local video files. Always dark, like
+   YouTube's own player; the page around it follows the site theme. */
+.fzp {
+  position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 12px; overflow: hidden;
+  outline: none; user-select: none; color: #fff; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --fzp-red: #f00;
+}
+.fzp *, .fzp *::before, .fzp *::after { box-sizing: border-box; }
+.fzp button { font: inherit; color: inherit; }
+.fzp [hidden] { display: none !important; }
+.fzp:fullscreen, :fullscreen > .fzp { border-radius: 0; aspect-ratio: auto; height: 100%; }
+.fzp-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.fzp-video::cue { background: rgba(8, 8, 8, 0.75); font-family: "Noto Sans JP", "Hiragino Sans", sans-serif; }
+.fzp-catch { position: absolute; inset: 0; z-index: 3; }
+.fzp.fzp-idle { cursor: none; }
+.fzp-layer { position: absolute; z-index: 2; pointer-events: none; overflow: hidden; }
+.fzp-layer img { max-width: none; }   /* the site's main img rule would shrink stickers */
+
+/* chrome */
+.fzp-chrome {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; padding: 60px 12px 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.75), rgba(0,0,0,0.35) 60%, transparent); transition: opacity 0.25s ease;
+}
+.fzp.fzp-idle .fzp-chrome, .fzp.fzp-idle .fzp-ctip { opacity: 0; pointer-events: none; }
+.fzp-ctl { display: flex; justify-content: space-between; align-items: center; height: 48px; }
+.fzp-ctl-l, .fzp-ctl-r { display: flex; align-items: center; height: 100%; min-width: 0; }
+.fzp-extra { display: contents; }
+.fzp-b {
+  width: 48px; height: 48px; padding: 0; border: none; background: none; cursor: pointer; opacity: 0.92; flex: none;
+  display: inline-flex; align-items: center; justify-content: center; position: relative; border-radius: 0;
+}
+.fzp-b:hover { opacity: 1; background: none; }
+.fzp-b svg { width: 36px; height: 36px; fill: #fff; }
+.fzp-b:focus-visible { outline: 2px solid #fff; outline-offset: -6px; }
+.fzp-tog.fzp-on::after { content: ""; position: absolute; left: 13px; right: 13px; bottom: 9px; height: 3px; border-radius: 2px; background: var(--fzp-red); }
+.fzp-b.fzp-emoji { font-size: 21px; font-family: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif; }
+.fzp-b.fzp-emoji:not(.fzp-on) { filter: grayscale(1) brightness(0.85); }
+.fzp-time { font-size: 13.5px; color: #ddd; padding: 0 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.fzp-vol { display: flex; align-items: center; }
+.fzp-vslide { width: 0; overflow: hidden; transition: width 0.2s ease; height: 48px; display: flex; align-items: center; cursor: pointer; }
+.fzp-vol:hover .fzp-vslide, .fzp-vslide.fzp-drag, .fzp-vol:focus-within .fzp-vslide { width: 64px; }
+.fzp-vtrack { position: relative; width: 52px; height: 3px; background: rgba(255,255,255,0.2); margin: 0 6px 0 4px; }
+.fzp-vfill { position: absolute; left: 0; top: 0; bottom: 0; background: #fff; }
+.fzp-vknob { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: #fff; }
+
+.fzp-prog { position: relative; height: 16px; display: flex; align-items: center; cursor: pointer; margin-bottom: -2px; }
+.fzp-track { position: relative; width: 100%; height: 3px; background: rgba(255,255,255,0.2); transition: height 0.1s ease; }
+.fzp-prog:hover .fzp-track, .fzp-prog.fzp-drag .fzp-track { height: 5px; }
+.fzp-buf, .fzp-hov, .fzp-played { position: absolute; left: 0; top: 0; bottom: 0; width: 0; }
+.fzp-buf { background: rgba(255,255,255,0.4); }
+.fzp-hov { background: rgba(255,255,255,0.5); display: none; }
+.fzp-prog:hover .fzp-hov { display: block; }
+.fzp-played { background: var(--fzp-red); }
+.fzp-scrub {
+  position: absolute; top: 50%; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%;
+  background: var(--fzp-red); transform: scale(0); transition: transform 0.1s ease; pointer-events: none;
+}
+.fzp-prog:hover .fzp-scrub, .fzp-prog.fzp-drag .fzp-scrub { transform: scale(1); }
+.fzp-tip {
+  position: absolute; bottom: 22px; transform: translateX(-50%); background: rgba(28,28,28,0.9); padding: 4px 8px; border-radius: 4px;
+  font-size: 12.5px; font-weight: 500; white-space: nowrap; display: none; pointer-events: none; font-variant-numeric: tabular-nums; text-align: center;
+}
+.fzp-tip-x { display: block; font-family: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif; font-size: 20px; line-height: 1.3; }
+.fzp-prog:hover .fzp-tip, .fzp-prog.fzp-drag .fzp-tip { display: block; }
+.fzp-ctip {
+  position: absolute; z-index: 8; bottom: 66px; background: rgba(28,28,28,0.9); padding: 5px 9px; border-radius: 4px;
+  font-size: 12.5px; font-weight: 500; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.1s;
+}
+.fzp-ctip.fzp-show { opacity: 1; }
+
+.fzp-bezel {
+  position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; z-index: 4; border-radius: 50%;
+  background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none;
+  font-size: 14px; font-weight: 600;
+}
+.fzp-bezel svg { width: 36px; height: 36px; fill: #fff; }
+.fzp-bezel.fzp-go { animation: fzp-bezel 0.5s linear forwards; }
+@keyframes fzp-bezel { 0% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(2); } }
+.fzp-seek {
+  position: absolute; top: 0; bottom: 0; width: 30%; z-index: 4; display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; font-weight: 600; font-size: 15px; transition: opacity 0.3s; text-shadow: 0 0 4px rgba(0,0,0,0.6);
+}
+.fzp-seek-l { left: 0; background: radial-gradient(ellipse at left, rgba(255,255,255,0.12), transparent 70%); }
+.fzp-seek-r { right: 0; background: radial-gradient(ellipse at right, rgba(255,255,255,0.12), transparent 70%); }
+.fzp-seek.fzp-show { opacity: 1; transition: none; }
+.fzp-toast {
+  position: absolute; left: 50%; top: 10%; transform: translateX(-50%); z-index: 6; pointer-events: none; background: rgba(0,0,0,0.65);
+  padding: 8px 14px; border-radius: 6px; font-weight: 500; opacity: 0; transition: opacity 0.2s; white-space: nowrap;
+}
+.fzp-toast.fzp-show { opacity: 1; }
+.fzp-spin {
+  position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; z-index: 4; pointer-events: none;
+  border: 4px solid rgba(255,255,255,0.25); border-top-color: #fff; border-radius: 50%; animation: fzp-spin 0.9s linear infinite;
+}
+@keyframes fzp-spin { to { transform: rotate(360deg); } }
+
+.fzp-menu {
+  position: absolute; right: 12px; bottom: 64px; z-index: 9; min-width: 270px; max-height: calc(100% - 80px); overflow-y: auto;
+  background: rgba(28,28,28,0.94); border-radius: 12px; padding: 8px 0; font-size: 14px; box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+.fzp-mi { display: flex; align-items: center; gap: 14px; padding: 0 15px 0 16px; height: 40px; cursor: pointer; white-space: nowrap; }
+.fzp-mi:hover { background: rgba(255,255,255,0.1); }
+.fzp-mic { width: 24px; text-align: center; font-family: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif; }
+.fzp-mil { flex: 1; }
+.fzp-miv { color: #ddd; }
+.fzp-miv::after { content: "  ›"; color: #999; }
+.fzp-back { border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 8px; font-weight: 500; }
+.fzp-back .fzp-mil::before { content: "‹  "; }
+.fzp-sel .fzp-mic::before { content: "✓"; font-family: system-ui, sans-serif; }
+.fzp-row { cursor: default; }
+.fzp-row:hover { background: none; }
+.fzp-note { color: #aaa; font-size: 12px; padding: 6px 16px 2px; white-space: normal; }
+.fzp-sw { width: 36px; height: 14px; border-radius: 7px; background: #717171; position: relative; flex: none; }
+.fzp-sw::after {
+  content: ""; position: absolute; top: -3px; left: -2px; width: 20px; height: 20px; border-radius: 50%; background: #fff;
+  transition: left 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+.fzp-sw.fzp-on { background: rgba(255,255,255,0.5); }
+.fzp-sw.fzp-on::after { left: 18px; }
+.fzp-sw.fzp-dim { opacity: 0.35; }
+.fzp-step { display: flex; align-items: center; gap: 6px; }
+.fzp-step button {
+  width: 28px; height: 28px; border-radius: 50%; border: none; background: rgba(255,255,255,0.12); cursor: pointer; font-size: 16px; line-height: 1; padding: 0;
+}
+.fzp-step button:hover { background: rgba(255,255,255,0.22); }
+.fzp-step span { min-width: 54px; text-align: center; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 560px) {
+  .fzp { border-radius: 0; }
+  .fzp-b { width: 40px; }
+  .fzp-time { padding: 0 4px; font-size: 12px; }
+  .fzp-menu { min-width: 230px; right: 6px; }
+}
