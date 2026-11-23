@@ -48,13 +48,19 @@
         <li><b>Attested</b>: the word is in an accent dictionary for the region you picked. If that
           region doesn't have it, the closest Keihan region that does is used, and the page says so.
           Every region's entry is listed under <em>All recorded pitches</em>.</li>
-        <li><b>Rule</b> (verbs and adjectives): Kyoto verbs are either high (<span lang="ja">置く</span> HH) or
+        <li><b>Model prediction</b>: words no dictionary has get the pick of a small neural network
+          trained on the accent dictionaries. It looks at the kanji, the reading, whether the reading is
+          Sino-Japanese or native, and the Tokyo accent when there is one. On words it hadn't seen it gets
+          80% exactly right with a Tokyo accent and 72% without, against 75% and 60% for the rules below.
+          The <em>% likely right</em> next to it is how often words it scored the same way were exactly right
+          in testing.</li>
+        <li><b>Rule</b> (verbs and adjectives, when the model can't be used): Kyoto verbs are either high (<span lang="ja">置く</span> HH) or
           low and rising at the end (<span lang="ja">書く</span> LH). For 2-mora verbs and 3-mora 一段 verbs the
           register follows the Tokyo accent; 3-mora 五段 verbs are high; compounds copy their first verb
           (92% right on surveyed verbs). Adjectives start high and fall two morae from the end (85%).</li>
-        <li><b>Guess</b> (nouns): learned from every dictionary noun that also has a Tokyo accent,
-          backing off from words with the same first and last kanji to words of the same length.
-          74% of held-out nouns come out exactly right, and 82% get the right register.</li>
+        <li><b>Guess</b> (nouns, when the model can't be used): learned from every dictionary noun that
+          also has a Tokyo accent, backing off from words with the same first and last kanji to words of
+          the same length. 74% of held-out nouns come out exactly right.</li>
         <li><b>Conjugations</b> are Kyoto forms built from the 16-speaker survey's sample verbs: 89% of forms
           come out exactly right when each sample word is regenerated from the others. Other regions
           conjugate mostly the same way but weren't surveyed.</li>

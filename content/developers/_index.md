@@ -392,8 +392,8 @@ for w in call("GET", "/weeks")["weeks"]:
 ## Kansai pitch API
 
 The [Kansai Pitch Accent](/tools/kansai-pitch/) tool runs on a public API: the Kansai (Keihan)
-pitch accent of any word, Kyoto conjugation tables for verbs and adjectives, and a best guess for
-nouns no dictionary has. No key is needed, and any website may call it from the browser (CORS `*`,
+pitch accent of any word, Kyoto conjugation tables for verbs and adjectives, and a neural-model
+prediction for words no dictionary has. No key is needed, and any website may call it from the browser (CORS `*`,
 no cookies).
 
 - **Base URL:** `https://api.fazon.nexus`. These paths start with `/pitch/`, not `/v1/api/`.
@@ -415,8 +415,8 @@ no cookies).
 | `r` | its reading in kana (optional). Without it you get one result per reading the data knows; a kana `w` with no `r` returns every word written that way (かく → 書く, 掻く, 核, …) |
 | `region` | see above; default `kyoto` |
 | `forms` | `1` adds the Kyoto conjugation table for verbs and adjectives |
-| `guess` | `0` leaves out guessed noun pitch (`pitch` is `null` instead) |
-| `attested_only` | `1` leaves out everything that isn't attested in a dictionary: rule-based verb/adjective pitch and guesses |
+| `guess` | `0` leaves out predicted pitch (`model` and `guess`; `pitch` is `null` instead) |
+| `attested_only` | `1` leaves out everything that isn't attested in a dictionary: model predictions, rule-based verb/adjective pitch and guesses |
 
 ```sh
 curl -s "https://api.fazon.nexus/pitch/word?w=書く&r=かく"
@@ -454,9 +454,17 @@ curl -s "https://api.fazon.nexus/pitch/word?w=書く&r=かく"
   - `mvj` is the MvJ note type's Keihan notation (`ROLE:levels`).
   - `basis` is one of:
     - `attested`: from a dictionary;
-    - `rule`: the Kyoto verb/adjective rule, about 92% exact for verbs and 85% for adjectives;
-    - `guess`: a noun guessed from its Tokyo accent and words sharing its kanji, about 74% exact.
-  - `note` explains rules, guesses and fallbacks in a sentence.
+    - `model`: predicted by a neural model trained on the accent dictionaries. On held-out words it
+      was exactly right 80% of the time with a Tokyo accent and 72% without. Words it hasn't
+      seen before are computed on first request (send `r`) and kept;
+    - `rule`: the Kyoto verb/adjective rule, used only when the model can't be (about 91% exact for
+      verbs and 85% for adjectives);
+    - `guess`: a noun guessed from its Tokyo accent and words sharing its kanji, used only when the
+      model can't be (about 74% exact).
+  - `confidence` (`model` only): how often held-out words that the model scored like this one came
+    out exactly right, from `0` to `1`. Use it to decide which predictions to check. `model_score` is
+    the raw score behind it.
+  - `note` explains predictions, rules and fallbacks in a sentence.
 - `variants` lists every attested pitch, region by region, best source first.
 - `forms` (with `forms=1`) is a list of sections such as *未然形 stem*. Each has `forms`: `{name,
   archaic, variants: [{units: [{kana, levels}], romaji}]}`. A form can be several words
@@ -467,7 +475,7 @@ An unknown word answers `200` with `"results": []`.
 ### `POST /pitch/words`
 
 Up to 200 words in one request (`Content-Type: application/json` is required here). Each word is a
-string or `{"word", "reading"}`. `region`, `forms`, `guess` (`false` to drop guesses) and
+string or `{"word", "reading"}`. `region`, `forms`, `guess` (`false` to drop predictions) and
 `attested_only` work as above. `results` has one list per input word, in the same order. A word that's empty or over 40 characters
 gets an empty list rather than failing the whole request.
 
