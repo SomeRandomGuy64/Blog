@@ -1,31 +1,47 @@
 {{ define "main" }}
   {{/* Kansai pitch lookup. Data and logic live in fazond (Fazon-Backend internal/pitch, the
-       public /pitch/ endpoints); this page only draws the answers (js/kansai-pitch.js). */}}
+       public /pitch/ endpoints); this page only draws the answers (js/kansai-pitch.js).
+       Wide (css/wide-tools.css): search and the notes in a left pane, the word and its
+       conjugations beside them, the conjugations in a pane of their own on 21:9. Standard ignores
+       the panes and wrappers and shows everything in one column, as it always has. */}}
   <h1>{{ .Title }}</h1>
-  {{ with .Content }}<div class="kp-intro">{{ . }}</div>{{ end }}
+  {{ with .Content }}<div class="kp-intro w-hide">{{ . }}</div>{{ end }}
 
-  <div class="kp" id="kp">
-    <div class="kp-bar">
-      <div class="kp-search">
-        <input id="kpQ" type="search" autocomplete="off" spellcheck="false" lang="ja"
-               placeholder="書く, 参加, かく, taberu…" aria-label="Word, reading or romaji">
-        <div class="kp-sugg" id="kpSugg" role="listbox" hidden></div>
+  <div class="kp w-panes" id="kp">
+    <div class="kp-side w-pane">
+      <div class="kp-bar">
+        <div class="kp-search">
+          <label class="kp-qlabel w-only" for="kpQ">Word, reading or romaji</label>
+          <input id="kpQ" class="w-input" type="search" autocomplete="off" spellcheck="false" lang="ja"
+                 placeholder="書く, 参加, かく, taberu…" aria-label="Word, reading or romaji">
+          <div class="kp-sugg" id="kpSugg" role="listbox" hidden></div>
+        </div>
+        <label class="kp-region">Region
+          <select id="kpRegion" class="w-input" aria-label="Region"><option value="kyoto">Kyoto</option></select>
+        </label>
       </div>
-      <label class="kp-region">Region
-        <select id="kpRegion" aria-label="Region"><option value="kyoto">Kyoto</option></select>
-      </label>
+      <div class="kp-examples" id="kpExamples"><span>Try</span></div>
     </div>
-    <div class="kp-examples" id="kpExamples"><span>Try</span></div>
 
-    <p class="kp-status" id="kpStatus" role="status"></p>
-    <div id="kpResults"></div>
-
-    <div class="kp-controls" id="kpControls" hidden>
-      <label><input type="checkbox" id="kpArch"> Show classical / literary forms</label>
-      <label><input type="checkbox" id="kpLetters" checked> Show H/L letters</label>
+    <div class="kp-content w-pane">
+      <div class="kp-wordcol">
+        <p class="kp-status" id="kpStatus" role="status"></p>
+        <div id="kpResults"></div>
+      </div>
+      <div class="kp-formcol">
+        <div class="kp-controls" id="kpControls" hidden>
+          <label><input type="checkbox" id="kpArch"> Show classical / literary forms</label>
+          <label><input type="checkbox" id="kpLetters" checked> Show H/L letters</label>
+        </div>
+        <div id="kpForms"></div>
+      </div>
     </div>
-    <div id="kpForms"></div>
 
+    <div class="kp-info w-pane">
+    {{ with .Content }}<details class="kp-panel kp-about w-only">
+      <summary>About this tool</summary>
+      {{ . }}
+    </details>{{ end }}
     <details class="kp-panel">
       <summary>How the pitch is worked out</summary>
       <ul>
@@ -53,18 +69,19 @@
       <pre><code>curl "https://api.fazon.nexus/pitch/word?w=書く&amp;forms=1"</code></pre>
       <p>Endpoints, parameters and response fields are documented in the
         <a href="{{ relURL "developers/" }}#kansai-pitch-api">Developer API</a> docs.</p>
-      <p><a class="kp-dl" href="{{ relURL "downloads/keihan_pitch.ankiaddon" }}" download>Download the Anki add-on</a>
+      <p><a class="kp-dl w-btn primary" href="{{ relURL "downloads/keihan_pitch.ankiaddon" }}" download>Download the Anki add-on</a>
         It puts Kansai pitch on MvJ note-type cards. It either swaps out the Tokyo pitch the MvJ
         add-on wrote, or adds pitch to words that have none. Install it with Tools → Add-ons →
         <em>Install from file…</em>. Its settings choose the region, whether to use guessed pitch,
-        and an optional API key.</p>
+        an optional API key, and an optional file of your own pitch for words you've decided yourself.</p>
     </details>
     <p class="kp-credit">Sources: Kyoto noun, verb and adjective surveys and conversation recordings; Osaka
       rakugo transcripts; Omizan Sakamoto's 近畿日本語アクセント辞典; Hyōgo, Kagawa, Kōchi and Tokushima
       dialect glossaries. Tokyo accents: <a href="https://github.com/mifunetoshiro/kanjium" target="_blank" rel="noopener">Kanjium</a> (CC BY-SA 4.0).</p>
+    </div>
   </div>
 
-  <p style="text-align:center;margin-top:40px;"><a href="{{ relURL "tools" }}">← Back to Tools</a></p>
+  <p class="w-hide" style="text-align:center;margin-top:40px;"><a href="{{ relURL "tools" }}">← Back to Tools</a></p>
 
   <link rel="stylesheet" href="{{ relURL "css/kansai-pitch.css" }}">
   <script src="{{ relURL "js/kansai-pitch.js" }}"></script>

@@ -10,6 +10,10 @@
   var REGION_NAME = { kyoto: "Kyoto", osaka: "Osaka", kinki: "Kinki", hyogo: "Hyōgo", kagawa: "Kagawa", kochi: "Kōchi", tokushima: "Tokushima" };
   var BASIS = { attested: "attested", rule: "Kyoto rule", guess: "best guess" };
 
+  // wide (js/layout.js, css/wide-tools.css): the same markup, drawn denser, with the conjugation
+  // toggles in the page bar and shortcuts on the ? sheet
+  function wide() { return !!(window.FazonWide && FazonWide.active()); }
+
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
 
@@ -48,8 +52,9 @@
   // ---- one word ----
   var current = null; // {word, reading}
   var lastData = null;
+  var shown = null;   // the word marked as picked
 
-  function wordCard(w, i, many) {
+  function wordCard(w, i, many, on) {
     var p = w.pitch, h = "";
     h += '<div class="kp-head"><span class="kp-lemma" lang="ja">' + esc(w.word) + '</span><span class="kp-reading" lang="ja">' + esc(w.reading) + " · " + esc(w.romaji) + "</span></div>";
     h += '<div class="kp-main">';
@@ -73,21 +78,22 @@
     if (p && p.note) h += '<p class="kp-note">' + esc(p.note) + "</p>";
     if (w.variants && w.variants.length) {
       var reg = regionSel.value;
-      h += '<details class="kp-vars"' + (w.variants.length > 1 && !many ? " open" : "") + "><summary>All recorded pitches (" + w.variants.length + ")</summary><table><tr><th>Region</th><th>Pitch</th><th>Source</th></tr>";
+      var open = wide() ? !many || on : w.variants.length > 1 && !many;
+      h += '<details class="kp-vars"' + (open ? " open" : "") + "><summary>All recorded pitches (" + w.variants.length + ')</summary><table class="w-table"><thead><tr><th>Region</th><th>Pitch</th><th>Source</th></tr></thead><tbody>';
       w.variants.forEach(function (v) {
         h += '<tr class="' + (v.region === reg ? "cur" : "") + '"><td>' + esc(REGION_NAME[v.region] || v.region) + '</td><td><span class="kp-pw kp-small">' + unitHTML(v.reading, v.levels, v.final_drop, true) +
           '</span> <span class="kp-hl">' + esc(v.pattern) + "</span></td><td>" + esc(v.source_name) + "</td></tr>";
       });
-      h += "</table></details>";
+      h += "</tbody></table></details>";
     }
-    var cls = "kp-word" + (many && w.forms ? " pick" : "") + (current && current.word === w.word && current.reading === w.reading && many ? " on" : "");
+    var cls = "kp-word" + (many && (w.forms || wide()) ? " pick" : "") + (on && many ? " on" : "");
     return '<article class="' + cls + '" data-i="' + i + '">' + h + "</article>";
   }
 
   function renderForms(w) {
     if (!w || !w.forms || !w.forms.length) { formsOut.innerHTML = ""; controls.hidden = true; return; }
     controls.hidden = false;
-    var arch = $("kpArch").checked, letters = $("kpLetters").checked, h = "";
+    var arch = $("kpArch").checked, letters = $("kpLetters").checked, small = wide(), h = "";
     w.forms.forEach(function (sec) {
       var rows = sec.forms.filter(function (f) { return arch || !f.archaic; });
       if (!rows.length) return;
@@ -95,7 +101,7 @@
       rows.forEach(function (f) {
         h += '<div class="kp-row"><div class="name" lang="ja">' + esc(f.name) + (f.archaic ? '<span class="arch">classical</span>' : "") + '</div><div class="forms">';
         f.variants.forEach(function (v) {
-          h += '<div class="kp-variant"><span class="kp-pw">' + v.units.map(function (u) { return unitHTML(u.kana, u.levels, false, false); }).join("") +
+          h += '<div class="kp-variant"><span class="kp-pw' + (small ? " kp-small" : "") + '">' + v.units.map(function (u) { return unitHTML(u.kana, u.levels, false, small); }).join("") +
             '</span><span class="kp-rom">' + esc(v.romaji) + "</span>" +
             (letters ? '<span class="kp-hl">' + v.units.map(function (u) { return u.levels || "?"; }).join(" + ") + "</span>" : "") + "</div>";
         });
@@ -103,16 +109,20 @@
       });
       h += "</div></section>";
     });
-    formsOut.innerHTML = '<h2 class="kp-formsh" style="text-align:left;margin:22px 0 0">Kyoto conjugations of <span lang="ja" style="white-space:nowrap">' + esc(w.word) + "</span></h2>" + h;
+    formsOut.innerHTML = '<h2 class="kp-formsh">Kyoto conjugations of <span lang="ja">' + esc(w.word) + "</span></h2>" + h;
   }
 
   function render() {
     var list = lastData || [];
-    if (!list.length) { results.innerHTML = ""; renderForms(null); return; }
+    if (!list.length) { results.innerHTML = ""; results.classList.remove("kp-many"); renderForms(null); return; }
     var many = list.length > 1;
-    results.innerHTML = list.map(function (w, i) { return wordCard(w, i, many); }).join("");
-    var pick = list.find(function (w) { return current && w.word === current.word && w.reading === current.reading && w.forms; }) ||
-      list.find(function (w) { return w.forms; });
+    results.classList.toggle("kp-many", many);
+    var cur = list.find(function (w) { return current && w.word === current.word && w.reading === current.reading; });
+    var pick = cur && cur.forms ? cur : list.find(function (w) { return w.forms; });
+    // wide: any word can be picked, and one always is; its notes, variants and forms are what show
+    shown = wide() ? cur || pick || list[0] : cur;
+    if (wide()) pick = shown;
+    results.innerHTML = list.map(function (w, i) { return wordCard(w, i, many, w === shown); }).join("");
     renderForms(pick);
   }
 
@@ -144,7 +154,7 @@
     var w = lastData[+card.dataset.i];
     current = { word: w.word, reading: w.reading };
     render();
-    formsOut.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!wide()) formsOut.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   // ---- search box ----
@@ -193,6 +203,39 @@
     b.onclick = function () { q.value = w; lookup(w); };
     $("kpExamples").appendChild(b);
   });
+
+  // ---- wide ----
+  var controlsHome = controls.parentNode;
+  function placeControls() {
+    var bar = wide() && FazonWide.tools();
+    if (bar) bar.append(controls); else controlsHome.insertBefore(controls, formsOut);
+  }
+  // j / k: the next or previous word when a search matches several
+  function stepWord(by) {
+    var list = lastData || [];
+    if (list.length < 2) return;
+    var i = list.indexOf(shown);
+    var w = list[i < 0 ? 0 : Math.min(list.length - 1, Math.max(0, i + by))];
+    current = { word: w.word, reading: w.reading };
+    render();
+    var on = results.querySelector(".kp-word.on");
+    if (on) on.scrollIntoView({ block: "nearest" });
+  }
+  function toggle(id) { var b = $(id); if (controls.hidden) return; b.checked = !b.checked; render(); }
+  document.addEventListener("fz-layout", function () { placeControls(); render(); });
+  placeControls();
+  if (window.FazonWide) {
+    FazonWide.key("/", "Search", function () { q.focus(); q.select(); });
+    FazonWide.key("j", "Next word, when several match", function () { stepWord(1); });
+    FazonWide.key("k", "Previous word", function () { stepWord(-1); });
+    FazonWide.key("r", "Next region", function () {
+      var n = regionSel.options.length; if (!n) return;
+      regionSel.selectedIndex = (regionSel.selectedIndex + 1) % n;
+      regionSel.dispatchEvent(new Event("change"));
+    });
+    FazonWide.key("c", "Show or hide classical forms", function () { toggle("kpArch"); });
+    FazonWide.key("l", "Show or hide H/L letters", function () { toggle("kpLetters"); });
+  }
 
   // regions from the server; the saved one if it still exists
   get("/pitch/regions").then(function (d) {
