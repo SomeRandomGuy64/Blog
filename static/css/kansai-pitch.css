@@ -1,0 +1,101 @@
+/* Kansai pitch tool. Site accent (orange dark / green light); pitch lines in the accent colour,
+   high morae filled, low morae hollow. */
+.kp { margin-top: 24px; --kp-jp: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif; }
+.kp [lang="ja"], .kp .kp-jp { font-family: var(--kp-jp); }
+.kp-intro ul { line-height: 1.55; }
+
+.kp-bar { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+.kp-search { position: relative; flex: 1 1 320px; min-width: 0; }
+.kp-search input, .kp-region select {
+  width: 100%; box-sizing: border-box; font-family: var(--kp-jp); font-size: 1.1rem; padding: 10px 12px;
+  background: transparent; color: var(--text-color); border: 1px solid rgba(127,127,127,0.45); border-radius: 8px;
+}
+.kp-region { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; font-weight: 600; flex: 0 1 200px; }
+.kp-region select { font-size: 0.95rem; padding: 9px 10px; font-family: inherit; }
+.kp-region select option { background: var(--bg-color); color: var(--text-color); }
+.kp-search input:focus, .kp-region select:focus { outline: 2px solid var(--fz-accent); outline-offset: 1px; }
+.kp-sugg {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 20; max-height: 340px; overflow-y: auto;
+  background: var(--fz-surface); border: 1px solid var(--fz-line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+.kp-sugg button {
+  display: flex; width: 100%; gap: 10px; align-items: baseline; border: 0; background: none; color: var(--text-color);
+  padding: 8px 12px; text-align: left; cursor: pointer; font: inherit;
+}
+.kp-sugg button:hover, .kp-sugg button.on { background: var(--fz-accent-soft); }
+.kp-sugg .w { font-family: var(--kp-jp); font-weight: 600; }
+.kp-sugg .r { color: var(--fz-muted); font-size: 0.85rem; }
+.kp-sugg .k { margin-left: auto; color: var(--fz-muted); font-size: 0.75rem; white-space: nowrap; }
+
+.kp-examples { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; font-size: 0.85rem; color: var(--fz-muted); align-items: center; }
+.kp-examples button {
+  font: 500 0.9rem var(--kp-jp); border: 1px solid var(--fz-line); background: transparent; color: var(--text-color);
+  border-radius: 999px; padding: 2px 10px; cursor: pointer;
+}
+.kp-examples button:hover { border-color: var(--fz-accent); }
+.kp-status { min-height: 1.2em; color: var(--fz-muted); font-size: 0.9rem; margin: 14px 0 6px; }
+.kp-status.bad { color: var(--fz-bad); }
+
+/* one card per reading */
+.kp-word { border: 1px solid var(--fz-line); border-radius: 10px; padding: 16px 18px; margin: 0 0 14px; display: grid; gap: 10px; }
+.kp-word.pick { cursor: pointer; }
+.kp-word.pick:hover { border-color: var(--fz-accent); }
+.kp-word.on { border-color: var(--fz-accent); }
+.kp-head { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; }
+.kp-lemma { font: 700 2rem/1.1 var(--kp-jp); }
+.kp-reading { font-family: var(--kp-jp); color: var(--fz-muted); }
+.kp-main { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 18px; }
+.kp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.kp-chip { font-size: 0.75rem; letter-spacing: .02em; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--fz-line); color: var(--fz-muted); }
+.kp-chip.attested { color: var(--fz-accent); border-color: var(--fz-accent); }
+.kp-chip.guess, .kp-chip.fallback { border-style: dashed; }
+.kp-note { font-size: 0.85rem; color: var(--fz-muted); line-height: 1.5; margin: 0; }
+.kp-none { color: var(--fz-muted); }
+
+.kp-vars { font-size: 0.85rem; }
+.kp-vars summary { cursor: pointer; color: var(--fz-muted); }
+.kp-vars table { border-collapse: collapse; margin-top: 8px; width: 100%; }
+.kp-vars td, .kp-vars th { text-align: left; padding: 5px 10px 5px 0; border-top: 1px solid var(--fz-line); vertical-align: bottom; }
+.kp-vars th { font-weight: 600; color: var(--fz-muted); border-top: 0; }
+.kp-vars tr.cur td { color: var(--fz-accent); }
+
+/* pitch drawing: a line over the morae */
+.kp-pw { display: inline-flex; gap: 10px; align-items: flex-end; }
+.kp-unit { display: inline-grid; justify-items: start; }
+.kp-unit svg { display: block; height: 18px; overflow: visible; }
+.kp-kana { font: 500 1.2rem/1.2 var(--kp-jp); white-space: nowrap; }
+.kp-kana span { display: inline-block; width: 22px; text-align: center; }
+.kp-small .kp-kana { font-size: 1rem; }
+.kp-small .kp-kana span { width: 18px; }
+.kp-rom { font-size: 0.82rem; color: var(--fz-muted); }
+.kp-hl { font-size: 0.75rem; color: var(--fz-muted); font-variant-numeric: tabular-nums; }
+
+/* conjugations */
+.kp-controls { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 18px 0 4px; font-size: 0.88rem; color: var(--fz-muted); }
+.kp-controls label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.kp-group h2 { text-align: left; font-size: 0.78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--fz-muted); margin: 18px 0 6px; font-weight: 600; }
+.kp-rows { border: 1px solid var(--fz-line); border-radius: 10px; overflow: hidden; }
+.kp-row { display: grid; grid-template-columns: minmax(0, 14rem) minmax(0, 1fr); gap: 4px 16px; padding: 9px 14px; border-top: 1px solid var(--fz-line); }
+.kp-row:first-child { border-top: 0; }
+.kp-row .name { font-family: var(--kp-jp); font-size: 0.86rem; color: var(--fz-muted); min-width: 0; }
+.kp-row .name .arch { font-family: inherit; font-size: 0.7rem; margin-left: 4px; color: var(--fz-accent); }
+.kp-row .forms { display: grid; gap: 6px; min-width: 0; }
+.kp-variant { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 14px; }
+
+.kp-panel { border: 1px solid var(--fz-line); border-radius: 10px; padding: 12px 16px; margin: 22px 0 0; }
+.kp-panel summary { cursor: pointer; font-weight: 600; }
+.kp-panel ul { padding-left: 1.1rem; line-height: 1.55; font-size: 0.92rem; }
+.kp-panel p { font-size: 0.92rem; line-height: 1.55; }
+.kp-panel pre { overflow-x: auto; font-size: 0.82rem; }
+.kp-dl, .kp-dl:visited {
+  display: inline-block; margin-right: 8px; padding: 5px 12px; border-radius: 6px; background: var(--fz-accent-fill); color: #fff;
+  font-weight: 600; text-decoration: none;
+}
+.kp-dl:hover { filter: brightness(1.1); }
+.kp-credit { font-size: 0.78rem; color: var(--fz-muted); margin-top: 18px; line-height: 1.5; }
+
+@media (max-width: 640px) {
+  .kp-row { grid-template-columns: minmax(0, 1fr); }
+  .kp-lemma { font-size: 1.7rem; }
+  .kp-region { flex: 1 1 100%; }
+}

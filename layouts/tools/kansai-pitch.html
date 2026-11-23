@@ -1,0 +1,71 @@
+{{ define "main" }}
+  {{/* Kansai pitch lookup. Data and logic live in fazond (Fazon-Backend internal/pitch, the
+       public /pitch/ endpoints); this page only draws the answers (js/kansai-pitch.js). */}}
+  <h1>{{ .Title }}</h1>
+  {{ with .Content }}<div class="kp-intro">{{ . }}</div>{{ end }}
+
+  <div class="kp" id="kp">
+    <div class="kp-bar">
+      <div class="kp-search">
+        <input id="kpQ" type="search" autocomplete="off" spellcheck="false" lang="ja"
+               placeholder="書く, 参加, かく, taberu…" aria-label="Word, reading or romaji">
+        <div class="kp-sugg" id="kpSugg" role="listbox" hidden></div>
+      </div>
+      <label class="kp-region">Region
+        <select id="kpRegion" aria-label="Region"><option value="kyoto">Kyoto</option></select>
+      </label>
+    </div>
+    <div class="kp-examples" id="kpExamples"><span>Try</span></div>
+
+    <p class="kp-status" id="kpStatus" role="status"></p>
+    <div id="kpResults"></div>
+
+    <div class="kp-controls" id="kpControls" hidden>
+      <label><input type="checkbox" id="kpArch"> Show classical / literary forms</label>
+      <label><input type="checkbox" id="kpLetters" checked> Show H/L letters</label>
+    </div>
+    <div id="kpForms"></div>
+
+    <details class="kp-panel">
+      <summary>How the pitch is worked out</summary>
+      <ul>
+        <li><b>Attested</b>: the word is in an accent dictionary for the region you picked. If that
+          region doesn't have it, the closest Keihan region that does is used, and the page says so.
+          Every region's entry is listed under <em>All recorded pitches</em>.</li>
+        <li><b>Rule</b> (verbs and adjectives): Kyoto verbs are either high (<span lang="ja">置く</span> HH) or
+          low and rising at the end (<span lang="ja">書く</span> LH). For 2-mora verbs and 3-mora 一段 verbs the
+          register follows the Tokyo accent; 3-mora 五段 verbs are high; compounds copy their first verb
+          (92% right on surveyed verbs). Adjectives start high and fall two morae from the end (85%).</li>
+        <li><b>Guess</b> (nouns): learned from every dictionary noun that also has a Tokyo accent,
+          backing off from words with the same first and last kanji to words of the same length.
+          74% of held-out nouns come out exactly right, and 82% get the right register.</li>
+        <li><b>Conjugations</b> are Kyoto forms built from the 16-speaker survey's sample verbs: 89% of forms
+          come out exactly right when each sample word is regenerated from the others. Other regions
+          conjugate mostly the same way but weren't surveyed.</li>
+      </ul>
+    </details>
+
+    <details class="kp-panel" id="kpApi">
+      <summary>API and Anki add-on</summary>
+      <p>Everything on this page comes from a public API. No key is needed, and any site or script
+        may use it. A personal API key (from your profile's <em>Developers</em> section) raises the rate
+        limit.</p>
+      <pre><code>curl "https://api.fazon.nexus/pitch/word?w=書く&amp;forms=1"</code></pre>
+      <p>Endpoints, parameters and response fields are documented in the
+        <a href="{{ relURL "developers/" }}#kansai-pitch-api">Developer API</a> docs.</p>
+      <p><a class="kp-dl" href="{{ relURL "downloads/keihan_pitch.ankiaddon" }}" download>Download the Anki add-on</a>
+        It puts Kansai pitch on MvJ note-type cards. It either swaps out the Tokyo pitch the MvJ
+        add-on wrote, or adds pitch to words that have none. Install it with Tools → Add-ons →
+        <em>Install from file…</em>. Its settings choose the region, whether to use guessed pitch,
+        and an optional API key.</p>
+    </details>
+    <p class="kp-credit">Sources: Kyoto noun, verb and adjective surveys and conversation recordings; Osaka
+      rakugo transcripts; Omizan Sakamoto's 近畿日本語アクセント辞典; Hyōgo, Kagawa, Kōchi and Tokushima
+      dialect glossaries. Tokyo accents: <a href="https://github.com/mifunetoshiro/kanjium" target="_blank" rel="noopener">Kanjium</a> (CC BY-SA 4.0).</p>
+  </div>
+
+  <p style="text-align:center;margin-top:40px;"><a href="{{ relURL "tools" }}">← Back to Tools</a></p>
+
+  <link rel="stylesheet" href="{{ relURL "css/kansai-pitch.css" }}">
+  <script src="{{ relURL "js/kansai-pitch.js" }}"></script>
+{{ end }}
