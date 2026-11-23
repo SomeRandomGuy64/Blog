@@ -490,4 +490,5 @@ The regions with their sources (`{"default", "regions": [{id, name, sources, not
 
 The [keihan_pitch add-on](/downloads/keihan_pitch.ankiaddon) uses this API to put Kansai pitch on
 MvJ note-type cards. It either swaps out the Tokyo pitch that the MvJ add-on wrote, or adds pitch
-where there is none. Set your region, whether to use guesses, and an optional key in its settings.
+where there is none. Set your region, whether to use guesses, an optional key and an optional file of your own pitch
+(used before the API) in its settings.
