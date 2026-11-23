@@ -8,7 +8,14 @@
     formsOut = $("kpForms"), controls = $("kpControls");
   var KIND = { godan: "五段 verb", ichidan: "一段 verb", kuru: "来る verb", suru: "する verb", adjective: "形容詞 adjective", other: "" };
   var REGION_NAME = { kyoto: "Kyoto", osaka: "Osaka", kinki: "Kinki", hyogo: "Hyōgo", kagawa: "Kagawa", kochi: "Kōchi", tokushima: "Tokushima" };
-  var BASIS = { attested: "attested", rule: "Kyoto rule", guess: "best guess" };
+  var BASIS = { attested: "attested", model: "model prediction", rule: "Kyoto rule", guess: "best guess" };
+  // a model prediction's confidence: how often held-out words it scored like this were exactly right
+  function confChip(c) {
+    var band = c >= 0.85 ? "hi" : c >= 0.6 ? "mid" : "lo";
+    var pc = Math.round(c * 100);
+    return '<span class="kp-chip kp-conf ' + band + '" title="Words the model scored like this were exactly right ' + pc + '% of the time in testing">' +
+      '<span class="kp-meter" aria-hidden="true"><i style="width:' + pc + '%"></i></span>' + pc + "% likely right</span>";
+  }
 
   // wide (js/layout.js, css/wide-tools.css): the same markup, drawn denser, with the conjugation
   // toggles in the page bar and shortcuts on the ? sheet
@@ -69,7 +76,8 @@
     if (KIND[w.kind]) chips.push('<span class="kp-chip">' + KIND[w.kind] + "</span>");
     if (w.register) chips.push('<span class="kp-chip">' + (w.register === "H" ? "high register 高起" : "low register 低起") + "</span>");
     if (p) {
-      chips.push('<span class="kp-chip ' + p.basis + '">' + BASIS[p.basis] + "</span>");
+      chips.push('<span class="kp-chip ' + p.basis + '">' + (BASIS[p.basis] || esc(p.basis)) + "</span>");
+      if (p.basis === "model" && typeof p.confidence === "number") chips.push(confChip(p.confidence));
       if (p.source_name) chips.push('<span class="kp-chip' + (p.fallback ? " fallback" : "") + '">' + esc(p.source_name) + "</span>");
       chips.push('<span class="kp-chip" title="The MvJ note type\'s Keihan notation">MvJ ' + esc(p.mvj) + "</span>");
     }

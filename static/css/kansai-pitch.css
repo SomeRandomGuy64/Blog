@@ -48,7 +48,13 @@
 .kp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .kp-chip { font-size: 0.75rem; letter-spacing: .02em; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--fz-line); color: var(--fz-muted); }
 .kp-chip.attested { color: var(--fz-accent); border-color: var(--fz-accent); }
-.kp-chip.guess, .kp-chip.fallback { border-style: dashed; }
+.kp-chip.guess, .kp-chip.model, .kp-chip.fallback { border-style: dashed; }
+/* model confidence: a small meter, coloured by band */
+.kp-conf { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.kp-meter { display: inline-block; width: 34px; height: 5px; border-radius: 3px; background: var(--fz-line); overflow: hidden; }
+.kp-meter i { display: block; height: 100%; background: currentColor; }
+.kp-conf.hi { color: var(--fz-accent); border-color: var(--fz-accent); }
+.kp-conf.lo { border-style: dashed; }
 .kp-note { font-size: 0.85rem; color: var(--fz-muted); line-height: 1.5; margin: 0; }
 .kp-none { color: var(--fz-muted); }
 
