@@ -1,4 +1,4 @@
-/* Wide: Generation (nendai), Token Coverage, Tools, Admin, Higuchi, Developer API, notifications,
+/* Wide: Generation (nendai), Token Coverage, Kansai Pitch Accent, Tools, Admin, Higuchi, Developer API, notifications,
    account pages. Tokens and components are in wide.css. Very wide windows (2300px up, the same
    line Track uses) add a pane of different content; nothing here stretches to fill. */
 
@@ -156,6 +156,127 @@
     .layout-wide #tcResults > .tc-unk-card {
         grid-column: 2; grid-row: 2 / span 2; align-self: start; position: sticky; top: 0;
         max-height: calc(var(--w-fill) - 24px); overflow: auto; scrollbar-width: thin; scrollbar-color: var(--fz-line) transparent;
+    }
+}
+
+/* ---- Kansai Pitch Accent: search and the notes on the left | the word, then its conjugations.
+   21:9 gives the conjugations a pane of their own. The toggles sit in the page bar. ---- */
+.layout-wide .kp {
+    grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-auto-flow: row;
+    margin: 0; font-size: var(--w-fs-body);
+}
+.layout-wide .kp-side { grid-area: 1 / 1; overflow: visible; padding-bottom: 16px; }   /* visible: the suggestions hang over the notes */
+.layout-wide .kp-info { grid-area: 2 / 1; border-left: 0; padding-top: 0; }
+.layout-wide .kp-content { grid-area: 1 / 2 / 3 / 3; }
+.layout-wide .kp-wordcol, .layout-wide .kp-formcol { max-width: 1000px; }
+
+/* the search */
+.layout-wide .kp-bar { display: grid; gap: 8px; }
+.layout-wide .kp-search { display: grid; gap: 4px; }
+.layout-wide .kp-qlabel, .layout-wide .kp-region { font-size: var(--w-fs-sm); font-weight: 400; color: var(--fz-muted); }
+.layout-wide .kp-search input.w-input { width: 100%; font-size: var(--w-fs-body); }
+.layout-wide .kp-search input:focus, .layout-wide .kp-region select:focus { outline: 0; }
+.layout-wide .kp-search input:focus-visible, .layout-wide .kp-region select:focus-visible { outline: 2px solid var(--fz-accent); outline-offset: 1px; }
+.layout-wide .kp-region { flex: none; gap: 4px; }
+.layout-wide .kp-region select.w-input { width: 100%; padding: 0 4px; }
+.layout-wide .kp-sugg { top: calc(100% + 2px); right: auto; width: 440px; max-height: 420px; border-radius: var(--w-r); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3); }
+.layout-wide .kp-sugg button { align-items: center; gap: 8px; min-height: var(--w-row); padding: 2px 8px; font-size: var(--w-fs); }
+.layout-wide .kp-sugg button.on { background: var(--w-sel); box-shadow: inset 2px 0 0 var(--fz-accent); }
+.layout-wide .kp-sugg button:hover:not(.on) { background: var(--w-hover); }
+.layout-wide .kp-sugg .w { flex: none; font-size: var(--w-fs-body); white-space: nowrap; }
+.layout-wide .kp-sugg .r { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--w-fs-sm); }
+.layout-wide .kp-sugg .k { flex: none; font-size: var(--w-fs-xs); }
+/* examples: links, not pills */
+.layout-wide .kp-examples { gap: 4px 12px; margin: 12px 0 0; font-size: var(--w-fs-sm); }
+.layout-wide .kp-examples > span { flex-basis: 100%; }
+.layout-wide .kp-examples button {
+    padding: 0; border: 0; border-radius: 0; font-size: var(--w-fs-body); font-weight: 400; line-height: 1.5; color: var(--fz-accent); background: none;
+}
+.layout-wide .kp-examples button:hover { text-decoration: underline; }
+
+/* the notes: headings on hairlines */
+.layout-wide .kp-panel { margin: 0 0 8px; padding: 0; border: 0; border-radius: 0; }
+.layout-wide .kp-panel summary { min-height: var(--w-ctl); line-height: var(--w-ctl); border-bottom: 1px solid var(--fz-line); font-size: var(--w-fs); font-weight: 700; }
+.layout-wide .kp-panel :is(p, ul) { margin: 8px 0; font-size: var(--w-fs); line-height: 1.5; }
+.layout-wide .kp-panel ul { padding-left: 16px; }
+.layout-wide .kp-panel li { margin-bottom: 4px; }
+.layout-wide .kp-panel pre {
+    margin: 8px 0; padding: 6px 8px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--w-fs-sm); line-height: 1.5;
+    border-radius: var(--w-r); background: var(--fz-surface); border: 1px solid var(--fz-line);
+}
+.layout-wide .kp-dl, .layout-wide .kp-dl:visited { display: flex; width: max-content; margin: 0 0 8px; font-weight: 700; text-decoration: none; }
+.layout-wide .kp-credit { margin: 12px 0 0; font-size: var(--w-fs-sm); line-height: 1.5; }
+
+/* the word */
+.layout-wide .kp-status { min-height: 0; margin: 0 0 8px; font-size: var(--w-fs-sm); }
+.layout-wide .kp-status:empty { display: none; }
+.layout-wide .kp-word { gap: 8px; margin: 0; padding: 0 0 12px; border: 0; border-radius: 0; }
+.layout-wide .kp-head { gap: 4px 12px; }
+.layout-wide .kp-lemma { font-size: var(--w-fs-title); line-height: 1.3; }
+.layout-wide .kp-reading { font-size: var(--w-fs-body); }
+.layout-wide .kp-hl { font-size: var(--w-fs-sm); }
+.layout-wide .kp-chips { gap: 0; font-size: var(--w-fs-sm); }
+.layout-wide .kp-chip { padding: 0; border: 0; border-radius: 0; font-size: var(--w-fs-sm); letter-spacing: 0; }
+.layout-wide .kp-chip + .kp-chip::before { content: "·"; margin: 0 8px; color: var(--fz-muted); }
+.layout-wide .kp-note { max-width: var(--w-measure); font-size: var(--w-fs); }
+.layout-wide .kp-vars { font-size: var(--w-fs); }
+.layout-wide .kp-vars summary { min-height: var(--w-ctl); line-height: var(--w-ctl); color: var(--text-color); font-weight: 700; }
+.layout-wide .kp-vars .w-table { margin: 0; }
+.layout-wide .kp-vars .w-table th { padding: 0 8px; border-top: 0; vertical-align: middle; }
+.layout-wide .kp-vars .w-table td { padding: 2px 8px; border-top: 0; vertical-align: middle; }
+.layout-wide .kp-vars .w-table td:first-child, .layout-wide .kp-vars .w-table th:first-child { width: 120px; }
+.layout-wide .kp-vars .w-table td:last-child { font-size: var(--w-fs-sm); color: var(--fz-muted); }
+.layout-wide .kp-vars tr.cur { background: var(--w-sel); }
+.layout-wide .kp-vars tr.cur td { color: var(--text-color); }
+.layout-wide .kp-vars tr.cur td:first-child { box-shadow: inset 2px 0 0 var(--fz-accent); font-weight: 700; }
+
+/* several words for one search: rows, the picked one marked like a selected row */
+.layout-wide .kp-many { border-top: 1px solid var(--fz-line); }
+.layout-wide .kp-many .kp-word {
+    grid-template-columns: 140px minmax(0, 160px) minmax(0, 1fr); align-items: center; gap: 4px 16px;
+    padding: 4px 8px; border-bottom: 1px solid var(--fz-line);
+}
+.layout-wide .kp-many .kp-word.pick:hover { border-color: var(--fz-line); background: var(--w-hover); }
+.layout-wide .kp-many .kp-word.on, .layout-wide .kp-many .kp-word.on:hover { border-color: var(--fz-line); background: var(--w-sel); box-shadow: inset 2px 0 0 var(--fz-accent); }
+.layout-wide .kp-many .kp-head { flex-direction: column; gap: 0; }
+.layout-wide .kp-many .kp-lemma { font-size: var(--w-fs-h); }
+.layout-wide .kp-many .kp-reading { font-size: var(--w-fs-sm); }
+.layout-wide .kp-many :is(.kp-note, .kp-vars) { grid-column: 1 / -1; }
+.layout-wide .kp-many .kp-word:not(.on) :is(.kp-note, .kp-vars) { display: none; }   /* the picked word's details only */
+.layout-wide .kp-many .kp-vars .w-table th { position: static; background: transparent; }
+
+/* the conjugations: dense hairline rows */
+.layout-wide .kp-controls { gap: 16px; margin: 0; font-size: var(--w-fs); color: var(--text-color); white-space: nowrap; }
+.layout-wide .kp-controls[hidden] { display: none; }
+.layout-wide .kp-controls input { accent-color: var(--fz-accent); }
+.layout-wide .kp-formsh { margin: 16px 0 0; font-size: var(--w-fs-h); line-height: 1.4; }
+.layout-wide .kp-group h2 {
+    min-height: var(--w-ctl); margin: 8px 0 0; line-height: var(--w-ctl); border-bottom: 1px solid var(--fz-line);
+    font-size: var(--w-fs); font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--text-color);
+}
+.layout-wide .kp-rows { border: 0; border-radius: 0; overflow: visible; }
+.layout-wide .kp-row {
+    box-sizing: border-box; grid-template-columns: minmax(0, 12rem) minmax(0, 1fr); align-items: center; gap: 0 16px;
+    min-height: var(--w-row); padding: 4px 8px; border-top: 0; border-bottom: 1px solid var(--fz-line);
+}
+.layout-wide .kp-row:hover { background: var(--w-hover); }
+.layout-wide .kp-row .name { font-size: var(--w-fs); }
+.layout-wide .kp-row .forms { display: flex; flex-wrap: wrap; gap: 4px 32px; }
+.layout-wide .kp-variant { gap: 4px 12px; }
+.layout-wide .kp-rom { font-size: var(--w-fs-sm); }
+@media (min-width: 2300px) {
+    /* the conjugations get their own pane, so the word and every form are on screen at once */
+    .layout-wide .kp { grid-template-columns: 320px minmax(0, 1fr); }
+    .layout-wide .kp-content { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); grid-template-rows: minmax(0, 1fr); padding: 0; overflow: hidden; }
+    .layout-wide .kp-wordcol, .layout-wide .kp-formcol {
+        box-sizing: border-box; min-height: 0; max-width: none; overflow: auto; padding: 12px var(--w-gutter);
+        scrollbar-width: thin; scrollbar-color: var(--fz-line) transparent;
+    }
+    .layout-wide .kp-formcol { border-left: 1px solid var(--fz-line); }
+    .layout-wide .kp-formsh { margin-top: 0; }
+    .layout-wide #kpForms:empty::before {
+        content: "Verbs and adjectives get every Kyoto conjugation here."; display: block; padding: 24px 0; text-align: center;
+        font-size: var(--w-fs); color: var(--fz-muted);
     }
 }
 
