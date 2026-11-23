@@ -1,18 +1,18 @@
 +++
 title = "Developer API"
-description = "Script your own Track data with a personal API key: read your weeks, log hours, write summaries and set goals."
+description = "Script your own Track data with a personal API key (read your weeks, log hours, write summaries, set goals), and look up Kansai pitch accent with the public pitch API."
 # Rendered by layouts/developers/section.html. Not in the main menu (linked from the Developers
-# section of your own profile and the footer). Keep in step with internal/api/trackapi.go in the Fazon-Backend repo.
+# section of your own profile and the footer). Keep in step with internal/api/trackapi.go and pitch.go in the Fazon-Backend repo.
 outputs = ["html"]
 +++
 
 The Track API lets your own scripts read and update **your own** Track data: hours per category and
 sub-category, weekly summaries, goals and your list of sub-categories. Ratings and Kotu / Kyōtsu
 scores can be read too. Sync hours from Anki or a media player, back up your log, or build your own
-charts.
+charts. The [Kansai pitch API](#kansai-pitch-api) further down is public and needs no key.
 
 A key only ever reaches the data of the account that created it, and only the Track endpoints
-below. It can't read or post comments, see notifications, change your profile or manage keys.
+below (on the public pitch endpoints it only raises the rate limit). It can't read or post comments, see notifications, change your profile or manage keys.
 
 ## Quick start
 
@@ -388,3 +388,106 @@ for w in call("GET", "/weeks")["weeks"]:
 | `413` | request body over 64 KB |
 | `429` | rate limit; wait for `Retry-After` seconds |
 | `500` | something broke on our side; try again later |
+
+## Kansai pitch API
+
+The [Kansai Pitch Accent](/tools/kansai-pitch/) tool runs on a public API: the Kansai (Keihan)
+pitch accent of any word, Kyoto conjugation tables for verbs and adjectives, and a best guess for
+nouns no dictionary has. No key is needed, and any website may call it from the browser (CORS `*`,
+no cookies).
+
+- **Base URL:** `https://api.fazon.nexus`. These paths start with `/pitch/`, not `/v1/api/`.
+- **API key (optional).** Send any of your keys (read only is enough) as `Authorization: Bearer fz_...`
+  for a bigger rate limit. A wrong or revoked key gets `401`; it isn't silently ignored.
+- **Rate limits:** **600 requests per 10 minutes** per IP address without a key, **3000** per key.
+  A batch request counts once. Over the limit you get `429` with `Retry-After`.
+- **Regions:** `kyoto` (default), `osaka`, `kinki` (Omizan Sakamoto's general Keihan dictionary),
+  `hyogo`, `kagawa`, `kochi`, `tokushima`. If the region you ask for doesn't have the word, the
+  nearest Keihan region that does is used (Kyoto, Osaka, Kinki, Hyōgo, in that order) and the
+  answer says so with `"fallback": true`. The Shikoku glossaries are never used as a fallback.
+  Conjugations are always Kyoto.
+
+### `GET /pitch/word`
+
+| Parameter | |
+|---|---|
+| `w` | the word: kanji, kana or both, up to 40 characters (required) |
+| `r` | its reading in kana (optional). Without it you get one result per reading the data knows; a kana `w` with no `r` returns every word written that way (かく → 書く, 掻く, 核, …) |
+| `region` | see above; default `kyoto` |
+| `forms` | `1` adds the Kyoto conjugation table for verbs and adjectives |
+| `guess` | `0` leaves out guessed noun pitch (`pitch` is `null` instead) |
+| `attested_only` | `1` leaves out everything that isn't attested in a dictionary: rule-based verb/adjective pitch and guesses |
+
+```sh
+curl -s "https://api.fazon.nexus/pitch/word?w=書く&r=かく"
+```
+
+```json
+{
+  "region": "kyoto",
+  "results": [{
+    "word": "書く", "reading": "かく", "romaji": "kaku", "morae": 2,
+    "kind": "godan", "register": "L", "tokyo_kernel": 1,
+    "pitch": {
+      "levels": "LH", "final_drop": false, "pattern": "LH", "mvj": "L:lh",
+      "basis": "attested", "source": "京都動詞", "source_name": "Kyoto verb & adjective survey",
+      "region": "kyoto", "reading": "カク"
+    },
+    "variants": [
+      {"region": "kyoto", "source": "京都動詞", "source_name": "Kyoto verb & adjective survey",
+       "levels": "LH", "final_drop": false, "pattern": "LH", "reading": "カク"},
+      {"region": "osaka", "source": "初期落語SP", "source_name": "early Osaka rakugo records",
+       "levels": "LH", "final_drop": false, "pattern": "LH", "reading": "カク"}
+    ]
+  }]
+}
+```
+
+- `kind` is `godan`, `ichidan`, `kuru`, `suru`, `adjective` or `other` (nouns and everything else).
+  `register` is the verb's Kyoto register, `H` (high) or `L` (low).
+- `tokyo_kernel` is the Tokyo accent ([Kanjium](https://github.com/mifunetoshiro/kanjium), CC BY-SA 4.0),
+  when known. `0` means heiban (no drop).
+- `pitch` is the best answer, or `null` when there is nothing to go on:
+  - `levels` gives one `H`/`L` per mora of `pitch.reading`, in the source's own spelling (long vowels as `ー`).
+  - `final_drop` means the pitch falls after the last mora, so a following particle is low. `pattern`
+    is `levels` plus `↓` in that case.
+  - `mvj` is the MvJ note type's Keihan notation (`ROLE:levels`).
+  - `basis` is one of:
+    - `attested`: from a dictionary;
+    - `rule`: the Kyoto verb/adjective rule, about 92% exact for verbs and 85% for adjectives;
+    - `guess`: a noun guessed from its Tokyo accent and words sharing its kanji, about 74% exact.
+  - `note` explains rules, guesses and fallbacks in a sentence.
+- `variants` lists every attested pitch, region by region, best source first.
+- `forms` (with `forms=1`) is a list of sections such as *未然形 stem*. Each has `forms`: `{name,
+  archaic, variants: [{units: [{kana, levels}], romaji}]}`. A form can be several words
+  (`["カカ", "ヘンダ"]`), each with its own pitch, and `levels` is `""` where the pitch is unknown.
+
+An unknown word answers `200` with `"results": []`.
+
+### `POST /pitch/words`
+
+Up to 200 words in one request (`Content-Type: application/json` is required here). Each word is a
+string or `{"word", "reading"}`. `region`, `forms`, `guess` (`false` to drop guesses) and
+`attested_only` work as above. `results` has one list per input word, in the same order. A word that's empty or over 40 characters
+gets an empty list rather than failing the whole request.
+
+```sh
+curl -s https://api.fazon.nexus/pitch/words -H "Content-Type: application/json" \
+  -d '{"words": ["参加", {"word": "雨", "reading": "あめ"}], "region": "osaka"}'
+```
+
+### `GET /pitch/search`
+
+`?q=` takes the start of a spelling, a kana reading or romaji (`taberu`, `toukyou` and `tōkyō` all
+work); `limit` takes 1–50 and defaults to 10. It returns `{"results": [{word, reading, romaji,
+kind, attested}]}`, with exact matches, surveyed verbs/adjectives and attested words first.
+
+### `GET /pitch/regions`
+
+The regions with their sources (`{"default", "regions": [{id, name, sources, note}], "sources"}`).
+
+### Anki add-on
+
+The [keihan_pitch add-on](/downloads/keihan_pitch.ankiaddon) uses this API to put Kansai pitch on
+MvJ note-type cards. It either swaps out the Tokyo pitch that the MvJ add-on wrote, or adds pitch
+where there is none. Set your region, whether to use guesses, and an optional key in its settings.
