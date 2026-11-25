@@ -2,7 +2,7 @@
 // GET /pitch/word?forms=1. All data and logic are in fazond (Fazon-Backend internal/pitch).
 (function () {
   "use strict";
-  var BASE = (window.Fazon && window.Fazon.base) || "https://api.fazon.nexus";
+  var BASE = (window.Fazon && window.Fazon.base) || (window.fazonHost ? window.fazonHost("https://api.fazon.nexus") : "https://api.fazon.nexus");
   var $ = function (id) { return document.getElementById(id); };
   var q = $("kpQ"), sugg = $("kpSugg"), regionSel = $("kpRegion"), status = $("kpStatus"), results = $("kpResults"),
     formsOut = $("kpForms"), controls = $("kpControls");

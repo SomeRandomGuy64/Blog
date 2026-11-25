@@ -8,7 +8,7 @@
 const root=document.getElementById('cinema-app');if(!root)return;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function apiURL(){let u=root.dataset.api||'';
+function apiURL(){let u=root.dataset.api||'';if(window.fazonHost)u=window.fazonHost(u);
   try{const o=new URLSearchParams(location.search).get('api');
     if(o){const x=new URL(o,location.href);
       if(x.protocol==='http:'&&(x.hostname==='localhost'||x.hostname==='127.0.0.1'))u=x.href;
