@@ -11,6 +11,7 @@
   function resolveBase() {
     var meta = document.querySelector('meta[name="fazon-api"]');
     var base = (meta && meta.content) || "https://api.fazon.nexus";
+    if (window.fazonHost) base = window.fazonHost(base); // mirror domain (head.html)
     var h = location.hostname;
     if (h === "localhost" || h === "127.0.0.1") {
       base = "http://" + h + ":8091"; // same host as the page, so the session cookie is same-site

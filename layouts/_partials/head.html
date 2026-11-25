@@ -1,5 +1,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{{/* Mirror hosts (site.Params.mirrors): the same site served under another domain while fazon.nexus is
+     unavailable. On a mirror, fazonHost() rewrites *.fazon.nexus API URLs onto the mirror's own domain
+     (api.fazon.nexus -> api.<mirror>), so the session cookie stays same-site. Elsewhere it returns the URL unchanged. */}}
+<script>window.fazonHost=function(u){var m={{ site.Params.mirrors | default slice | jsonify | safeJS }},h=location.hostname;if(!u||m.indexOf(h)<0)return u;return u.replace(/^(https:\/\/(?:[a-z0-9-]+\.)?)fazon\.nexus(?=[\/:]|$)/,"$1"+h)};</script>
 <meta http-equiv="X-UA-Compatible" content="ie=edge">
 {{/* tag and category pages can share a name ("AI"), so their titles say which they are */}}
 <title>{{ if .IsHome }}{{ site.Title }}{{ else if eq .Kind "term" }}{{ .Title }} · {{ .Data.Singular | humanize }} · {{ site.Title }}{{ else }}{{ .Title }} · {{ site.Title }}{{ end }}</title>
