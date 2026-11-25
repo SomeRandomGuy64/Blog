@@ -6,6 +6,13 @@ description = "Script your own Track data with a personal API key (read your wee
 outputs = ["html"]
 +++
 
+> **Temporary domain.** The fazon.nexus domain has expired, so the API is at
+> `https://api.fazonnexus.duckdns.org` for now, and the site is at
+> [fazonnexus.duckdns.org](https://fazonnexus.duckdns.org/). Everything else is unchanged: the
+> paths, your API keys and your data are the same. Scripts that still use `https://api.fazon.nexus`
+> need the new base URL. In the Kansai pitch Anki add-on, set **API base URL** in its settings to
+> `https://api.fazonnexus.duckdns.org`.
+
 The Track API lets your own scripts read and update **your own** Track data: hours per category and
 sub-category, weekly summaries, goals and your list of sub-categories. Ratings and Kotu / Kyōtsu
 scores can be read too. Sync hours from Anki or a media player, back up your log, or build your own
@@ -23,7 +30,7 @@ below (on the public pitch endpoints it only raises the rate limit). It can't re
 
 ```sh
 export FAZON_API_KEY="fz_..."   # your key
-curl -s -H "Authorization: Bearer $FAZON_API_KEY" https://api.fazon.nexus/v1/api/track/weeks
+curl -s -H "Authorization: Bearer $FAZON_API_KEY" https://api.fazonnexus.duckdns.org/v1/api/track/weeks
 ```
 
 ## API keys
@@ -55,7 +62,7 @@ gets `401` with a `WWW-Authenticate: Bearer` header.
 
 ## Basics
 
-- **Base URL:** `https://api.fazon.nexus`. Every path below starts with `/v1/api/track`.
+- **Base URL:** `https://api.fazonnexus.duckdns.org`. Every path below starts with `/v1/api/track`.
 - **JSON** in and out. Send request bodies as JSON (`Content-Type: application/json` is good
   practice; it isn't required). Bodies are limited to 64 KB.
 - **Times** are RFC 3339 in UTC, e.g. `2026-10-11T03:00:00Z`.
@@ -196,7 +203,7 @@ At most 260 weeks (5 years) per request; `from` after `to` is a `400`.
 
 ```sh
 curl -s -H "Authorization: Bearer $FAZON_API_KEY" \
-  "https://api.fazon.nexus/v1/api/track/weeks?from=2026-01-03&to=2026-10-10"
+  "https://api.fazonnexus.duckdns.org/v1/api/track/weeks?from=2026-01-03&to=2026-10-10"
 ```
 
 ```json
@@ -209,7 +216,7 @@ One week (any past or current week, logged or not), as a week object.
 
 ```sh
 curl -s -H "Authorization: Bearer $FAZON_API_KEY" \
-  "https://api.fazon.nexus/v1/api/track/weeks/2026-10-10?days=1"
+  "https://api.fazonnexus.duckdns.org/v1/api/track/weeks/2026-10-10?days=1"
 ```
 
 ### `GET /v1/api/track/subcats`
@@ -233,7 +240,7 @@ A taken name or a full category is a `409`.
 
 ```sh
 curl -s -X POST -H "Authorization: Bearer $FAZON_API_KEY" -H "Content-Type: application/json" \
-  -d '{"category":"active","name":"Anime"}' https://api.fazon.nexus/v1/api/track/subcats
+  -d '{"category":"active","name":"Anime"}' https://api.fazonnexus.duckdns.org/v1/api/track/subcats
 ```
 
 ```json
@@ -288,7 +295,7 @@ Answers the updated week object.
 ```sh
 curl -s -X PATCH -H "Authorization: Bearer $FAZON_API_KEY" -H "Content-Type: application/json" \
   -d '{"entries":[{"category":"anki","add":"0:45"},{"category":"active","subcat":"Anime","add":"1:30"}]}' \
-  https://api.fazon.nexus/v1/api/track/weeks/2026-10-10/hours
+  https://api.fazonnexus.duckdns.org/v1/api/track/weeks/2026-10-10/hours
 ```
 
 ### `PUT /v1/api/track/weeks/{week}/summary`
@@ -316,7 +323,7 @@ published, as on the site. Answers the updated week object.
 ```sh
 curl -s -X PUT -H "Authorization: Bearer $FAZON_API_KEY" -H "Content-Type: application/json" \
   -d '{"summary":"Lots of anime this week.","private":true}' \
-  https://api.fazon.nexus/v1/api/track/weeks/2026-10-10/summary
+  https://api.fazonnexus.duckdns.org/v1/api/track/weeks/2026-10-10/summary
 ```
 
 ### `POST /v1/api/track/weeks/{week}/goals`
@@ -332,7 +339,7 @@ curl -s -X PUT -H "Authorization: Bearer $FAZON_API_KEY" -H "Content-Type: appli
 ```sh
 curl -s -X POST -H "Authorization: Bearer $FAZON_API_KEY" -H "Content-Type: application/json" \
   -d '{"goals":{"active":35,"anki":3.5}}' \
-  https://api.fazon.nexus/v1/api/track/weeks/2026-10-10/goals
+  https://api.fazonnexus.duckdns.org/v1/api/track/weeks/2026-10-10/goals
 ```
 
 Answers the week object. Goals are private while the week runs; once it's published, the goal
@@ -347,7 +354,7 @@ the last 12 weeks:
 import json, os, urllib.error, urllib.request
 from datetime import datetime, timedelta, timezone
 
-API = "https://api.fazon.nexus/v1/api/track"
+API = "https://api.fazonnexus.duckdns.org/v1/api/track"
 KEY = os.environ["FAZON_API_KEY"]
 
 def call(method, path, body=None):
@@ -396,7 +403,7 @@ pitch accent of any word, Kyoto conjugation tables for verbs and adjectives, and
 prediction for words no dictionary has. No key is needed, and any website may call it from the browser (CORS `*`,
 no cookies).
 
-- **Base URL:** `https://api.fazon.nexus`. These paths start with `/pitch/`, not `/v1/api/`.
+- **Base URL:** `https://api.fazonnexus.duckdns.org`. These paths start with `/pitch/`, not `/v1/api/`.
 - **API key (optional).** Send any of your keys (read only is enough) as `Authorization: Bearer fz_...`
   for a bigger rate limit. A wrong or revoked key gets `401`; it isn't silently ignored.
 - **Rate limits:** **600 requests per 10 minutes** per IP address without a key, **3000** per key.
@@ -419,7 +426,7 @@ no cookies).
 | `attested_only` | `1` leaves out everything that isn't attested in a dictionary: model predictions, rule-based verb/adjective pitch and guesses |
 
 ```sh
-curl -s "https://api.fazon.nexus/pitch/word?w=書く&r=かく"
+curl -s "https://api.fazonnexus.duckdns.org/pitch/word?w=書く&r=かく"
 ```
 
 ```json
@@ -480,7 +487,7 @@ string or `{"word", "reading"}`. `region`, `forms`, `guess` (`false` to drop pre
 gets an empty list rather than failing the whole request.
 
 ```sh
-curl -s https://api.fazon.nexus/pitch/words -H "Content-Type: application/json" \
+curl -s https://api.fazonnexus.duckdns.org/pitch/words -H "Content-Type: application/json" \
   -d '{"words": ["参加", {"word": "雨", "reading": "あめ"}], "region": "osaka"}'
 ```
 
