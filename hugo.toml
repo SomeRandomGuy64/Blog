@@ -11,7 +11,7 @@ enableRobotsTXT = true
   api = "https://api.fazon.nexus"
   # Mirror domains serving this same site while fazon.nexus is unavailable (expired 2026-11-20). On a mirror,
   # every *.fazon.nexus API URL is rewritten onto the mirror's domain (layouts/_partials/head.html fazonHost).
-  mirrors = ["fazon-nexus.duckdns.org"]
+  mirrors = ["fazonnexus.duckdns.org"]
   # Shown on /privacy/ ("contact the site owner at …"); left empty, the page just says
   # "contact the site owner" (layouts/_shortcodes/contact.html).
   contactEmail = ""
